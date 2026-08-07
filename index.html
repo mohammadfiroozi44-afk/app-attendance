@@ -179,6 +179,9 @@
 
   .edit-row{background:#fdf6ea; border:1px solid #eddca8;}
   .edit-row input, .edit-row select{margin-bottom:6px; padding:6px 8px; font-size:12.5px;}
+
+  .date-row{display:flex; gap:6px; margin-bottom:14px;}
+  .date-row select{margin-bottom:0; padding:9px 4px; font-size:13px;}
 </style>
 </head>
 <body>
@@ -319,7 +322,7 @@ function doGet(e){
     if(String(e.parameter.pin) !== getAdminPin()){
       return jsonOut({ok:false, error:'invalid pin'});
     }
-    var lsh = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var lsh = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
     var rows = ensureIds(lsh, readRows(lsh)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows});
   }
@@ -336,7 +339,7 @@ function doPost(e){
 
   // ---------------- login (device-locked) ----------------
   if(action === 'login'){
-    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
     var erows = readRows(esh);
     var match = erows.filter(function(r){
       return String(r.username).toLowerCase() === String(body.username).toLowerCase() &&
@@ -356,6 +359,7 @@ function doPost(e){
       ok:true,
       fullName: match.fullName,
       username: match.username,
+      employeeCode: match.employeeCode || '',
       allowedProjects: match.allowedProjects || ''  // '' or 'ALL' = unrestricted; else comma-separated project ids
     });
   }
@@ -366,8 +370,8 @@ function doPost(e){
 
   // ---------------- attendance logging (server time is authoritative) ----------------
   if(action === 'addLog'){
-    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
-    var emp = readRows(esh2).filter(function(r){ return r.username === body.username; })[0];
+    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
+    var emp = readRows(esh2).filter(function(r){ return r.username === body.entry.username; })[0];
     if(!emp) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp.deviceId && String(emp.deviceId) !== String(body.deviceId||'')){
       return jsonOut({ok:false, error:'device_mismatch'});
@@ -387,15 +391,15 @@ function doPost(e){
       if(drift > 10*60*1000){ note = '⚠ اختلاف ساعت گوشی با سرور بیش از ۱۰ دقیقه بود'; }
     }
 
-    var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
     var id = Utilities.getUuid();
     lsh2.appendRow([id, t.jalaliDate, t.time, d.employee, d.username, d.project,
-      d.type === 'in' ? 'ورود' : 'خروج', d.lat, d.lng, d.accuracy, t.isoTimestamp, note]);
+      d.type === 'in' ? 'ورود' : 'خروج', d.lat, d.lng, d.accuracy, t.isoTimestamp, note, emp.employeeCode || '']);
     return jsonOut({ok:true, jalaliDate:t.jalaliDate, time:t.time});
   }
 
   if(action === 'getMyLogs'){
-    var lsh3 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var lsh3 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
     var rows3 = ensureIds(lsh3, readRows(lsh3)).filter(function(r){ return r.username === body.username; })
       .map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows3});
@@ -403,7 +407,7 @@ function doPost(e){
 
   // ---------------- manual entry requests ----------------
   if(action === 'createRequest'){
-    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
     var emp2 = readRows(esh3).filter(function(r){ return r.username === body.username; })[0];
     if(!emp2) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp2.deviceId && String(emp2.deviceId) !== String(body.deviceId||'')){
@@ -425,6 +429,28 @@ function doPost(e){
     return jsonOut({ok:true, requests: rows4});
   }
 
+  // ---------------- leave requests ----------------
+  if(action === 'createLeaveRequest'){
+    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
+    var empL = readRows(eshL).filter(function(r){ return r.username === body.username; })[0];
+    if(!empL) return jsonOut({ok:false, error:'unknown_employee'});
+    if(empL.deviceId && String(empL.deviceId) !== String(body.deviceId||'')){
+      return jsonOut({ok:false, error:'device_mismatch'});
+    }
+    var lrsh = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime']);
+    var tL = serverNow();
+    var lrid = Utilities.getUuid();
+    lrsh.appendRow([lrid, body.username, empL.fullName, body.startDate, body.endDate, body.reason||'', 'pending', tL.jalaliDate, tL.time]);
+    return jsonOut({ok:true});
+  }
+  if(action === 'getMyLeaveRequests'){
+    var lrsh2 = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime']);
+    var lrows = readRows(lrsh2).filter(function(r){ return r.username === body.username; })
+      .map(function(r){ delete r._row; return r; })
+      .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
+    return jsonOut({ok:true, leaves: lrows});
+  }
+
   // ==================== everything below requires the admin PIN ====================
   if(String(body.pin) !== getAdminPin()){
     return jsonOut({ok:false, error:'invalid pin'});
@@ -432,34 +458,35 @@ function doPost(e){
 
   // ---------------- employees ----------------
   if(action === 'getEmployees'){
-    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
     var rows5 = readRows(esh4).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, employees: rows5});
   }
   if(action === 'addEmployee'){
-    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
     var id2 = Utilities.getUuid();
-    esh5.appendRow([id2, body.fullName, body.username, body.password, '', body.allowedProjects || '']);
+    esh5.appendRow([id2, body.fullName, body.username, body.password, '', body.allowedProjects || '', body.employeeCode || '']);
     return jsonOut({ok:true, id:id2});
   }
   if(action === 'updateEmployee'){
-    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
     var row = readRows(esh6).filter(function(r){ return r.id === body.id; })[0];
     if(!row) return jsonOut({ok:false, error:'not found'});
     esh6.getRange(row._row, colIndex(esh6,'fullName')).setValue(body.fullName);
     esh6.getRange(row._row, colIndex(esh6,'username')).setValue(body.username);
     esh6.getRange(row._row, colIndex(esh6,'password')).setValue(body.password);
     esh6.getRange(row._row, colIndex(esh6,'allowedProjects')).setValue(body.allowedProjects || '');
+    esh6.getRange(row._row, colIndex(esh6,'employeeCode')).setValue(body.employeeCode || '');
     return jsonOut({ok:true});
   }
   if(action === 'deleteEmployee'){
-    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
     var row2 = readRows(esh7).filter(function(r){ return r.id === body.id; })[0];
     if(row2) esh7.deleteRow(row2._row);
     return jsonOut({ok:true});
   }
   if(action === 'resetDevice'){
-    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode']);
     var row3 = readRows(esh8).filter(function(r){ return r.id === body.id; })[0];
     if(!row3) return jsonOut({ok:false, error:'not found'});
     esh8.getRange(row3._row, colIndex(esh8,'deviceId')).setValue('');
@@ -493,12 +520,12 @@ function doPost(e){
 
   // ---------------- logs (admin edit/delete) ----------------
   if(action === 'getLogs'){
-    var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
     var rows6 = ensureIds(lsh4, readRows(lsh4)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6});
   }
   if(action === 'updateLog'){
-    var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
     var rows7 = ensureIds(lsh5, readRows(lsh5));
     var row6 = rows7.filter(function(r){ return r.id === body.id; })[0];
     if(!row6) return jsonOut({ok:false, error:'not found'});
@@ -511,7 +538,7 @@ function doPost(e){
     return jsonOut({ok:true});
   }
   if(action === 'deleteLog'){
-    var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
     var row7 = ensureIds(lsh6, readRows(lsh6)).filter(function(r){ return r.id === body.id; })[0];
     if(row7) lsh6.deleteRow(row7._row);
     return jsonOut({ok:true});
@@ -534,12 +561,26 @@ function doPost(e){
 
     if(action === 'approveRequest'){
       var t3 = serverNow();
-      var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+      var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
       var lid = Utilities.getUuid();
       lsh7.appendRow([lid, t3.jalaliDate, t3.time, rrow.employee, rrow.username, rrow.project,
         rrow.type === 'in' ? 'ورود' : 'خروج', '', '', '', t3.isoTimestamp,
-        'ثبت دستی (تاییدشده) — دلیل: ' + (rrow.reason || '-')]);
+        'ثبت دستی (تاییدشده) — دلیل: ' + (rrow.reason || '-'), '']);
     }
+    return jsonOut({ok:true});
+  }
+
+  if(action === 'getLeaveRequests'){
+    var lrsh3 = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime']);
+    var lrows2 = readRows(lrsh3).map(function(r){ delete r._row; return r; })
+      .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
+    return jsonOut({ok:true, leaves: lrows2});
+  }
+  if(action === 'approveLeaveRequest' || action === 'rejectLeaveRequest'){
+    var lrsh4 = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime']);
+    var lrow2 = readRows(lrsh4).filter(function(r){ return r.id === body.id; })[0];
+    if(!lrow2) return jsonOut({ok:false, error:'not found'});
+    esh_set(lrsh4, lrow2._row, 'status', (action === 'approveLeaveRequest') ? 'approved' : 'rejected');
     return jsonOut({ok:true});
   }
 
@@ -634,6 +675,27 @@ function esh_set(sheet, rowNum, headerName, value){
       <div class="divider"></div>
       <div id="myRequests"><div class="empty">درخواستی ثبت نشده</div></div>
     </div>
+
+    <div class="card">
+      <div class="eyebrow">درخواست مرخصی</div>
+      <label>از تاریخ</label>
+      <div class="date-row">
+        <select id="leaveStartDay"></select>
+        <select id="leaveStartMonth"></select>
+        <select id="leaveStartYear"></select>
+      </div>
+      <label>تا تاریخ</label>
+      <div class="date-row">
+        <select id="leaveEndDay"></select>
+        <select id="leaveEndMonth"></select>
+        <select id="leaveEndYear"></select>
+      </div>
+      <label>دلیل مرخصی</label>
+      <textarea id="leaveReason" placeholder="مثلاً: مرخصی استعلاجی"></textarea>
+      <button type="button" class="btn btn-ghost" onclick="submitLeaveRequest()">🌴 ارسال درخواست مرخصی</button>
+      <div class="divider"></div>
+      <div id="myLeaves"><div class="empty">درخواست مرخصی ثبت نشده</div></div>
+    </div>
   </div>
 
   <!-- ADMIN PIN GATE -->
@@ -666,6 +728,8 @@ function esh_set(sheet, rowNum, headerName, value){
         <div style="flex:1;"><label>نام کاربری</label><input type="text" id="empFormUser" placeholder="username" class="field-mono"></div>
         <div style="flex:1;"><label>رمز عبور</label><input type="text" id="empFormPass" placeholder="password" class="field-mono"></div>
       </div>
+      <label>کد پرسنلی (اختیاری)</label>
+      <input type="text" id="empFormCode" placeholder="مثلاً: 1042" class="field-mono">
       <label>پروژه‌های مجاز برای این پرسنل</label>
       <div class="chk-list" id="empProjChecks"></div>
       <div class="btn-row">
@@ -712,6 +776,11 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="card">
       <div class="eyebrow">درخواست‌های ثبت دستی</div>
       <div id="reqAdminList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">درخواست‌های مرخصی</div>
+      <div id="leaveAdminList"><div class="empty">در حال بارگذاری...</div></div>
     </div>
 
     <div class="card">
@@ -869,16 +938,18 @@ async function employeeLogin(){
     document.getElementById('empLoginHint').style.color = '#a32a2a';
     return;
   }
-  loggedInEmployee = {username: res.username, fullName: res.fullName, allowedProjects: res.allowedProjects || ''};
+  loggedInEmployee = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', allowedProjects: res.allowedProjects || ''};
   sessionStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
   document.getElementById('empUsername').value='';
   document.getElementById('empPassword').value='';
-  document.getElementById('empWelcomeName').textContent = res.fullName;
+  document.getElementById('empWelcomeName').textContent = res.fullName + (res.employeeCode ? ' (کد '+res.employeeCode+')' : '');
   document.getElementById('empLoginGate').style.display='none';
   document.getElementById('empView').style.display='block';
   loadProjectsPublic();
   loadMyLogs();
   loadMyRequests();
+  initLeaveDateSelects();
+  loadMyLeaves();
 }
 function employeeLogout(){
   loggedInEmployee = null;
@@ -950,8 +1021,9 @@ function renderEmpList(){
       ? '<span class="badge badge-bound">📱 دستگاه ثبت‌شده</span>'
       : '<span class="badge badge-unbound">📱 دستگاه ثبت‌نشده</span>';
     var scopeText = (!emp.allowedProjects || emp.allowedProjects==='ALL') ? 'همه پروژه‌ها' : (emp.allowedProjects.split(',').length + ' پروژه محدود');
+    var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
     return '<div class="list-item"><div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+
-      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+'</div></div>'+
+      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+'</div></div>'+
       '<div class="actions">'+
         (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditEmp(\''+emp.id+'\')">✏️</button>'+
@@ -988,6 +1060,7 @@ function startEditEmp(id){
   document.getElementById('empFormName').value = emp.fullName;
   document.getElementById('empFormUser').value = emp.username;
   document.getElementById('empFormPass').value = emp.password;
+  document.getElementById('empFormCode').value = emp.employeeCode || '';
   var sel = emp.allowedProjects ? String(emp.allowedProjects).split(',').map(function(s){return s.trim();}) : [];
   renderEmpProjChecks(sel.length ? sel : ['ALL']);
   var btn = document.getElementById('empFormBtn');
@@ -1001,6 +1074,7 @@ function cancelEmpEdit(){
   document.getElementById('empFormName').value='';
   document.getElementById('empFormUser').value='';
   document.getElementById('empFormPass').value='';
+  document.getElementById('empFormCode').value='';
   renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
@@ -1017,11 +1091,12 @@ async function saveEmployee(){
     var btn = document.getElementById('empFormBtn');
     btn.disabled = true;
     var allowedProjects = getSelectedAllowedProjects();
+    var employeeCode = document.getElementById('empFormCode').value.trim();
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects}); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode}); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects}); });
+      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode}); });
     }
     btn.disabled = false;
     if(!res.ok){ showAdminNotice('ذخیره پرسنل ناموفق بود: ' + (res.error||'نامشخص')); return; }
@@ -1089,6 +1164,45 @@ async function decideRequest(id, approve){
   clearAdminNotice();
   await loadAdminRequests();
   await loadFullLog();
+}
+
+// ---------- Leave requests (admin review) ----------
+async function loadAdminLeaves(){
+  var res = await apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); });
+  var box = document.getElementById('leaveAdminList');
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌های مرخصی ناموفق بود</div>'; return; }
+  var all = res.leaves || [];
+  var pending = all.filter(function(r){ return r.status==='pending'; });
+  var others = all.filter(function(r){ return r.status!=='pending'; }).slice(0,5);
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  if(all.length===0){ box.innerHTML = '<div class="empty">درخواست مرخصی‌ای وجود ندارد</div>'; return; }
+  var html = '';
+  if(pending.length===0){ html += '<div class="empty">درخواست در انتظاری وجود ندارد</div>'; }
+  html += pending.map(function(r){
+    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
+      '<div><b>'+esc(r.employee)+'</b> · '+r.startDate+' تا '+r.endDate+'</div>'+
+      '<span class="req-status pending">در انتظار</span></div>'+
+      (r.reason ? '<div style="margin:6px 0; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      '<div class="btn-row" style="margin-top:6px;">'+
+        '<button type="button" class="btn btn-in btn-small" onclick="decideLeave(\''+r.id+'\',true)">✅ تایید</button>'+
+        '<button type="button" class="btn btn-out btn-small" onclick="decideLeave(\''+r.id+'\',false)">❌ رد</button>'+
+      '</div></div>';
+  }).join('');
+  if(others.length){
+    html += '<div class="divider"></div><div class="hint" style="margin-top:0;">تاریخچه اخیر:</div>';
+    html += others.map(function(r){
+      return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
+        '<div>'+esc(r.employee)+' · '+r.startDate+' تا '+r.endDate+'</div>'+
+        '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div></div>';
+    }).join('');
+  }
+  box.innerHTML = html;
+}
+async function decideLeave(id, approve){
+  var res = await apiCall(function(){ return apiPost(approve ? 'approveLeaveRequest' : 'rejectLeaveRequest', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('ثبت تصمیم مرخصی ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadAdminLeaves();
 }
 
 // ---------- Projects ----------
@@ -1379,6 +1493,62 @@ async function loadMyRequests(){
   }).join('');
 }
 
+// ---------- Leave requests (employee) ----------
+function initLeaveDateSelects(){
+  var today = new Date();
+  var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+  var curJY = tj[0];
+  ['leaveStart','leaveEnd'].forEach(function(prefix){
+    var daySel = document.getElementById(prefix+'Day');
+    var monthSel = document.getElementById(prefix+'Month');
+    var yearSel = document.getElementById(prefix+'Year');
+    if(!daySel || daySel.options.length) return; // already populated
+    for(var d=1; d<=31; d++){ daySel.innerHTML += '<option value="'+d+'"'+(d===tj[2]?' selected':'')+'>'+d+'</option>'; }
+    jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'"'+((i+1)===tj[1]?' selected':'')+'>'+m+'</option>'; });
+    for(var y=curJY-1; y<=curJY+1; y++){ yearSel.innerHTML += '<option value="'+y+'"'+(y===curJY?' selected':'')+'>'+y+'</option>'; }
+  });
+}
+function readDateSelect(prefix){
+  var d = document.getElementById(prefix+'Day').value;
+  var mIdx = parseInt(document.getElementById(prefix+'Month').value, 10);
+  var y = document.getElementById(prefix+'Year').value;
+  return d + ' ' + jMonths[mIdx-1] + ' ' + y;
+}
+async function submitLeaveRequest(){
+  if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
+  var reason = document.getElementById('leaveReason').value.trim();
+  if(!reason){ alert('لطفاً دلیل مرخصی را بنویسید'); return; }
+  var startDate = readDateSelect('leaveStart');
+  var endDate = readDateSelect('leaveEnd');
+  var res = await apiCall(function(){ return apiPost('createLeaveRequest', {
+    username: loggedInEmployee.username, startDate: startDate, endDate: endDate, reason: reason, deviceId: DEVICE_ID
+  }); });
+  if(!res.ok){
+    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.' : (res.error || 'خطای شبکه');
+    alert('ارسال درخواست مرخصی ناموفق بود: ' + msg);
+    return;
+  }
+  document.getElementById('leaveReason').value = '';
+  alert('درخواست مرخصی شما ارسال شد و در انتظار تایید مدیر است.');
+  loadMyLeaves();
+}
+async function loadMyLeaves(){
+  if(!loggedInEmployee) return;
+  var res = await apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}); });
+  var box = document.getElementById('myLeaves');
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
+  var list = (res.leaves || []).slice(0,6);
+  if(list.length===0){ box.innerHTML = '<div class="empty">درخواست مرخصی ثبت نشده</div>'; return; }
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  box.innerHTML = list.map(function(r){
+    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
+      '<div>'+r.startDate+' تا '+r.endDate+'</div>'+
+      '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
+      (r.reason ? '<div style="margin-top:4px; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      '</div>';
+  }).join('');
+}
+
 // ---------- Admin: log table ----------
 async function loadFullLog(){
   var res = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
@@ -1479,6 +1649,7 @@ async function refreshAdminView(){
   await loadEmployeesAdmin();
   await loadProjectsAdmin();
   await loadAdminRequests();
+  await loadAdminLeaves();
   await loadFullLog();
 }
 
@@ -1498,11 +1669,13 @@ function init(){
   if(savedEmp){
     try{
       loggedInEmployee = JSON.parse(savedEmp);
-      document.getElementById('empWelcomeName').textContent = loggedInEmployee.fullName;
+      document.getElementById('empWelcomeName').textContent = loggedInEmployee.fullName + (loggedInEmployee.employeeCode ? ' (کد '+loggedInEmployee.employeeCode+')' : '');
       document.getElementById('empLoginGate').style.display='none';
       document.getElementById('empView').style.display='block';
       loadMyLogs();
       loadMyRequests();
+      initLeaveDateSelects();
+      loadMyLeaves();
     }catch(e){}
   }
   var savedPin = sessionStorage.getItem('adminPin');
