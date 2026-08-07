@@ -13,6 +13,8 @@
 <meta name="apple-mobile-web-app-title" content="ثبت تردد">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   :root{
     --navy:#0f2a43;
@@ -141,6 +143,42 @@
   .setup-wrap{max-width:600px; margin:40px auto; color:var(--paper);}
   .setup-wrap .card{color:var(--ink);}
   .setup-wrap ol{font-size:13.5px; line-height:2.1; padding-inline-start:20px;}
+
+  #projMap{height:220px; border-radius:9px; margin-bottom:10px; border:1.5px solid #d8d3c4;}
+  .map-search-row{display:flex; gap:8px;}
+  .map-search-row input{flex:1;}
+  .map-search-row button{width:auto; flex-shrink:0;}
+
+  .chk-list{
+    display:flex; flex-wrap:wrap; gap:8px; background:#f7f4ea; border:1px solid #eae5d6;
+    border-radius:9px; padding:10px; margin-bottom:14px; max-height:160px; overflow-y:auto;
+  }
+  .chk-item{
+    display:flex; align-items:center; gap:5px; background:#fff; border:1px solid #e0dac8;
+    border-radius:20px; padding:5px 10px; font-size:12.5px; cursor:pointer; user-select:none;
+  }
+  .chk-item input{width:auto; margin:0;}
+  .chk-item.all-item{font-weight:700; background:#eee7d6;}
+
+  .badge{display:inline-block; font-size:10.5px; padding:2px 8px; border-radius:20px; font-family:var(--mono); margin-inline-start:6px;}
+  .badge-bound{background:#e7f7ef; color:#1f7a4d;}
+  .badge-unbound{background:#fff4e2; color:#8a5a10;}
+
+  .req-item{background:#f7f4ea; border:1px solid #eae5d6; border-radius:9px; padding:10px 12px; margin-bottom:8px; font-size:13px;}
+  .req-item .meta{font-family:var(--mono); font-size:11px; color:#847a63; direction:ltr; text-align:left; margin-top:2px;}
+  .req-status{font-size:11px; padding:2px 8px; border-radius:20px; font-weight:700;}
+  .req-status.pending{background:#fff4e2; color:#8a5a10;}
+  .req-status.approved{background:#e7f7ef; color:#1f7a4d;}
+  .req-status.rejected{background:#fdeaea; color:#a32a2a;}
+
+  textarea{
+    width:100%; padding:11px 12px; border-radius:9px; border:1.5px solid #d8d3c4;
+    font-family:var(--sans); font-size:14px; background:#fff; margin-bottom:14px; color:var(--ink);
+    resize:vertical; min-height:70px;
+  }
+
+  .edit-row{background:#fdf6ea; border:1px solid #eddca8;}
+  .edit-row input, .edit-row select{margin-bottom:6px; padding:6px 8px; font-size:12.5px;}
 </style>
 </head>
 <body>
@@ -161,12 +199,28 @@
         <li>حالا همین فایل را برای همه پرسنل ارسال کنید — دیگر نیازی به Claude نیست و روی هر مرورگر/هر جایی باز می‌شود.</li>
       </ol>
       <button type="button" class="btn btn-ghost copy-btn" onclick="copyScript()">📋 کپی کد Apps Script</button>
-      <pre id="scriptCode">function getSheet(name, headers){
+      <pre id="scriptCode">// ============================================================
+// Self-healing sheet getter: creates the sheet if missing, and
+// adds any newly-introduced header columns to existing sheets
+// (so upgrading this script never breaks old data).
+// ============================================================
+function getSheet(name, headers){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
-  if(!sh){ sh = ss.insertSheet(name); sh.appendRow(headers); }
+  if(!sh){
+    sh = ss.insertSheet(name);
+    sh.appendRow(headers);
+    return sh;
+  }
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var existing = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var missing = headers.filter(function(h){ return existing.indexOf(h) === -1; });
+  if(missing.length > 0){
+    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+  }
   return sh;
 }
+
 function readRows(sheet){
   var values = sheet.getDataRange().getValues();
   var headers = values[0];
@@ -179,6 +233,25 @@ function readRows(sheet){
   }
   return rows;
 }
+
+function colIndex(sheet, headerName){
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  return headers.indexOf(headerName) + 1; // 1-based; 0 if not found
+}
+
+// Backfill missing ids on old rows so every row can be addressed (edit/delete).
+function ensureIds(sheet, rows){
+  var idCol = colIndex(sheet, 'id');
+  rows.forEach(function(r){
+    if(!r.id){
+      r.id = Utilities.getUuid();
+      sheet.getRange(r._row, idCol).setValue(r.id);
+    }
+  });
+  return rows;
+}
+
 function getAdminPin(){
   var sh = getSheet('Settings', ['key','value']);
   var rows = readRows(sh);
@@ -186,130 +259,306 @@ function getAdminPin(){
   if(!pinRow){ sh.appendRow(['admin_pin','1234']); return '1234'; }
   return String(pinRow.value);
 }
+
 function jsonOut(obj){
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
+
+// ============================================================
+// Server-authoritative date/time (Asia/Tehran) + Jalali conversion.
+// The client's device clock is NEVER trusted for the recorded time.
+// ============================================================
+var TZ = 'Asia/Tehran';
+
+function toJalaali(gy, gm, gd) {
+  var g_d_m = [0,31,59,90,120,151,181,212,243,273,304,334];
+  var jy = (gy <= 1600) ? 0 : 979;
+  gy -= (gy <= 1600) ? 621 : 1600;
+  var gy2 = (gm > 2) ? (gy + 1) : gy;
+  var days = (365*gy) + (Math.floor((gy2+3)/4)) - (Math.floor((gy2+99)/100)) + (Math.floor((gy2+399)/400)) - 80 + gd + g_d_m[gm-1];
+  jy += 33*Math.floor(days/12053);
+  days %= 12053;
+  jy += 4*Math.floor(days/1461);
+  days %= 1461;
+  if (days > 365) { jy += Math.floor((days-1)/365); days = (days-1)%365; }
+  var jm = (days < 186) ? 1+Math.floor(days/31) : 7+Math.floor((days-186)/30);
+  var jd = 1 + ((days < 186) ? (days%31) : ((days-186)%30));
+  return [jy, jm, jd];
+}
+var J_MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+var FA_DIGITS = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+function toFaDigits(s){
+  return String(s).replace(/[0-9]/g, function(d){ return FA_DIGITS[+d]; });
+}
+function serverNow(){
+  var now = new Date();
+  var gy = parseInt(Utilities.formatDate(now, TZ, 'yyyy'), 10);
+  var gm = parseInt(Utilities.formatDate(now, TZ, 'MM'), 10);
+  var gd = parseInt(Utilities.formatDate(now, TZ, 'dd'), 10);
+  var hms = Utilities.formatDate(now, TZ, 'HH:mm:ss');
+  var j = toJalaali(gy, gm, gd);
+  return {
+    jalaliDate: j[2] + ' ' + J_MONTHS[j[1]-1] + ' ' + j[0],
+    time: toFaDigits(hms),
+    isoTimestamp: now.toISOString()
+  };
+}
+
+// ============================================================
+// doGet — public reads (project list) + PIN-gated report export
+// ============================================================
 function doGet(e){
   var action = e.parameter.action;
+
   if(action === 'projects'){
     var sh = getSheet('Projects', ['id','name','lat','lng','radius']);
     return jsonOut({ok:true, projects: readRows(sh)});
   }
+
   if(action === 'logs'){
     if(String(e.parameter.pin) !== getAdminPin()){
       return jsonOut({ok:false, error:'invalid pin'});
     }
-    var sh2 = getSheet('Logs', ['jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp']);
-    var rows = readRows(sh2).map(function(r){
-      delete r._row;
-      return r;
-    });
+    var lsh = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var rows = ensureIds(lsh, readRows(lsh)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows});
   }
+
   return jsonOut({ok:false, error:'unknown action'});
 }
+
+// ============================================================
+// doPost — everything else
+// ============================================================
 function doPost(e){
   var body = JSON.parse(e.postData.contents);
   var action = body.action;
 
+  // ---------------- login (device-locked) ----------------
   if(action === 'login'){
-    var sh = getSheet('Employees', ['id','fullName','username','password']);
-    var rows = readRows(sh);
-    var match = rows.filter(function(r){
+    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var erows = readRows(esh);
+    var match = erows.filter(function(r){
       return String(r.username).toLowerCase() === String(body.username).toLowerCase() &&
              String(r.password) === String(body.password);
     })[0];
-    if(match) return jsonOut({ok:true, fullName: match.fullName, username: match.username});
-    return jsonOut({ok:false});
+    if(!match) return jsonOut({ok:false, error:'invalid_credentials'});
+
+    var incomingDevice = String(body.deviceId || '');
+    if(!match.deviceId){
+      // first login ever — bind this device to the account
+      esh.getRange(match._row, colIndex(esh,'deviceId')).setValue(incomingDevice);
+    } else if(String(match.deviceId) !== incomingDevice){
+      return jsonOut({ok:false, error:'device_mismatch'});
+    }
+
+    return jsonOut({
+      ok:true,
+      fullName: match.fullName,
+      username: match.username,
+      allowedProjects: match.allowedProjects || ''  // '' or 'ALL' = unrestricted; else comma-separated project ids
+    });
   }
 
   if(action === 'checkPin'){
     return jsonOut({ok: String(body.pin) === getAdminPin()});
   }
 
+  // ---------------- attendance logging (server time is authoritative) ----------------
   if(action === 'addLog'){
-    var sh = getSheet('Logs', ['jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp']);
+    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var emp = readRows(esh2).filter(function(r){ return r.username === body.username; })[0];
+    if(!emp) return jsonOut({ok:false, error:'unknown_employee'});
+    if(emp.deviceId && String(emp.deviceId) !== String(body.deviceId||'')){
+      return jsonOut({ok:false, error:'device_mismatch'});
+    }
+    if(emp.allowedProjects && emp.allowedProjects !== 'ALL'){
+      var allowed = String(emp.allowedProjects).split(',').map(function(s){ return s.trim(); });
+      if(allowed.indexOf(String(body.project_id||'')) === -1){
+        return jsonOut({ok:false, error:'project_not_allowed'});
+      }
+    }
+
     var d = body.entry;
-    sh.appendRow([d.jalaliDate, d.time, d.employee, d.username, d.project,
-      d.type === 'in' ? 'ورود' : 'خروج', d.lat, d.lng, d.accuracy, d.isoTimestamp]);
-    return jsonOut({ok:true});
+    var t = serverNow(); // <-- authoritative; client-sent date/time is ignored
+    var note = '';
+    if(d.clientIso){
+      var drift = Math.abs(new Date(t.isoTimestamp).getTime() - new Date(d.clientIso).getTime());
+      if(drift > 10*60*1000){ note = '⚠ اختلاف ساعت گوشی با سرور بیش از ۱۰ دقیقه بود'; }
+    }
+
+    var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var id = Utilities.getUuid();
+    lsh2.appendRow([id, t.jalaliDate, t.time, d.employee, d.username, d.project,
+      d.type === 'in' ? 'ورود' : 'خروج', d.lat, d.lng, d.accuracy, t.isoTimestamp, note]);
+    return jsonOut({ok:true, jalaliDate:t.jalaliDate, time:t.time});
   }
 
   if(action === 'getMyLogs'){
-    var sh = getSheet('Logs', ['jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp']);
-    var rows = readRows(sh).filter(function(r){ return r.username === body.username; });
-    return jsonOut({ok:true, logs: rows});
+    var lsh3 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var rows3 = ensureIds(lsh3, readRows(lsh3)).filter(function(r){ return r.username === body.username; })
+      .map(function(r){ delete r._row; return r; });
+    return jsonOut({ok:true, logs: rows3});
   }
 
-  // --- everything below requires the admin PIN ---
+  // ---------------- manual entry requests ----------------
+  if(action === 'createRequest'){
+    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var emp2 = readRows(esh3).filter(function(r){ return r.username === body.username; })[0];
+    if(!emp2) return jsonOut({ok:false, error:'unknown_employee'});
+    if(emp2.deviceId && String(emp2.deviceId) !== String(body.deviceId||'')){
+      return jsonOut({ok:false, error:'device_mismatch'});
+    }
+    var rsh = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime']);
+    var t2 = serverNow();
+    var rid = Utilities.getUuid();
+    rsh.appendRow([rid, body.username, emp2.fullName, body.project, body.type,
+      body.reason||'', 'pending', t2.jalaliDate, t2.time]);
+    return jsonOut({ok:true});
+  }
+
+  if(action === 'getMyRequests'){
+    var rsh2 = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime']);
+    var rows4 = readRows(rsh2).filter(function(r){ return r.username === body.username; })
+      .map(function(r){ delete r._row; return r; })
+      .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
+    return jsonOut({ok:true, requests: rows4});
+  }
+
+  // ==================== everything below requires the admin PIN ====================
   if(String(body.pin) !== getAdminPin()){
     return jsonOut({ok:false, error:'invalid pin'});
   }
 
+  // ---------------- employees ----------------
   if(action === 'getEmployees'){
-    var sh = getSheet('Employees', ['id','fullName','username','password']);
-    return jsonOut({ok:true, employees: readRows(sh)});
+    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var rows5 = readRows(esh4).map(function(r){ delete r._row; return r; });
+    return jsonOut({ok:true, employees: rows5});
   }
   if(action === 'addEmployee'){
-    var sh = getSheet('Employees', ['id','fullName','username','password']);
-    var id = Utilities.getUuid();
-    sh.appendRow([id, body.fullName, body.username, body.password]);
-    return jsonOut({ok:true, id:id});
+    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var id2 = Utilities.getUuid();
+    esh5.appendRow([id2, body.fullName, body.username, body.password, '', body.allowedProjects || '']);
+    return jsonOut({ok:true, id:id2});
   }
   if(action === 'updateEmployee'){
-    var sh = getSheet('Employees', ['id','fullName','username','password']);
-    var row = readRows(sh).filter(function(r){ return r.id === body.id; })[0];
+    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var row = readRows(esh6).filter(function(r){ return r.id === body.id; })[0];
     if(!row) return jsonOut({ok:false, error:'not found'});
-    sh.getRange(row._row, 1, 1, 4).setValues([[body.id, body.fullName, body.username, body.password]]);
+    esh6.getRange(row._row, colIndex(esh6,'fullName')).setValue(body.fullName);
+    esh6.getRange(row._row, colIndex(esh6,'username')).setValue(body.username);
+    esh6.getRange(row._row, colIndex(esh6,'password')).setValue(body.password);
+    esh6.getRange(row._row, colIndex(esh6,'allowedProjects')).setValue(body.allowedProjects || '');
     return jsonOut({ok:true});
   }
   if(action === 'deleteEmployee'){
-    var sh = getSheet('Employees', ['id','fullName','username','password']);
-    var row = readRows(sh).filter(function(r){ return r.id === body.id; })[0];
-    if(row) sh.deleteRow(row._row);
+    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var row2 = readRows(esh7).filter(function(r){ return r.id === body.id; })[0];
+    if(row2) esh7.deleteRow(row2._row);
+    return jsonOut({ok:true});
+  }
+  if(action === 'resetDevice'){
+    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects']);
+    var row3 = readRows(esh8).filter(function(r){ return r.id === body.id; })[0];
+    if(!row3) return jsonOut({ok:false, error:'not found'});
+    esh8.getRange(row3._row, colIndex(esh8,'deviceId')).setValue('');
     return jsonOut({ok:true});
   }
 
+  // ---------------- projects ----------------
   if(action === 'getProjectsAdmin'){
-    var sh = getSheet('Projects', ['id','name','lat','lng','radius']);
-    return jsonOut({ok:true, projects: readRows(sh)});
+    var psh = getSheet('Projects', ['id','name','lat','lng','radius']);
+    return jsonOut({ok:true, projects: readRows(psh).map(function(r){ delete r._row; return r; })});
   }
   if(action === 'addProject'){
-    var sh = getSheet('Projects', ['id','name','lat','lng','radius']);
-    var id = Utilities.getUuid();
-    sh.appendRow([id, body.name, body.lat, body.lng, body.radius]);
-    return jsonOut({ok:true, id:id});
+    var psh2 = getSheet('Projects', ['id','name','lat','lng','radius']);
+    var id3 = Utilities.getUuid();
+    psh2.appendRow([id3, body.name, body.lat, body.lng, body.radius]);
+    return jsonOut({ok:true, id:id3});
   }
   if(action === 'updateProject'){
-    var sh = getSheet('Projects', ['id','name','lat','lng','radius']);
-    var row = readRows(sh).filter(function(r){ return r.id === body.id; })[0];
-    if(!row) return jsonOut({ok:false, error:'not found'});
-    sh.getRange(row._row, 1, 1, 5).setValues([[body.id, body.name, body.lat, body.lng, body.radius]]);
+    var psh3 = getSheet('Projects', ['id','name','lat','lng','radius']);
+    var row4 = readRows(psh3).filter(function(r){ return r.id === body.id; })[0];
+    if(!row4) return jsonOut({ok:false, error:'not found'});
+    psh3.getRange(row4._row, 1, 1, 5).setValues([[body.id, body.name, body.lat, body.lng, body.radius]]);
     return jsonOut({ok:true});
   }
   if(action === 'deleteProject'){
-    var sh = getSheet('Projects', ['id','name','lat','lng','radius']);
-    var row = readRows(sh).filter(function(r){ return r.id === body.id; })[0];
-    if(row) sh.deleteRow(row._row);
+    var psh4 = getSheet('Projects', ['id','name','lat','lng','radius']);
+    var row5 = readRows(psh4).filter(function(r){ return r.id === body.id; })[0];
+    if(row5) psh4.deleteRow(row5._row);
     return jsonOut({ok:true});
   }
 
+  // ---------------- logs (admin edit/delete) ----------------
   if(action === 'getLogs'){
-    var sh = getSheet('Logs', ['jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp']);
-    return jsonOut({ok:true, logs: readRows(sh)});
+    var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var rows6 = ensureIds(lsh4, readRows(lsh4)).map(function(r){ delete r._row; return r; });
+    return jsonOut({ok:true, logs: rows6});
+  }
+  if(action === 'updateLog'){
+    var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var rows7 = ensureIds(lsh5, readRows(lsh5));
+    var row6 = rows7.filter(function(r){ return r.id === body.id; })[0];
+    if(!row6) return jsonOut({ok:false, error:'not found'});
+    esh_set(lsh5, row6._row, 'jalaliDate', body.jalaliDate);
+    esh_set(lsh5, row6._row, 'time', body.time);
+    esh_set(lsh5, row6._row, 'employee', body.employee);
+    esh_set(lsh5, row6._row, 'project', body.project);
+    esh_set(lsh5, row6._row, 'type', body.type);
+    esh_set(lsh5, row6._row, 'note', (row6.note ? row6.note + ' | ' : '') + 'ویرایش‌شده توسط مدیر');
+    return jsonOut({ok:true});
+  }
+  if(action === 'deleteLog'){
+    var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+    var row7 = ensureIds(lsh6, readRows(lsh6)).filter(function(r){ return r.id === body.id; })[0];
+    if(row7) lsh6.deleteRow(row7._row);
+    return jsonOut({ok:true});
+  }
+
+  // ---------------- manual entry requests (admin decision) ----------------
+  if(action === 'getRequests'){
+    var rsh3 = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime']);
+    var rows8 = readRows(rsh3).map(function(r){ delete r._row; return r; })
+      .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
+    return jsonOut({ok:true, requests: rows8});
+  }
+  if(action === 'approveRequest' || action === 'rejectRequest'){
+    var rsh4 = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime']);
+    var rrows = readRows(rsh4);
+    var rrow = rrows.filter(function(r){ return r.id === body.id; })[0];
+    if(!rrow) return jsonOut({ok:false, error:'not found'});
+    var newStatus = (action === 'approveRequest') ? 'approved' : 'rejected';
+    esh_set(rsh4, rrow._row, 'status', newStatus);
+
+    if(action === 'approveRequest'){
+      var t3 = serverNow();
+      var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note']);
+      var lid = Utilities.getUuid();
+      lsh7.appendRow([lid, t3.jalaliDate, t3.time, rrow.employee, rrow.username, rrow.project,
+        rrow.type === 'in' ? 'ورود' : 'خروج', '', '', '', t3.isoTimestamp,
+        'ثبت دستی (تاییدشده) — دلیل: ' + (rrow.reason || '-')]);
+    }
+    return jsonOut({ok:true});
   }
 
   if(action === 'setPin'){
-    var sh = getSheet('Settings', ['key','value']);
-    var row = readRows(sh).filter(function(r){ return r.key === 'admin_pin'; })[0];
-    if(row){ sh.getRange(row._row, 2).setValue(body.newPin); }
-    else{ sh.appendRow(['admin_pin', body.newPin]); }
+    var ssh = getSheet('Settings', ['key','value']);
+    var row8 = readRows(ssh).filter(function(r){ return r.key === 'admin_pin'; })[0];
+    if(row8){ ssh.getRange(row8._row, 2).setValue(body.newPin); }
+    else{ ssh.appendRow(['admin_pin', body.newPin]); }
     return jsonOut({ok:true});
   }
 
   return jsonOut({ok:false, error:'unknown action'});
+}
+
+// small helper: set a single named-column cell for a given row
+function esh_set(sheet, rowNum, headerName, value){
+  sheet.getRange(rowNum, colIndex(sheet, headerName)).setValue(value);
 }</pre>
-      <p class="hint">هر پرسنل، هر پروژه و هر ثبت تردد به‌صورت خودکار داخل همین Google Sheet (در سه شیت Employees / Projects / Logs) ذخیره می‌شود و تاریخ آن شمسی است — یعنی همان اکسل آنلاینی که می‌خواستید، بدون نیاز به کار دستی.</p>
+      <p class="hint">هر پرسنل، هر پروژه و هر ثبت تردد به‌صورت خودکار داخل همین Google Sheet (در شیت‌های Employees / Projects / Logs / Requests) ذخیره می‌شود و تاریخ آن شمسی و بر اساس ساعت سرور (نه ساعت گوشی کارمند) است.</p>
     </div>
   </div>
 
@@ -368,6 +617,23 @@ function doPost(e){
       <div class="eyebrow">آخرین ثبت‌های من</div>
       <div id="myLogs"><div class="empty">هنوز ثبتی وجود ندارد</div></div>
     </div>
+
+    <div class="card">
+      <div class="eyebrow">درخواست ثبت دستی</div>
+      <div class="hint" style="margin-top:-4px;">اگر نتونستی عادی ثبت بزنی (مثلاً بیرون از محدوده پروژه بودی)، اینجا با یک دلیل درخواست بده تا مدیر تایید کنه.</div>
+      <label>نوع</label>
+      <select id="reqType">
+        <option value="in">ورود</option>
+        <option value="out">خروج</option>
+      </select>
+      <label>پروژه</label>
+      <select id="reqProject"></select>
+      <label>دلیل / توضیح</label>
+      <textarea id="reqReason" placeholder="مثلاً: گوشیم شارژ تموم کرد و نتونستم موقع ورود ثبت بزنم"></textarea>
+      <button type="button" class="btn btn-ghost" onclick="submitRequest()">📨 ارسال درخواست</button>
+      <div class="divider"></div>
+      <div id="myRequests"><div class="empty">درخواستی ثبت نشده</div></div>
+    </div>
   </div>
 
   <!-- ADMIN PIN GATE -->
@@ -400,6 +666,8 @@ function doPost(e){
         <div style="flex:1;"><label>نام کاربری</label><input type="text" id="empFormUser" placeholder="username" class="field-mono"></div>
         <div style="flex:1;"><label>رمز عبور</label><input type="text" id="empFormPass" placeholder="password" class="field-mono"></div>
       </div>
+      <label>پروژه‌های مجاز برای این پرسنل</label>
+      <div class="chk-list" id="empProjChecks"></div>
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="empFormBtn" onclick="saveEmployee()">➕ افزودن پرسنل</button>
         <button type="button" class="btn btn-ghost" id="empFormCancel" style="display:none;" onclick="cancelEmpEdit()">لغو ویرایش</button>
@@ -412,6 +680,13 @@ function doPost(e){
       <div class="divider"></div>
       <label>نام پروژه</label>
       <input type="text" id="projFormName" placeholder="مثلاً: پروژه شهرک غرب">
+
+      <label>موقعیت روی نقشه (کلیک کن یا پین رو بکش)</label>
+      <div class="map-search-row">
+        <input type="text" id="mapSearchInput" placeholder="جستجوی آدرس یا نام محل...">
+        <button type="button" class="btn btn-ghost btn-small" onclick="searchMapAddress()">🔍</button>
+      </div>
+      <div id="projMap"></div>
       <button type="button" class="btn btn-ghost" style="margin-bottom:14px;" onclick="useCurrentLocForProject()">📍 استفاده از موقعیت فعلی من</button>
       <div class="field-mono" style="display:flex; gap:8px;">
         <div style="flex:1;"><label>عرض جغرافیایی (lat)</label><input type="text" id="projFormLat" placeholder="35.7219"></div>
@@ -435,11 +710,16 @@ function doPost(e){
     </div>
 
     <div class="card">
+      <div class="eyebrow">درخواست‌های ثبت دستی</div>
+      <div id="reqAdminList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+
+    <div class="card">
       <div class="eyebrow">گزارش کامل تردد</div>
       <div style="overflow-x:auto;">
         <table id="logTable">
-          <thead><tr><th>تاریخ</th><th>ساعت</th><th>پرسنل</th><th>پروژه</th><th>نوع</th></tr></thead>
-          <tbody id="logTableBody"><tr><td colspan="5" class="empty">در حال بارگذاری...</td></tr></tbody>
+          <thead><tr><th>تاریخ</th><th>ساعت</th><th>پرسنل</th><th>پروژه</th><th>نوع</th><th>عملیات</th></tr></thead>
+          <tbody id="logTableBody"><tr><td colspan="6" class="empty">در حال بارگذاری...</td></tr></tbody>
         </table>
       </div>
       <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportCSV()">⬇️ خروجی CSV</button>
@@ -457,6 +737,23 @@ function doPost(e){
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
 // =====================================================================
+
+// ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
+function getDeviceId(){
+  try{
+    var id = localStorage.getItem('deviceId');
+    if(!id){
+      id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('dev-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      localStorage.setItem('deviceId', id);
+    }
+    return id;
+  }catch(e){
+    // localStorage unavailable (private mode etc.) — fall back to a per-session id
+    if(!window._sessionDeviceId){ window._sessionDeviceId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2); }
+    return window._sessionDeviceId;
+  }
+}
+const DEVICE_ID = getDeviceId();
 
 // ---------- Jalali (Shamsi) date conversion ----------
 function toJalaali(gy, gm, gd) {
@@ -522,6 +819,7 @@ var loggedInEmployee = null;
 var adminPin = null;
 var editingEmpId = null;
 var editingProjId = null;
+var editingLogId = null;
 
 // ---------- Tabs ----------
 function switchTab(which){
@@ -561,14 +859,17 @@ async function employeeLogin(){
   if(!username || !password) return;
   var btn = document.getElementById('empLoginBtn');
   btn.disabled = true; btn.textContent = 'در حال ورود...';
-  var res = await apiCall(function(){ return apiPost('login', {username:username, password:password}); });
+  var res = await apiCall(function(){ return apiPost('login', {username:username, password:password, deviceId: DEVICE_ID}); });
   btn.disabled = false; btn.textContent = 'ورود';
   if(!res.ok){
-    document.getElementById('empLoginHint').textContent = res.error ? ('خطا: '+res.error) : 'نام کاربری یا رمز عبور اشتباه است.';
+    var msg = 'نام کاربری یا رمز عبور اشتباه است.';
+    if(res.error === 'device_mismatch') msg = '⛔ این حساب قبلاً روی یک گوشی دیگر فعال شده. برای تغییر گوشی، از مدیر بخواهید دستگاه این حساب را ریست کند.';
+    else if(res.error && res.error !== 'invalid_credentials') msg = 'خطا: ' + res.error;
+    document.getElementById('empLoginHint').textContent = msg;
     document.getElementById('empLoginHint').style.color = '#a32a2a';
     return;
   }
-  loggedInEmployee = {username: res.username, fullName: res.fullName};
+  loggedInEmployee = {username: res.username, fullName: res.fullName, allowedProjects: res.allowedProjects || ''};
   sessionStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
   document.getElementById('empUsername').value='';
   document.getElementById('empPassword').value='';
@@ -577,6 +878,7 @@ async function employeeLogin(){
   document.getElementById('empView').style.display='block';
   loadProjectsPublic();
   loadMyLogs();
+  loadMyRequests();
 }
 function employeeLogout(){
   loggedInEmployee = null;
@@ -644,12 +946,40 @@ function renderEmpList(){
   var box = document.getElementById('empList');
   if(employees.length===0){ box.innerHTML = '<div class="empty">هنوز پرسنلی اضافه نشده</div>'; return; }
   box.innerHTML = employees.map(function(emp){
-    return '<div class="list-item"><div><b>'+esc(emp.fullName)+'</b><div class="meta">username: '+esc(emp.username)+'</div></div>'+
+    var deviceBadge = emp.deviceId
+      ? '<span class="badge badge-bound">📱 دستگاه ثبت‌شده</span>'
+      : '<span class="badge badge-unbound">📱 دستگاه ثبت‌نشده</span>';
+    var scopeText = (!emp.allowedProjects || emp.allowedProjects==='ALL') ? 'همه پروژه‌ها' : (emp.allowedProjects.split(',').length + ' پروژه محدود');
+    return '<div class="list-item"><div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+
+      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+'</div></div>'+
       '<div class="actions">'+
+        (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditEmp(\''+emp.id+'\')">✏️</button>'+
         '<button class="icon-btn del" title="حذف" onclick="deleteEmployee(\''+emp.id+'\')">✕</button>'+
       '</div></div>';
   }).join('');
+}
+function renderEmpProjChecks(selectedIds){
+  var box = document.getElementById('empProjChecks');
+  if(!box) return;
+  var sel = selectedIds || [];
+  var isAll = sel.length===0 || sel.indexOf('ALL') !== -1;
+  var html = '<label class="chk-item all-item"><input type="checkbox" id="empProjAll" onchange="toggleAllProjChecks()" '+(isAll?'checked':'')+'>همه پروژه‌ها</label>';
+  html += projects.map(function(p){
+    var checked = !isAll && sel.indexOf(p.id) !== -1;
+    return '<label class="chk-item"><input type="checkbox" class="proj-chk" value="'+p.id+'" '+(checked?'checked':'')+' '+(isAll?'disabled':'')+'>'+esc(p.name)+'</label>';
+  }).join('');
+  box.innerHTML = html || '<span class="hint" style="margin:0;">ابتدا یک پروژه اضافه کنید</span>';
+}
+function toggleAllProjChecks(){
+  var all = document.getElementById('empProjAll').checked;
+  document.querySelectorAll('.proj-chk').forEach(function(c){ c.disabled = all; if(all) c.checked = false; });
+}
+function getSelectedAllowedProjects(){
+  var allBox = document.getElementById('empProjAll');
+  if(allBox && allBox.checked) return 'ALL';
+  var ids = Array.from(document.querySelectorAll('.proj-chk:checked')).map(function(c){ return c.value; });
+  return ids.join(',');
 }
 function startEditEmp(id){
   var emp = employees.find(function(e){ return e.id===id; });
@@ -658,6 +988,8 @@ function startEditEmp(id){
   document.getElementById('empFormName').value = emp.fullName;
   document.getElementById('empFormUser').value = emp.username;
   document.getElementById('empFormPass').value = emp.password;
+  var sel = emp.allowedProjects ? String(emp.allowedProjects).split(',').map(function(s){return s.trim();}) : [];
+  renderEmpProjChecks(sel.length ? sel : ['ALL']);
   var btn = document.getElementById('empFormBtn');
   btn.disabled = false;
   btn.textContent = '💾 بروزرسانی پرسنل';
@@ -669,6 +1001,7 @@ function cancelEmpEdit(){
   document.getElementById('empFormName').value='';
   document.getElementById('empFormUser').value='';
   document.getElementById('empFormPass').value='';
+  renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
 }
@@ -683,11 +1016,12 @@ async function saveEmployee(){
 
     var btn = document.getElementById('empFormBtn');
     btn.disabled = true;
+    var allowedProjects = getSelectedAllowedProjects();
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password}); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects}); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password}); });
+      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects}); });
     }
     btn.disabled = false;
     if(!res.ok){ showAdminNotice('ذخیره پرسنل ناموفق بود: ' + (res.error||'نامشخص')); return; }
@@ -708,6 +1042,54 @@ async function deleteEmployee(id){
   clearAdminNotice();
   await loadEmployeesAdmin();
 }
+async function resetDevice(id){
+  if(!confirm('دستگاه ثبت‌شده این پرسنل ریست شود؟ (دفعه بعد از هر گوشی‌ای بتونه لاگین کنه و همون گوشی جدید قفل می‌شه)')) return;
+  var res = await apiCall(function(){ return apiPost('resetDevice', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('ریست دستگاه ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadEmployeesAdmin();
+}
+
+// ---------- Manual entry requests (admin review) ----------
+async function loadAdminRequests(){
+  var res = await apiCall(function(){ return apiPost('getRequests', {pin:adminPin}); });
+  var box = document.getElementById('reqAdminList');
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
+  var all = res.requests || [];
+  var pending = all.filter(function(r){ return r.status==='pending'; });
+  var others = all.filter(function(r){ return r.status!=='pending'; }).slice(0,5);
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  if(all.length===0){ box.innerHTML = '<div class="empty">درخواستی وجود ندارد</div>'; return; }
+  var html = '';
+  if(pending.length===0){ html += '<div class="empty">درخواست در انتظاری وجود ندارد</div>'; }
+  html += pending.map(function(r){
+    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
+      '<div><b>'+esc(r.employee)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+'</div>'+
+      '<span class="req-status pending">در انتظار</span></div>'+
+      '<div class="meta">'+r.createdAt+' — '+r.createdTime+'</div>'+
+      (r.reason ? '<div style="margin:6px 0; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      '<div class="btn-row" style="margin-top:6px;">'+
+        '<button type="button" class="btn btn-in btn-small" onclick="decideRequest(\''+r.id+'\',true)">✅ تایید</button>'+
+        '<button type="button" class="btn btn-out btn-small" onclick="decideRequest(\''+r.id+'\',false)">❌ رد</button>'+
+      '</div></div>';
+  }).join('');
+  if(others.length){
+    html += '<div class="divider"></div><div class="hint" style="margin-top:0;">تاریخچه اخیر:</div>';
+    html += others.map(function(r){
+      return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
+        '<div>'+esc(r.employee)+' · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+'</div>'+
+        '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div></div>';
+    }).join('');
+  }
+  box.innerHTML = html;
+}
+async function decideRequest(id, approve){
+  var res = await apiCall(function(){ return apiPost(approve ? 'approveRequest' : 'rejectRequest', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('ثبت تصمیم ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadAdminRequests();
+  await loadFullLog();
+}
 
 // ---------- Projects ----------
 async function loadProjectsPublic(){
@@ -721,12 +1103,28 @@ async function loadProjectsAdmin(){
   projects = res.projects || [];
   renderProjectSelect();
   renderProjectList();
+  if(!editingEmpId) renderEmpProjChecks(['ALL']);
+  initProjMap();
+}
+function getEmployeeAllowedProjects(){
+  if(!loggedInEmployee) return projects;
+  var ap = loggedInEmployee.allowedProjects;
+  if(!ap || ap === 'ALL') return projects;
+  var ids = String(ap).split(',').map(function(s){ return s.trim(); });
+  return projects.filter(function(p){ return ids.indexOf(p.id) !== -1; });
 }
 function renderProjectSelect(){
   var sel = document.getElementById('empProject');
-  if(!sel) return;
-  if(projects.length===0){ sel.innerHTML = '<option value="">هنوز پروژه‌ای تعریف نشده</option>'; return; }
-  sel.innerHTML = projects.map(function(p,i){ return '<option value="'+i+'">'+esc(p.name)+'</option>'; }).join('');
+  var reqSel = document.getElementById('reqProject');
+  var list = getEmployeeAllowedProjects();
+  var html;
+  if(list.length===0){
+    html = '<option value="">' + (projects.length===0 ? 'هنوز پروژه‌ای تعریف نشده' : 'شما به هیچ پروژه‌ای دسترسی ندارید') + '</option>';
+  } else {
+    html = list.map(function(p){ return '<option value="'+projects.indexOf(p)+'">'+esc(p.name)+'</option>'; }).join('');
+  }
+  if(sel) sel.innerHTML = html;
+  if(reqSel) reqSel.innerHTML = html;
 }
 function renderProjectList(){
   var box = document.getElementById('projList');
@@ -744,8 +1142,7 @@ function startEditProj(id){
   if(!p) return;
   editingProjId = id;
   document.getElementById('projFormName').value = p.name;
-  document.getElementById('projFormLat').value = p.lat;
-  document.getElementById('projFormLng').value = p.lng;
+  setProjLatLng(Number(p.lat), Number(p.lng), true);
   document.getElementById('projFormRadius').value = p.radius;
   document.getElementById('projFormBtn').textContent = '💾 بروزرسانی پروژه';
   document.getElementById('projFormCancel').style.display='block';
@@ -791,11 +1188,54 @@ async function deleteProject(id){
 function useCurrentLocForProject(){
   if(!navigator.geolocation){ alert('مرورگر شما GPS را پشتیبانی نمی‌کند'); return; }
   navigator.geolocation.getCurrentPosition(function(pos){
-    document.getElementById('projFormLat').value = pos.coords.latitude.toFixed(6);
-    document.getElementById('projFormLng').value = pos.coords.longitude.toFixed(6);
+    setProjLatLng(pos.coords.latitude, pos.coords.longitude, true);
   }, function(err){
     alert('دریافت موقعیت ناموفق بود: ' + err.message);
   }, {enableHighAccuracy:true, timeout:12000});
+}
+
+// ---------- Map picker (Leaflet + OpenStreetMap) ----------
+var projMap = null, projMarker = null;
+function initProjMap(){
+  var mapEl = document.getElementById('projMap');
+  if(!mapEl || typeof L === 'undefined') return;
+  if(projMap){ setTimeout(function(){ projMap.invalidateSize(); }, 60); return; }
+  var startLat = parseFloat(document.getElementById('projFormLat').value) || 35.6892;
+  var startLng = parseFloat(document.getElementById('projFormLng').value) || 51.3890;
+  projMap = L.map('projMap').setView([startLat, startLng], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 19
+  }).addTo(projMap);
+  projMarker = L.marker([startLat, startLng], {draggable:true}).addTo(projMap);
+  projMarker.on('dragend', function(){
+    var p = projMarker.getLatLng();
+    document.getElementById('projFormLat').value = p.lat.toFixed(6);
+    document.getElementById('projFormLng').value = p.lng.toFixed(6);
+  });
+  projMap.on('click', function(e){
+    projMarker.setLatLng(e.latlng);
+    document.getElementById('projFormLat').value = e.latlng.lat.toFixed(6);
+    document.getElementById('projFormLng').value = e.latlng.lng.toFixed(6);
+  });
+  setTimeout(function(){ projMap.invalidateSize(); }, 150);
+}
+function setProjLatLng(lat, lng, panTo){
+  document.getElementById('projFormLat').value = lat.toFixed(6);
+  document.getElementById('projFormLng').value = lng.toFixed(6);
+  if(projMap && projMarker){
+    projMarker.setLatLng([lat, lng]);
+    if(panTo) projMap.setView([lat, lng], 15);
+  }
+}
+async function searchMapAddress(){
+  var q = document.getElementById('mapSearchInput').value.trim();
+  if(!q) return;
+  try{
+    var res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+    var data = await res.json();
+    if(!data || data.length===0){ alert('آدرسی پیدا نشد، مختصات دقیق‌تری امتحان کنید'); return; }
+    setProjLatLng(parseFloat(data[0].lat), parseFloat(data[0].lon), true);
+  }catch(e){ alert('جستجوی آدرس ناموفق بود (اتصال اینترنت را چک کنید)'); }
 }
 
 // ---------- Geolocation + geofence ----------
@@ -851,28 +1291,28 @@ async function submitEntry(type){
   if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
   if(!currentPos || !chosenProject){ alert('ابتدا موقعیت مکانی را بررسی کنید'); return; }
 
-  var now = new Date();
   var entry = {
     employee: loggedInEmployee.fullName,
     username: loggedInEmployee.username,
     project: chosenProject.name,
     type: type,
-    jalaliDate: jalaliString(now),
-    time: timeString(now),
     lat: currentPos.latitude,
     lng: currentPos.longitude,
     accuracy: Math.round(currentPos.accuracy),
-    isoTimestamp: now.toISOString()
+    clientIso: new Date().toISOString() // reference only — server time is what actually gets recorded
   };
 
   document.getElementById('checkInBtn').disabled = true;
   document.getElementById('checkOutBtn').disabled = true;
-  var res = await apiCall(function(){ return apiPost('addLog', {entry: entry}); });
+  var res = await apiCall(function(){ return apiPost('addLog', {entry: entry, deviceId: DEVICE_ID, project_id: chosenProject.id}); });
   if(!res.ok){
-    setStatus('⛔ ثبت ناموفق بود: ' + (res.error || 'خطای شبکه') + '. دوباره تلاش کنید.', 'err');
+    var msg = res.error || 'خطای شبکه';
+    if(res.error === 'device_mismatch') msg = 'این حساب روی گوشی دیگری فعال است — از مدیر بخواهید دستگاه را ریست کند.';
+    if(res.error === 'project_not_allowed') msg = 'شما اجازه ثبت تردد برای این پروژه را ندارید.';
+    setStatus('⛔ ثبت ناموفق بود: ' + msg + '. دوباره تلاش کنید.', 'err');
     return;
   }
-  setStatus('✅ '+(type==='in' ? 'ورود' : 'خروج')+' با موفقیت ثبت شد ساعت '+entry.time, 'ok');
+  setStatus('✅ '+(type==='in' ? 'ورود' : 'خروج')+' با موفقیت ثبت شد — ساعت سرور: '+(res.time||''), 'ok');
   loadMyLogs();
 }
 
@@ -898,33 +1338,124 @@ async function loadMyLogs(){
   }).join('');
 }
 
-// ---------- Admin: full log table ----------
+// ---------- Manual entry requests (employee) ----------
+async function submitRequest(){
+  if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
+  var type = document.getElementById('reqType').value;
+  var projSel = document.getElementById('reqProject');
+  var idx = projSel.value;
+  if(idx === ''){ alert('یک پروژه انتخاب کنید'); return; }
+  var project = projects[idx];
+  var reason = document.getElementById('reqReason').value.trim();
+  if(!reason){ alert('لطفاً دلیل درخواست را بنویسید'); return; }
+
+  var res = await apiCall(function(){ return apiPost('createRequest', {
+    username: loggedInEmployee.username, project: project.name, type: type, reason: reason, deviceId: DEVICE_ID
+  }); });
+  if(!res.ok){
+    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.' : (res.error || 'خطای شبکه');
+    alert('ارسال درخواست ناموفق بود: ' + msg);
+    return;
+  }
+  document.getElementById('reqReason').value = '';
+  alert('درخواست شما ارسال شد و در انتظار تایید مدیر است.');
+  loadMyRequests();
+}
+async function loadMyRequests(){
+  if(!loggedInEmployee) return;
+  var res = await apiCall(function(){ return apiPost('getMyRequests', {username: loggedInEmployee.username}); });
+  var box = document.getElementById('myRequests');
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
+  var list = (res.requests || []).slice(0,6);
+  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی ثبت نشده</div>'; return; }
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  box.innerHTML = list.map(function(r){
+    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
+      '<div>'+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+'</div>'+
+      '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
+      '<div class="meta">'+r.createdAt+' — '+r.createdTime+'</div>'+
+      (r.reason ? '<div style="margin-top:4px; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      '</div>';
+  }).join('');
+}
+
+// ---------- Admin: log table ----------
 async function loadFullLog(){
   var res = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
   var tbody = document.getElementById('logTableBody');
   if(!res.ok){
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">دریافت گزارش ناموفق بود</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">دریافت گزارش ناموفق بود</td></tr>';
     showAdminNotice('دریافت گزارش تردد ناموفق بود: ' + (res.error||''));
     return;
   }
   var entries = res.logs || [];
   entries.sort(function(a,b){ return String(b.isoTimestamp).localeCompare(String(a.isoTimestamp)); });
-  if(entries.length===0){
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">هنوز ثبتی وجود ندارد</td></tr>';
-  } else {
-    tbody.innerHTML = entries.map(function(e){
-      return '<tr><td>'+e.jalaliDate+'</td><td class="mono">'+e.time+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
-        '<td><span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span></td></tr>';
-    }).join('');
-  }
   window._allEntries = entries;
+  renderLogTable();
+}
+function renderLogTable(){
+  var tbody = document.getElementById('logTableBody');
+  var entries = window._allEntries || [];
+  if(entries.length===0){
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">هنوز ثبتی وجود ندارد</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = entries.map(function(e){
+    if(e.id && e.id === editingLogId){
+      var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===e.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
+      var prOpts = projects.map(function(p){ return '<option'+(p.name===e.project?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('');
+      return '<tr class="edit-row"><td colspan="6">'+
+        '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
+          '<input type="text" id="logEditDate" value="'+esc(e.jalaliDate)+'" style="width:120px;" placeholder="15 مرداد 1405">'+
+          '<input type="text" id="logEditTime" value="'+esc(e.time)+'" style="width:90px;" class="field-mono" placeholder="14:30:00">'+
+          '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
+          '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
+          '<select id="logEditType" style="width:90px;"><option value="in"'+(e.type==='ورود'?' selected':'')+'>ورود</option><option value="out"'+(e.type==='خروج'?' selected':'')+'>خروج</option></select>'+
+        '</div>'+
+        '<div class="btn-row">'+
+          '<button type="button" class="btn btn-in btn-small" onclick="saveEditLog(\''+e.id+'\')">💾 ذخیره</button>'+
+          '<button type="button" class="btn btn-ghost btn-small" onclick="cancelEditLog()">لغو</button>'+
+        '</div></td></tr>';
+    }
+    var actions = e.id
+      ? '<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>'
+      : '';
+    return '<tr><td>'+e.jalaliDate+'</td><td class="mono">'+e.time+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
+      '<td><span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span></td>'+
+      '<td style="white-space:nowrap;">'+actions+'</td></tr>';
+  }).join('');
+}
+function startEditLog(id){ editingLogId = id; renderLogTable(); }
+function cancelEditLog(){ editingLogId = null; renderLogTable(); }
+async function saveEditLog(id){
+  var payload = {
+    pin: adminPin, id: id,
+    jalaliDate: document.getElementById('logEditDate').value.trim(),
+    time: document.getElementById('logEditTime').value.trim(),
+    employee: document.getElementById('logEditEmp').value,
+    project: document.getElementById('logEditProj').value,
+    type: document.getElementById('logEditType').value
+  };
+  var res = await apiCall(function(){ return apiPost('updateLog', payload); });
+  if(!res.ok){ showAdminNotice('ویرایش ثبت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  editingLogId = null;
+  await loadFullLog();
+}
+async function deleteLogEntry(id){
+  if(!confirm('این ثبت تردد حذف شود؟ این کار قابل بازگشت نیست.')) return;
+  var res = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ثبت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadFullLog();
 }
 function exportCSV(){
   var entries = window._allEntries || [];
   if(entries.length===0){ alert('داده‌ای برای خروجی وجود ندارد'); return; }
-  var rows = [['تاریخ','ساعت','پرسنل','پروژه','نوع','lat','lng','accuracy']];
+  var rows = [['تاریخ','ساعت','پرسنل','پروژه','نوع','lat','lng','accuracy','یادداشت']];
   entries.forEach(function(e){
-    rows.push([e.jalaliDate, e.time, e.employee, e.project, e.type, e.lat, e.lng, e.accuracy]);
+    rows.push([e.jalaliDate, e.time, e.employee, e.project, e.type, e.lat, e.lng, e.accuracy, e.note||'']);
   });
   var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
   var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
@@ -947,6 +1478,7 @@ function copyScript(){
 async function refreshAdminView(){
   await loadEmployeesAdmin();
   await loadProjectsAdmin();
+  await loadAdminRequests();
   await loadFullLog();
 }
 
@@ -970,6 +1502,7 @@ function init(){
       document.getElementById('empLoginGate').style.display='none';
       document.getElementById('empView').style.display='block';
       loadMyLogs();
+      loadMyRequests();
     }catch(e){}
   }
   var savedPin = sessionStorage.getItem('adminPin');
