@@ -498,11 +498,11 @@ function doPost(e){
     if(emp2.deviceId && String(emp2.deviceId) !== String(body.deviceId||'')){
       return jsonOut({ok:false, error:'device_mismatch'});
     }
-    var rsh = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
+    var rsh = getSheet('Requests', ['id','username','employee','employeeCode','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
     var t2 = serverNow();
     var rid = Utilities.getUuid();
     appendRowByHeader(rsh, {
-      id:rid, username:body.username, employee:emp2.fullName, project:body.project, type:body.type,
+      id:rid, username:body.username, employee:emp2.fullName, employeeCode: emp2.employeeCode||'', project:body.project, type:body.type,
       reason: body.reason||'', status:'pending', createdAt:t2.jalaliDate, createdTime:t2.time,
       requestedDate: body.requestedDate||'', requestedTime: normalizeTimeInput(body.requestedTime)
     });
@@ -517,7 +517,7 @@ function doPost(e){
   }
 
   if(action === 'getMyRequests'){
-    var rsh2 = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
+    var rsh2 = getSheet('Requests', ['id','username','employee','employeeCode','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
     var rows4 = readRows(rsh2).filter(function(r){ return r.username === body.username; })
       .map(function(r){ delete r._row; return r; })
       .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
@@ -532,11 +532,11 @@ function doPost(e){
     if(empL.deviceId && String(empL.deviceId) !== String(body.deviceId||'')){
       return jsonOut({ok:false, error:'device_mismatch'});
     }
-    var lrsh = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrsh = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
     var tL = serverNow();
     var lrid = Utilities.getUuid();
     appendRowByHeader(lrsh, {
-      id:lrid, username:body.username, employee:empL.fullName, startDate:body.startDate, endDate:body.endDate,
+      id:lrid, username:body.username, employee:empL.fullName, employeeCode: empL.employeeCode||'', startDate:body.startDate, endDate:body.endDate,
       reason: body.reason||'', status:'pending', createdAt:tL.jalaliDate, createdTime:tL.time,
       leaveType: body.leaveType || 'daily', startTime: normalizeTimeInput(body.startTime), endTime: normalizeTimeInput(body.endTime)
     });
@@ -552,7 +552,7 @@ function doPost(e){
     return jsonOut({ok:true});
   }
   if(action === 'getMyLeaveRequests'){
-    var lrsh2 = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrsh2 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
     var lrows = readRows(lrsh2).filter(function(r){ return r.username === body.username; })
       .map(function(r){ delete r._row; return r; })
       .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
@@ -571,6 +571,9 @@ function doPost(e){
     return jsonOut({ok:true, employees: rows5});
   }
   if(action === 'addEmployee'){
+    if(!body.employeeCode || !String(body.employeeCode).trim()){
+      return jsonOut({ok:false, error:'employee_code_required'});
+    }
     var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
     var id2 = Utilities.getUuid();
     appendRowByHeader(esh5, {
@@ -581,6 +584,9 @@ function doPost(e){
     return jsonOut({ok:true, id:id2});
   }
   if(action === 'updateEmployee'){
+    if(!body.employeeCode || !String(body.employeeCode).trim()){
+      return jsonOut({ok:false, error:'employee_code_required'});
+    }
     var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
     var row = readRows(esh6).filter(function(r){ return r.id === body.id; })[0];
     if(!row) return jsonOut({ok:false, error:'not found'});
@@ -662,13 +668,13 @@ function doPost(e){
 
   // ---------------- manual entry requests (admin decision) ----------------
   if(action === 'getRequests'){
-    var rsh3 = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
+    var rsh3 = getSheet('Requests', ['id','username','employee','employeeCode','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
     var rows8 = readRows(rsh3).map(function(r){ delete r._row; return r; })
       .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
     return jsonOut({ok:true, requests: rows8});
   }
   if(action === 'deleteRequests'){
-    var rshDel = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
+    var rshDel = getSheet('Requests', ['id','username','employee','employeeCode','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
     var idsDel = body.ids || [];
     var toDel = readRows(rshDel).filter(function(r){ return idsDel.indexOf(r.id) !== -1; });
     toDel.sort(function(a,b){ return b._row - a._row; }); // bottom-up so row numbers don't shift mid-delete
@@ -676,7 +682,7 @@ function doPost(e){
     return jsonOut({ok:true, deleted: toDel.length});
   }
   if(action === 'approveRequest' || action === 'rejectRequest'){
-    var rsh4 = getSheet('Requests', ['id','username','employee','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
+    var rsh4 = getSheet('Requests', ['id','username','employee','employeeCode','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
     var rrows = readRows(rsh4);
     var rrow = rrows.filter(function(r){ return r.id === body.id; })[0];
     if(!rrow) return jsonOut({ok:false, error:'not found'});
@@ -700,13 +706,13 @@ function doPost(e){
   }
 
   if(action === 'getLeaveRequests'){
-    var lrsh3 = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrsh3 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
     var lrows2 = readRows(lrsh3).map(function(r){ delete r._row; return r; })
       .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
     return jsonOut({ok:true, leaves: lrows2});
   }
   if(action === 'deleteLeaveRequests'){
-    var lrshDel = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrshDel = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
     var idsDel2 = body.ids || [];
     var toDel2 = readRows(lrshDel).filter(function(r){ return idsDel2.indexOf(r.id) !== -1; });
     toDel2.sort(function(a,b){ return b._row - a._row; });
@@ -714,7 +720,7 @@ function doPost(e){
     return jsonOut({ok:true, deleted: toDel2.length});
   }
   if(action === 'approveLeaveRequest' || action === 'rejectLeaveRequest'){
-    var lrsh4 = getSheet('LeaveRequests', ['id','username','employee','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrsh4 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
     var lrow2 = readRows(lrsh4).filter(function(r){ return r.id === body.id; })[0];
     if(!lrow2) return jsonOut({ok:false, error:'not found'});
     esh_set(lrsh4, lrow2._row, 'status', (action === 'approveLeaveRequest') ? 'approved' : 'rejected');
@@ -826,6 +832,12 @@ function esh_set(sheet, rowNum, headerName, value){
       <textarea id="reqReason" placeholder="مثلاً: گوشیم شارژ تموم کرد و نتونستم موقع ورود ثبت بزنم"></textarea>
       <button type="button" class="btn btn-ghost" onclick="submitRequest()">📨 ارسال درخواست</button>
       <div class="divider"></div>
+      <select id="myReqFilterStatus" onchange="loadMyRequests()">
+        <option value="all">همه</option>
+        <option value="pending">در انتظار</option>
+        <option value="approved">تاییدشده</option>
+        <option value="rejected">ردشده</option>
+      </select>
       <div id="myRequests"><div class="empty">درخواستی ثبت نشده</div></div>
     </div>
 
@@ -861,6 +873,12 @@ function esh_set(sheet, rowNum, headerName, value){
       <textarea id="leaveReason" placeholder="مثلاً: مرخصی استعلاجی"></textarea>
       <button type="button" class="btn btn-ghost" onclick="submitLeaveRequest()">🌴 ارسال درخواست مرخصی</button>
       <div class="divider"></div>
+      <select id="myLeaveFilterStatus" onchange="loadMyLeaves()">
+        <option value="all">همه</option>
+        <option value="pending">در انتظار</option>
+        <option value="approved">تاییدشده</option>
+        <option value="rejected">ردشده</option>
+      </select>
       <div id="myLeaves"><div class="empty">درخواست مرخصی ثبت نشده</div></div>
     </div>
   </div>
@@ -895,8 +913,8 @@ function esh_set(sheet, rowNum, headerName, value){
         <div style="flex:1;"><label>نام کاربری</label><input type="text" id="empFormUser" placeholder="username" class="field-mono"></div>
         <div style="flex:1;"><label>رمز عبور</label><input type="text" id="empFormPass" placeholder="password" class="field-mono"></div>
       </div>
-      <label>کد پرسنلی (اختیاری)</label>
-      <input type="text" id="empFormCode" placeholder="مثلاً: 1042" class="field-mono">
+      <label>کد پرسنلی (الزامی)</label>
+      <input type="text" id="empFormCode" placeholder="مثلاً: 1042" class="field-mono" required>
       <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:14px;">
         <input type="checkbox" id="empFormFreeZone"> این پرسنل محدودیت موقعیت مکانی نداشته باشد (منطقه آزاد)
       </label>
@@ -972,6 +990,7 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="btn btn-ghost btn-small" style="flex:1;" onclick="toggleSelectAllReq()">انتخاب همه</button>
         <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedRequests()">🗑 حذف</button>
       </div>
+      <input type="text" id="reqFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderReqAdminList()">
       <div id="reqAdminList"><div class="empty">در حال بارگذاری...</div></div>
     </div>
 
@@ -987,11 +1006,13 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="btn btn-ghost btn-small" style="flex:1;" onclick="toggleSelectAllLeave()">انتخاب همه</button>
         <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedLeaves()">🗑 حذف</button>
       </div>
+      <input type="text" id="leaveFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLeaveAdminList()">
       <div id="leaveAdminList"><div class="empty">در حال بارگذاری...</div></div>
     </div>
 
     <div class="card">
       <div class="eyebrow">گزارش کامل تردد</div>
+      <input type="text" id="logFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLogTable()">
       <div style="overflow-x:auto;">
         <table id="logTable">
           <thead><tr><th>تاریخ</th><th>ساعت</th><th>پرسنل</th><th>پروژه</th><th>نوع</th><th>عملیات</th></tr></thead>
@@ -1301,7 +1322,9 @@ async function saveEmployee(){
     var fullName = document.getElementById('empFormName').value.trim();
     var username = document.getElementById('empFormUser').value.trim();
     var password = document.getElementById('empFormPass').value.trim();
+    var employeeCodeCheck = document.getElementById('empFormCode').value.trim();
     if(!fullName || !username || !password){ alert('همه فیلدها را کامل وارد کنید'); return; }
+    if(!employeeCodeCheck){ alert('کد پرسنلی الزامی است'); return; }
     var dup = employees.some(function(e){ return String(e.username).toLowerCase()===username.toLowerCase() && e.id!==editingEmpId; });
     if(dup){ alert('این نام کاربری قبلاً استفاده شده'); return; }
 
@@ -1317,7 +1340,11 @@ async function saveEmployee(){
       res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone}); });
     }
     btn.disabled = false;
-    if(!res.ok){ showAdminNotice('ذخیره پرسنل ناموفق بود: ' + (res.error||'نامشخص')); return; }
+    if(!res.ok){
+      var saveMsg = res.error === 'employee_code_required' ? 'کد پرسنلی الزامی است' : (res.error||'نامشخص');
+      showAdminNotice('ذخیره پرسنل ناموفق بود: ' + saveMsg);
+      return;
+    }
     clearAdminNotice();
     cancelEmpEdit();
     await loadEmployeesAdmin();
@@ -1356,8 +1383,10 @@ async function loadAdminRequests(){
 function renderReqAdminList(){
   var box = document.getElementById('reqAdminList');
   var filter = document.getElementById('reqFilterStatus').value;
+  var codeFilter = document.getElementById('reqFilterCode').value.trim().toLowerCase();
   var all = window._allRequests || [];
   var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
+  if(codeFilter) list = list.filter(function(r){ return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; });
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   box.innerHTML = list.map(function(r){
@@ -1413,8 +1442,10 @@ async function loadAdminLeaves(){
 function renderLeaveAdminList(){
   var box = document.getElementById('leaveAdminList');
   var filter = document.getElementById('leaveFilterStatus').value;
+  var codeFilter = document.getElementById('leaveFilterCode').value.trim().toLowerCase();
   var all = window._allLeaves || [];
   var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
+  if(codeFilter) list = list.filter(function(r){ return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; });
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   box.innerHTML = list.map(function(r){
@@ -1760,8 +1791,10 @@ async function loadMyRequests(){
   var res = await apiCall(function(){ return apiPost('getMyRequests', {username: loggedInEmployee.username}); });
   var box = document.getElementById('myRequests');
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
-  var list = (res.requests || []).slice(0,6);
-  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی ثبت نشده</div>'; return; }
+  var filter = document.getElementById('myReqFilterStatus').value;
+  var all = res.requests || [];
+  var list = (filter === 'all' ? all : all.filter(function(r){ return r.status === filter; })).slice(0,10);
+  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   box.innerHTML = list.map(function(r){
     return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
@@ -1832,8 +1865,10 @@ async function loadMyLeaves(){
   var res = await apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}); });
   var box = document.getElementById('myLeaves');
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
-  var list = (res.leaves || []).slice(0,6);
-  if(list.length===0){ box.innerHTML = '<div class="empty">درخواست مرخصی ثبت نشده</div>'; return; }
+  var filter = document.getElementById('myLeaveFilterStatus').value;
+  var all = res.leaves || [];
+  var list = (filter === 'all' ? all : all.filter(function(r){ return r.status === filter; })).slice(0,10);
+  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   box.innerHTML = list.map(function(r){
     return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
@@ -1860,9 +1895,11 @@ async function loadFullLog(){
 }
 function renderLogTable(){
   var tbody = document.getElementById('logTableBody');
-  var entries = window._allEntries || [];
+  var all = window._allEntries || [];
+  var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
+  var entries = codeFilter ? all.filter(function(e){ return String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; }) : all;
   if(entries.length===0){
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">هنوز ثبتی وجود ندارد</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">'+(codeFilter ? 'با این کد پرسنلی ثبتی یافت نشد' : 'هنوز ثبتی وجود ندارد')+'</td></tr>';
     return;
   }
 
@@ -1916,11 +1953,13 @@ async function deleteLogEntry(id){
   await loadFullLog();
 }
 function exportCSV(){
-  var entries = window._allEntries || [];
+  var all = window._allEntries || [];
+  var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
+  var entries = codeFilter ? all.filter(function(e){ return String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; }) : all;
   if(entries.length===0){ alert('داده‌ای برای خروجی وجود ندارد'); return; }
-  var rows = [['تاریخ','ساعت','پرسنل','پروژه','نوع','lat','lng','accuracy','یادداشت']];
+  var rows = [['تاریخ','ساعت','پرسنل','کد پرسنلی','پروژه','نوع','lat','lng','accuracy','یادداشت']];
   entries.forEach(function(e){
-    rows.push([e.jalaliDate, e.time, e.employee, e.project, e.type, e.lat, e.lng, e.accuracy, e.note||'']);
+    rows.push([e.jalaliDate, e.time, e.employee, e.employeeCode||'', e.project, e.type, e.lat, e.lng, e.accuracy, e.note||'']);
   });
   var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
   var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
