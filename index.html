@@ -1,17 +1,208 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>ثبت تردد سایت</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f2a43">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ثبت تردد">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --navy:#0f2a43;
+    --navy-2:#123456;
+    --grid:#3e7cb14d;
+    --cyan:#7fd4d9;
+    --orange:#ff6a3d;
+    --orange-dark:#e6522a;
+    --paper:#fbfaf5;
+    --paper-2:#f1efe4;
+    --ink:#12202c;
+    --ok:#3bb27a;
+    --err:#e05252;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Vazirmatn', Tahoma, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--sans);
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+      var(--navy);
+    color:var(--ink);
+    min-height:100vh;
+    padding:18px 14px 60px;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
 
+  header.top{
+    display:flex; align-items:center; justify-content:space-between;
+    color:var(--paper); margin-bottom:16px; gap:10px;
+  }
+  header.top .title{font-weight:800; font-size:20px; letter-spacing:.2px;}
+  header.top .sub{font-family:var(--mono); font-size:12px; color:var(--cyan); opacity:.9;}
+  .clock{
+    font-family:var(--mono); color:var(--cyan); font-size:13px; text-align:left; line-height:1.5;
+  }
 
-🔧 راه‌اندازی اولیه لازم است
+  .card{
+    background:var(--paper);
+    border:1px solid #00000012;
+    border-radius:14px;
+    padding:18px;
+    box-shadow: 0 10px 30px -12px #00000055;
+    margin-bottom:14px;
+  }
 
-این صفحه به یک بک‌اند رایگان روی Google Sheets نیاز داره تا اطلاعات پرسنل، پروژه‌ها و ترددها را ذخیره کند. این کار فقط یک‌بار توسط مدیر انجام می‌شود:
-یک Google Sheet جدید بسازید.
-از منو: Extensions ← Apps Script را باز کنید.
-کد زیر را کپی و کامل جایگزین محتوای فایل کنید، سپس ذخیره (Save) کنید.
-از دکمه Deploy ← New deployment؛ نوع (Select type) را Web app بگذارید، «Who has access» را Anyone بگذارید و Deploy را بزنید (و مجوزهای درخواستی را تایید کنید).
-لینکی که به شما می‌دهد (چیزی شبیه به .../exec) را کپی کنید.
-در فایل همین صفحه (index.html) را با یک ویرایشگر متن باز کنید، در ابتدای بخش اسکریپت دنبال خط const API_URL = ""; بگردید و لینک را بین گیومه‌ها جای‌گذاری کنید، فایل را ذخیره کنید.
-حالا همین فایل را برای همه پرسنل ارسال کنید — دیگر نیازی به Claude نیست و روی هر مرورگر/هر جایی باز می‌شود.
-📋 کپی کد Apps Script
-// ============================================================
+  .tabs{display:flex; gap:8px; margin-bottom:14px;}
+  .tab-btn{
+    flex:1; padding:10px 8px; border-radius:10px; border:1px solid #ffffff33;
+    background:#ffffff14; color:var(--paper); font-family:var(--sans); font-weight:600;
+    font-size:14px; cursor:pointer; transition:.15s;
+  }
+  .tab-btn.active{background:var(--orange); border-color:var(--orange); color:#fff;}
+
+  label{display:block; font-size:13px; font-weight:600; color:#3a4a56; margin-bottom:6px;}
+  input[type=text], input[type=number], input[type=password], select{
+    width:100%; padding:11px 12px; border-radius:9px; border:1.5px solid #d8d3c4;
+    font-family:var(--sans); font-size:15px; background:#fff; margin-bottom:14px; color:var(--ink);
+  }
+  input:focus, select:focus{outline:none; border-color:var(--navy-2);}
+
+  .field-mono input{font-family:var(--mono); direction:ltr; text-align:left;}
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:12px 16px; border-radius:10px; border:none; font-family:var(--sans);
+    font-weight:700; font-size:15px; cursor:pointer; width:100%; transition:.15s;
+  }
+  .btn-primary{background:var(--navy); color:#fff;}
+  .btn-primary:hover{background:var(--navy-2);}
+  .btn-in{background:var(--ok); color:#fff;}
+  .btn-out{background:var(--orange); color:#fff;}
+  .btn-ghost{background:#eee7d6; color:var(--ink);}
+  .btn-small{width:auto; padding:7px 12px; font-size:12.5px;}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+  .btn-row{display:flex; gap:10px; margin-top:4px;}
+  .btn-row .btn{width:auto; flex:1;}
+
+  .status{
+    border-radius:10px; padding:12px 14px; font-size:13.5px; margin-bottom:14px;
+    font-family:var(--mono); direction:ltr; text-align:left; line-height:1.7;
+  }
+  .status.idle{background:#eef2f5; color:#5b6b76;}
+  .status.wait{background:#fff4e2; color:#8a5a10;}
+  .status.ok{background:#e7f7ef; color:#1f7a4d;}
+  .status.err{background:#fdeaea; color:#a32a2a;}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--orange-dark); font-weight:700; margin-bottom:8px;
+  }
+
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th,td{padding:7px 6px; border-bottom:1px solid #eae5d6; text-align:right;}
+  th{font-size:11px; color:#6b6252; font-weight:700;}
+  td.mono{font-family:var(--mono); direction:ltr; text-align:left;}
+  .in-tag{color:var(--ok); font-weight:700;}
+  .out-tag{color:var(--orange-dark); font-weight:700;}
+
+  .list-item{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    background:#f7f4ea; border:1px solid #eae5d6; border-radius:9px; padding:9px 12px; margin-bottom:8px;
+    font-size:13.5px;
+  }
+  .list-item .meta{font-family:var(--mono); font-size:11px; color:#847a63; direction:ltr; text-align:left;}
+  .list-item .actions{display:flex; gap:6px; flex-shrink:0;}
+  .icon-btn{background:none; border:none; font-size:16px; cursor:pointer; line-height:1; padding:4px;}
+  .icon-btn.del{color:#c14b3a;}
+  .icon-btn.edit{color:#2f6f8f;}
+
+  .divider{height:1px; background:#e9e4d5; margin:16px 0;}
+  .hint{font-size:12px; color:#7a7360; margin:-8px 0 14px;}
+  details summary{cursor:pointer; font-weight:700; color:var(--navy); font-size:14px; margin-bottom:8px;}
+  pre{
+    background:#0f2a43; color:#d7ecec; padding:12px; border-radius:9px; font-family:var(--mono);
+    font-size:11.5px; overflow-x:auto; direction:ltr; text-align:left; line-height:1.6;
+  }
+  .copy-btn{font-size:11px; padding:6px 10px; width:auto; margin-bottom:8px;}
+  .pin-gate{max-width:340px; margin:40px auto; text-align:center;}
+  .empty{text-align:center; color:#a39c88; font-size:13px; padding:16px 0;}
+  .badge-ok{display:inline-block; background:#e7f7ef; color:#1f7a4d; font-size:11px; padding:3px 9px; border-radius:20px; font-family:var(--mono);}
+  .badge-off{display:inline-block; background:#fdeaea; color:#a32a2a; font-size:11px; padding:3px 9px; border-radius:20px; font-family:var(--mono);}
+  .setup-wrap{max-width:600px; margin:40px auto; color:var(--paper);}
+  .setup-wrap .card{color:var(--ink);}
+  .setup-wrap ol{font-size:13.5px; line-height:2.1; padding-inline-start:20px;}
+
+  #projMap{height:220px; border-radius:9px; margin-bottom:10px; border:1.5px solid #d8d3c4;}
+  .map-search-row{display:flex; gap:8px;}
+  .map-search-row input{flex:1;}
+  .map-search-row button{width:auto; flex-shrink:0;}
+
+  .chk-list{
+    display:flex; flex-wrap:wrap; gap:8px; background:#f7f4ea; border:1px solid #eae5d6;
+    border-radius:9px; padding:10px; margin-bottom:14px; max-height:160px; overflow-y:auto;
+  }
+  .chk-item{
+    display:flex; align-items:center; gap:5px; background:#fff; border:1px solid #e0dac8;
+    border-radius:20px; padding:5px 10px; font-size:12.5px; cursor:pointer; user-select:none;
+  }
+  .chk-item input{width:auto; margin:0;}
+  .chk-item.all-item{font-weight:700; background:#eee7d6;}
+
+  .badge{display:inline-block; font-size:10.5px; padding:2px 8px; border-radius:20px; font-family:var(--mono); margin-inline-start:6px;}
+  .badge-bound{background:#e7f7ef; color:#1f7a4d;}
+  .badge-unbound{background:#fff4e2; color:#8a5a10;}
+
+  .req-item{background:#f7f4ea; border:1px solid #eae5d6; border-radius:9px; padding:10px 12px; margin-bottom:8px; font-size:13px;}
+  .req-item .meta{font-family:var(--mono); font-size:11px; color:#847a63; direction:ltr; text-align:left; margin-top:2px;}
+  .req-status{font-size:11px; padding:2px 8px; border-radius:20px; font-weight:700;}
+  .req-status.pending{background:#fff4e2; color:#8a5a10;}
+  .req-status.approved{background:#e7f7ef; color:#1f7a4d;}
+  .req-status.rejected{background:#fdeaea; color:#a32a2a;}
+
+  textarea{
+    width:100%; padding:11px 12px; border-radius:9px; border:1.5px solid #d8d3c4;
+    font-family:var(--sans); font-size:14px; background:#fff; margin-bottom:14px; color:var(--ink);
+    resize:vertical; min-height:70px;
+  }
+
+  .edit-row{background:#fdf6ea; border:1px solid #eddca8;}
+  .edit-row input, .edit-row select{margin-bottom:6px; padding:6px 8px; font-size:12.5px;}
+
+  .date-row{display:flex; gap:6px; margin-bottom:14px;}
+  .date-row select{margin-bottom:0; padding:9px 4px; font-size:13px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- SETUP REQUIRED SCREEN (shown only if API_URL isn't configured) -->
+  <div id="setupScreen" class="setup-wrap" style="display:none;">
+    <header class="top"><div class="title">🔧 راه‌اندازی اولیه لازم است</div></header>
+    <div class="card">
+      <p>این صفحه به یک بک‌اند رایگان روی Google Sheets نیاز داره تا اطلاعات پرسنل، پروژه‌ها و ترددها را ذخیره کند. این کار فقط یک‌بار توسط مدیر انجام می‌شود:</p>
+      <ol>
+        <li>یک Google Sheet جدید بسازید.</li>
+        <li>از منو: Extensions ← Apps Script را باز کنید.</li>
+        <li>کد زیر را کپی و کامل جایگزین محتوای فایل کنید، سپس ذخیره (Save) کنید.</li>
+        <li>از دکمه Deploy ← New deployment؛ نوع (Select type) را <b>Web app</b> بگذارید، «Who has access» را <b>Anyone</b> بگذارید و Deploy را بزنید (و مجوزهای درخواستی را تایید کنید).</li>
+        <li>لینکی که به شما می‌دهد (چیزی شبیه به .../exec) را کپی کنید.</li>
+        <li>در فایل همین صفحه (index.html) را با یک ویرایشگر متن باز کنید، در ابتدای بخش اسکریپت دنبال خط <code style="direction:ltr;display:inline-block">const API_URL = "";</code> بگردید و لینک را بین گیومه‌ها جای‌گذاری کنید، فایل را ذخیره کنید.</li>
+        <li>حالا همین فایل را برای همه پرسنل ارسال کنید — دیگر نیازی به Claude نیست و روی هر مرورگر/هر جایی باز می‌شود.</li>
+      </ol>
+      <button type="button" class="btn btn-ghost copy-btn" onclick="copyScript()">📋 کپی کد Apps Script</button>
+      <pre id="scriptCode">// ============================================================
 // Self-healing sheet getter: creates the sheet if missing, and
 // adds any newly-introduced header columns to existing sheets
 // (so upgrading this script never breaks old data).
@@ -37,7 +228,109 @@ function readRows(sheet){
   var values = sheet.getDataRange().getValues();
   var headers = values[0];
   var rows = [];
-  for(var i=1;i 2) ? (gy + 1) : gy;
+  for(var i=1;i<values.length;i++){
+    var obj = {};
+    for(var j=0;j<headers.length;j++){ obj[headers[j]] = values[i][j]; }
+    obj._row = i+1;
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function colIndex(sheet, headerName){
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  return headers.indexOf(headerName) + 1; // 1-based; 0 if not found
+}
+
+// Appends a row using an object keyed by header name, so it's always correct
+// regardless of the PHYSICAL column order in the sheet (which can drift after
+// schema upgrades, since getSheet() appends new columns at the end).
+function appendRowByHeader(sheet, dataObj){
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var row = headers.map(function(h){ return dataObj.hasOwnProperty(h) ? dataObj[h] : ''; });
+  sheet.appendRow(row);
+}
+
+// Backfill missing ids on old rows so every row can be addressed (edit/delete).
+function ensureIds(sheet, rows){
+  var idCol = colIndex(sheet, 'id');
+  rows.forEach(function(r){
+    if(!r.id){
+      r.id = Utilities.getUuid();
+      sheet.getRange(r._row, idCol).setValue(r.id);
+    }
+  });
+  return rows;
+}
+
+function getAdminPin(){
+  var sh = getSheet('Settings', ['key','value']);
+  var rows = readRows(sh);
+  var pinRow = rows.filter(function(r){ return r.key === 'admin_pin'; })[0];
+  if(!pinRow){ appendRowByHeader(sh, {key:'admin_pin', value:'1234'}); return '1234'; }
+  return String(pinRow.value);
+}
+function getAdminUsername(){
+  var u = getSetting('admin_username');
+  return u || 'admin';
+}
+function getSetting(key){
+  var sh = getSheet('Settings', ['key','value']);
+  var row = readRows(sh).filter(function(r){ return r.key === key; })[0];
+  return row ? String(row.value) : '';
+}
+function setSetting(key, value){
+  var sh = getSheet('Settings', ['key','value']);
+  var row = readRows(sh).filter(function(r){ return r.key === key; })[0];
+  if(row){ esh_set(sh, row._row, 'value', value); }
+  else{ appendRowByHeader(sh, {key:key, value:value}); }
+}
+function notifyAdmin(subject, body){
+  var email = getSetting('notify_email');
+  if(!email) return;
+  try{
+    MailApp.sendEmail(email, subject, body);
+    setSetting('last_email_status', 'ok — ' + new Date().toISOString());
+  }catch(e){
+    setSetting('last_email_status', 'error — ' + (e && e.message ? e.message : e));
+  }
+}
+// Run this manually from the Apps Script editor (select it in the function dropdown, click Run)
+// the first time you set up email notifications. This forces Google to show the
+// "Send email as you" permission prompt, which a web app request cannot trigger itself.
+function testEmailSetup(){
+  var to = getSetting('notify_email') || Session.getActiveUser().getEmail();
+  MailApp.sendEmail(to, 'تست اعلان ثبت تردد', 'اگر این ایمیل رو دریافت کردید، اعلان‌های ایمیلی درست تنظیم شده‌اند.');
+}
+
+function distMeters(lat1, lng1, lat2, lng2){
+  var R = 6371000;
+  var dLat = (lat2-lat1) * Math.PI/180;
+  var dLng = (lng2-lng1) * Math.PI/180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+          Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+          Math.sin(dLng/2)*Math.sin(dLng/2);
+  var c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+
+function jsonOut(obj){
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============================================================
+// Server-authoritative date/time (Asia/Tehran) + Jalali conversion.
+// The client's device clock is NEVER trusted for the recorded time.
+// ============================================================
+var TZ = 'Asia/Tehran';
+
+function toJalaali(gy, gm, gd) {
+  var g_d_m = [0,31,59,90,120,151,181,212,243,273,304,334];
+  var jy = (gy <= 1600) ? 0 : 979;
+  gy -= (gy <= 1600) ? 621 : 1600;
+  var gy2 = (gm > 2) ? (gy + 1) : gy;
   var days = (365*gy) + (Math.floor((gy2+3)/4)) - (Math.floor((gy2+99)/100)) + (Math.floor((gy2+399)/400)) - 80 + gd + g_d_m[gm-1];
   jy += 33*Math.floor(days/12053);
   days %= 12053;
@@ -53,7 +346,7 @@ var FA_DIGITS = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
 function toFaDigits(s){
   return String(s).replace(/[0-9]/g, function(d){ return FA_DIGITS[+d]; });
 }
-// Employee-entered  values come back as plain "HH:MM" (Latin digits, no seconds).
+// Employee-entered <input type="time"> values come back as plain "HH:MM" (Latin digits, no seconds).
 // Normalize them to the same "HH:mm:ss" Persian-digit format the server itself produces,
 // so times are never inconsistent depending on where they originated.
 function normalizeTimeInput(t){
@@ -469,112 +762,1355 @@ function doPost(e){
 // small helper: set a single named-column cell for a given row
 function esh_set(sheet, rowNum, headerName, value){
   sheet.getRange(rowNum, colIndex(sheet, headerName)).setValue(value);
+}</pre>
+      <p class="hint">هر پرسنل، هر پروژه و هر ثبت تردد به‌صورت خودکار داخل همین Google Sheet (در شیت‌های Employees / Projects / Logs / Requests) ذخیره می‌شود و تاریخ آن شمسی و بر اساس ساعت سرور (نه ساعت گوشی کارمند) است.</p>
+    </div>
+  </div>
+
+  <!-- MAIN APP (shown once API_URL is configured) -->
+  <div id="mainApp" style="display:none;">
+
+  <header class="top">
+    <div>
+      <div class="title">ثبت تردد سایت</div>
+      <div class="sub">ورود / خروج پرسنل بر اساس موقعیت پروژه</div>
+    </div>
+    <div class="clock" id="clockBox">—</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabEmpBtn" onclick="switchTab('emp')">👷 کارمند</button>
+    <button class="tab-btn" id="tabAdminBtn" onclick="switchTab('admin')">⚙️ مدیریت</button>
+  </div>
+
+  <!-- EMPLOYEE LOGIN GATE -->
+  <div id="empLoginGate">
+    <div class="card pin-gate">
+      <div class="eyebrow">ورود پرسنل</div>
+      <label>نام کاربری</label>
+      <input type="text" id="empUsername" placeholder="نام کاربری">
+      <label>رمز عبور</label>
+      <input type="password" id="empPassword" placeholder="رمز عبور">
+      <button type="button" class="btn btn-primary" id="empLoginBtn" onclick="employeeLogin()">ورود</button>
+      <div class="hint" id="empLoginHint" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- EMPLOYEE VIEW -->
+  <div id="empView" style="display:none;">
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
+      <div>خوش آمدید، <b id="empWelcomeName"></b></div>
+      <button type="button" class="btn btn-ghost btn-small" onclick="employeeLogout()">خروج از حساب</button>
+    </div>
+    <div class="btn-row" style="flex-wrap:wrap; margin-bottom:14px;">
+      <button type="button" class="tab-btn active" id="empMenu-checkin" style="flex:1 1 30%;" onclick="showEmpSection('checkin')">📍 ثبت تردد</button>
+      <button type="button" class="tab-btn" id="empMenu-request" style="flex:1 1 30%;" onclick="showEmpSection('request')">📨 ثبت دستی</button>
+      <button type="button" class="tab-btn" id="empMenu-leave" style="flex:1 1 30%;" onclick="showEmpSection('leave')">🌴 مرخصی</button>
+    </div>
+
+    <div class="emp-section" id="empSec-checkin">
+    <div class="card">
+      <div class="eyebrow">ثبت تردد</div>
+      <label>پروژه</label>
+      <select id="empProject"><option value="">در حال بارگذاری...</option></select>
+      <div class="hint" id="todayStatusHint" style="margin-top:-8px;">📍 در حال بررسی وضعیت امروز...</div>
+
+      <button type="button" class="btn btn-primary" id="locateBtn" onclick="locateAndCheck()">📍 روشن کردن موقعیت مکانی</button>
+      <div class="hint">برای ثبت تردد باید GPS/لوکیشن گوشی روشن باشد و اجازه دسترسی داده شود.</div>
+
+      <div id="locStatus" class="status idle" style="margin-top:12px;">موقعیت مکانی هنوز بررسی نشده است.</div>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-in" id="checkInBtn" disabled onclick="submitEntry('in')">✅ ثبت ورود</button>
+        <button type="button" class="btn btn-out" id="checkOutBtn" disabled onclick="submitEntry('out')">🚪 ثبت خروج</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">آخرین ثبت‌های من</div>
+      <div id="myLogs"><div class="empty">هنوز ثبتی وجود ندارد</div></div>
+    </div>
+    </div><!-- /empSec-checkin -->
+
+    <div class="emp-section" id="empSec-request" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">درخواست ثبت دستی</div>
+      <div class="hint" style="margin-top:-4px;">اگر نتونستی عادی ثبت بزنی (مثلاً بیرون از محدوده پروژه بودی)، اینجا با یک دلیل درخواست بده تا مدیر تایید کنه.</div>
+      <label>نوع</label>
+      <select id="reqType">
+        <option value="in">ورود</option>
+        <option value="out">خروج</option>
+      </select>
+      <label>پروژه</label>
+      <select id="reqProject"></select>
+      <label>ساعت دقیق ورود/خروج (اختیاری)</label>
+      <div class="hint" style="margin-top:-8px;">اگر خالی بذاری، ساعت تایید مدیر ثبت می‌شود.</div>
+      <div class="date-row">
+        <select id="reqDateDay"></select>
+        <select id="reqDateMonth"></select>
+        <select id="reqDateYear"></select>
+        <input type="time" id="reqTime" style="flex:1;">
+      </div>
+      <label>دلیل / توضیح</label>
+      <textarea id="reqReason" placeholder="مثلاً: گوشیم شارژ تموم کرد و نتونستم موقع ورود ثبت بزنم"></textarea>
+      <button type="button" class="btn btn-ghost" onclick="submitRequest()">📨 ارسال درخواست</button>
+      <div class="divider"></div>
+      <select id="myReqFilterStatus" onchange="loadMyRequests()">
+        <option value="all">همه</option>
+        <option value="pending">در انتظار</option>
+        <option value="approved">تاییدشده</option>
+        <option value="rejected">ردشده</option>
+      </select>
+      <div id="myRequests"><div class="empty">درخواستی ثبت نشده</div></div>
+    </div>
+    </div><!-- /empSec-request -->
+
+    <div class="emp-section" id="empSec-leave" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">درخواست مرخصی</div>
+      <label>نوع مرخصی</label>
+      <select id="leaveType" onchange="toggleLeaveType()">
+        <option value="daily">روزانه</option>
+        <option value="hourly">ساعتی</option>
+      </select>
+      <label>از تاریخ</label>
+      <div class="date-row">
+        <select id="leaveStartDay"></select>
+        <select id="leaveStartMonth"></select>
+        <select id="leaveStartYear"></select>
+      </div>
+      <div id="leaveEndDateBlock">
+        <label>تا تاریخ</label>
+        <div class="date-row">
+          <select id="leaveEndDay"></select>
+          <select id="leaveEndMonth"></select>
+          <select id="leaveEndYear"></select>
+        </div>
+      </div>
+      <div id="leaveTimeBlock" style="display:none;">
+        <label>از ساعت — تا ساعت</label>
+        <div class="date-row">
+          <input type="time" id="leaveStartTime" style="flex:1;">
+          <input type="time" id="leaveEndTime" style="flex:1;">
+        </div>
+      </div>
+      <label>دلیل مرخصی</label>
+      <textarea id="leaveReason" placeholder="مثلاً: مرخصی استعلاجی"></textarea>
+      <button type="button" class="btn btn-ghost" onclick="submitLeaveRequest()">🌴 ارسال درخواست مرخصی</button>
+      <div class="divider"></div>
+      <select id="myLeaveFilterStatus" onchange="loadMyLeaves()">
+        <option value="all">همه</option>
+        <option value="pending">در انتظار</option>
+        <option value="approved">تاییدشده</option>
+        <option value="rejected">ردشده</option>
+      </select>
+      <div id="myLeaves"><div class="empty">درخواست مرخصی ثبت نشده</div></div>
+    </div>
+    </div><!-- /empSec-leave -->
+  </div>
+
+  <!-- ADMIN PIN GATE -->
+  <div id="adminGate" style="display:none;">
+    <div class="card pin-gate">
+      <div class="eyebrow">ورود به بخش مدیریت</div>
+      <input type="text" id="adminUsernameInput" placeholder="نام کاربری مدیر" class="field-mono">
+      <input type="password" id="pinInput" placeholder="رمز عبور">
+      <button type="button" class="btn btn-primary" id="pinBtn" onclick="checkPin()">ورود</button>
+      <div class="hint" id="pinHint" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- ADMIN VIEW -->
+  <div id="adminView" style="display:none;">
+
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
+      <div>⚙️ پنل مدیریت</div>
+      <button type="button" class="btn btn-ghost btn-small" onclick="adminLogout()">خروج از مدیریت</button>
+    </div>
+
+    <div id="adminNotice" class="status err" style="display:none; margin-bottom:14px;"></div>
+
+    <div class="btn-row" style="flex-wrap:wrap; margin-bottom:14px;">
+      <button type="button" class="tab-btn active" id="admMenu-employees" style="flex:1 1 30%;" onclick="showAdminSection('employees')">👥 پرسنل</button>
+      <button type="button" class="tab-btn" id="admMenu-projects" style="flex:1 1 30%;" onclick="showAdminSection('projects')">📍 پروژه‌ها</button>
+      <button type="button" class="tab-btn" id="admMenu-requests" style="flex:1 1 30%;" onclick="showAdminSection('requests')">📨 درخواست‌ها</button>
+      <button type="button" class="tab-btn" id="admMenu-report" style="flex:1 1 30%;" onclick="showAdminSection('report')">📊 گزارش</button>
+      <button type="button" class="tab-btn" id="admMenu-settings" style="flex:1 1 30%;" onclick="showAdminSection('settings')">⚙️ تنظیمات</button>
+    </div>
+
+    <div class="admin-section" id="admSec-employees">
+    <div class="card">
+      <div class="eyebrow">حساب‌های پرسنل</div>
+      <div id="empList"><div class="empty">در حال بارگذاری...</div></div>
+      <div class="divider"></div>
+      <label>نام و نام خانوادگی</label>
+      <input type="text" id="empFormName" placeholder="مثلاً: علی رضایی">
+      <div style="display:flex; gap:8px;">
+        <div style="flex:1;"><label>نام کاربری</label><input type="text" id="empFormUser" placeholder="username" class="field-mono"></div>
+        <div style="flex:1;"><label>رمز عبور</label><input type="text" id="empFormPass" placeholder="password" class="field-mono"></div>
+      </div>
+      <label>کد پرسنلی (الزامی)</label>
+      <input type="text" id="empFormCode" placeholder="مثلاً: 1042" class="field-mono" required>
+      <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:14px;">
+        <input type="checkbox" id="empFormFreeZone"> این پرسنل محدودیت موقعیت مکانی نداشته باشد (منطقه آزاد)
+      </label>
+      <label>پروژه‌های مجاز برای این پرسنل</label>
+      <div class="chk-list" id="empProjChecks"></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="empFormBtn" onclick="saveEmployee()">➕ افزودن پرسنل</button>
+        <button type="button" class="btn btn-ghost" id="empFormCancel" style="display:none;" onclick="cancelEmpEdit()">لغو ویرایش</button>
+      </div>
+    </div>
+    </div><!-- /admSec-employees -->
+
+    <div class="admin-section" id="admSec-projects" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">پروژه‌ها و محدوده مجاز</div>
+      <div id="projList"><div class="empty">در حال بارگذاری...</div></div>
+      <div class="divider"></div>
+      <label>نام پروژه</label>
+      <input type="text" id="projFormName" placeholder="مثلاً: پروژه شهرک غرب">
+
+      <label>موقعیت روی نقشه (کلیک کن یا پین رو بکش)</label>
+      <div class="map-search-row">
+        <input type="text" id="mapSearchInput" placeholder="جستجوی آدرس یا نام محل...">
+        <button type="button" class="btn btn-ghost btn-small" onclick="searchMapAddress()">🔍</button>
+      </div>
+      <div id="projMap"></div>
+      <button type="button" class="btn btn-ghost" style="margin-bottom:14px;" onclick="useCurrentLocForProject()">📍 استفاده از موقعیت فعلی من</button>
+      <div class="field-mono" style="display:flex; gap:8px;">
+        <div style="flex:1;"><label>عرض جغرافیایی (lat)</label><input type="text" id="projFormLat" placeholder="35.7219"></div>
+        <div style="flex:1;"><label>طول جغرافیایی (lng)</label><input type="text" id="projFormLng" placeholder="51.3347"></div>
+      </div>
+      <label>شعاع مجاز (متر)</label>
+      <input type="number" id="projFormRadius" value="150">
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="projFormBtn" onclick="saveProject()">➕ افزودن پروژه</button>
+        <button type="button" class="btn btn-ghost" id="projFormCancel" style="display:none;" onclick="cancelProjEdit()">لغو ویرایش</button>
+      </div>
+    </div>
+    </div><!-- /admSec-projects -->
+
+    <div class="admin-section" id="admSec-settings" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">تنظیمات ورود مدیر</div>
+      <label>رمز عبور فعلی (برای تایید تغییرات)</label>
+      <input type="password" id="curPin" placeholder="رمز فعلی">
+      <label>نام کاربری جدید (اختیاری)</label>
+      <input type="text" id="newAdminUsername" placeholder="admin" class="field-mono">
+      <label>رمز عبور جدید (اختیاری)</label>
+      <input type="password" id="newPin" placeholder="رمز جدید">
+      <button type="button" class="btn btn-ghost" onclick="setPin()">💾 ذخیره تغییرات</button>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">اعلان ایمیلی درخواست‌ها</div>
+      <div class="hint" style="margin-top:-4px;">با هر درخواست ثبت دستی یا مرخصی جدید، یک ایمیل به این آدرس ارسال می‌شود.</div>
+      <label>ایمیل دریافت اعلان</label>
+      <input type="text" id="notifyEmail" placeholder="you@example.com" class="field-mono">
+      <button type="button" class="btn btn-ghost" onclick="saveNotifyEmail()">💾 ذخیره ایمیل</button>
+      <div id="notifyEmailStatus" class="hint" style="margin-top:10px; margin-bottom:0;"></div>
+      <details style="margin-top:10px;">
+        <summary>ایمیل نمیاد؟</summary>
+        <p style="font-size:13px; line-height:1.9; color:#4a4436;">
+          دفعه اول باید یک‌بار مجوز ارسال ایمیل رو دستی تایید کنی: برو داخل Apps Script، از لیست توابع بالا
+          (کنار دکمه Run) گزینه <b>testEmailSetup</b> رو انتخاب کن و دکمه ▶ Run رو بزن. یک پنجره مجوز باز می‌شه،
+          Allow رو بزن. اگه ایمیل تستی رسید یعنی درست شده.
+        </p>
+      </details>
+    </div>
+    </div><!-- /admSec-settings -->
+
+    <div class="admin-section" id="admSec-requests" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">درخواست‌های ثبت دستی</div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <select id="reqFilterStatus" onchange="renderReqAdminList()" style="flex:2; margin-bottom:0;">
+          <option value="pending">در انتظار</option>
+          <option value="approved">تاییدشده</option>
+          <option value="rejected">ردشده</option>
+          <option value="all">همه</option>
+        </select>
+        <button type="button" class="btn btn-ghost btn-small" style="flex:1;" onclick="toggleSelectAllReq()">انتخاب همه</button>
+        <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedRequests()">🗑 حذف</button>
+      </div>
+      <input type="text" id="reqFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderReqAdminList()">
+      <div id="reqAdminList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">درخواست‌های مرخصی</div>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <select id="leaveFilterStatus" onchange="renderLeaveAdminList()" style="flex:2; margin-bottom:0;">
+          <option value="pending">در انتظار</option>
+          <option value="approved">تاییدشده</option>
+          <option value="rejected">ردشده</option>
+          <option value="all">همه</option>
+        </select>
+        <button type="button" class="btn btn-ghost btn-small" style="flex:1;" onclick="toggleSelectAllLeave()">انتخاب همه</button>
+        <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedLeaves()">🗑 حذف</button>
+      </div>
+      <input type="text" id="leaveFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLeaveAdminList()">
+      <div id="leaveAdminList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    </div><!-- /admSec-requests -->
+
+    <div class="admin-section" id="admSec-report" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">گزارش کامل تردد</div>
+      <input type="text" id="logFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLogTable()">
+      <div style="overflow-x:auto;">
+        <table id="logTable">
+          <thead><tr><th>تاریخ</th><th>ساعت</th><th>پرسنل</th><th>پروژه</th><th>نوع</th><th>عملیات</th></tr></thead>
+          <tbody id="logTableBody"><tr><td colspan="6" class="empty">در حال بارگذاری...</td></tr></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportCSV()">⬇️ خروجی CSV</button>
+      <p class="hint" style="margin-top:10px;">این گزارش همیشه در Google Sheet متصل هم به‌صورت زنده موجود است.</p>
+    </div>
+    </div><!-- /admSec-report -->
+  </div>
+
+  </div><!-- /mainApp -->
+</div>
+
+<script>
+// =====================================================================
+// CONFIG — ADMIN: paste your Google Apps Script Web App URL here once.
+// (Setup instructions + the code to deploy are shown on screen until
+// this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
+const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
+// =====================================================================
+
+// ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
+function getDeviceId(){
+  try{
+    var id = localStorage.getItem('deviceId');
+    if(!id){
+      id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('dev-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      localStorage.setItem('deviceId', id);
+    }
+    return id;
+  }catch(e){
+    // localStorage unavailable (private mode etc.) — fall back to a per-session id
+    if(!window._sessionDeviceId){ window._sessionDeviceId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2); }
+    return window._sessionDeviceId;
+  }
 }
-هر پرسنل، هر پروژه و هر ثبت تردد به‌صورت خودکار داخل همین Google Sheet (در شیت‌های Employees / Projects / Logs / Requests) ذخیره می‌شود و تاریخ آن شمسی و بر اساس ساعت سرور (نه ساعت گوشی کارمند) است.
+const DEVICE_ID = getDeviceId();
 
-ثبت تردد سایت
-ورود / خروج پرسنل بر اساس موقعیت پروژه
-—
-👷 کارمند ⚙️ مدیریت
+// ---------- Jalali (Shamsi) date conversion ----------
+function toJalaali(gy, gm, gd) {
+  var g2j = function(gy, gm, gd){
+    var g_d_m = [0,31,59,90,120,151,181,212,243,273,304,334];
+    var jy = (gy <= 1600) ? 0 : 979;
+    gy -= (gy <= 1600) ? 621 : 1600;
+    var gy2 = (gm > 2) ? (gy + 1) : gy;
+    var days = (365*gy) + (parseInt((gy2+3)/4)) - (parseInt((gy2+99)/100)) + (parseInt((gy2+399)/400)) - 80 + gd + g_d_m[gm-1];
+    jy += 33*parseInt(days/12053);
+    days %= 12053;
+    jy += 4*parseInt(days/1461);
+    days %= 1461;
+    if (days > 365) { jy += parseInt((days-1)/365); days = (days-1)%365; }
+    var jm = (days < 186) ? 1+parseInt(days/31) : 7+parseInt((days-186)/30);
+    var jd = 1 + ((days < 186) ? (days%31) : ((days-186)%30));
+    return [jy, jm, jd];
+  };
+  return g2j(gy, gm, gd);
+}
+var jMonths = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+function jalaliString(d){
+  var j = toJalaali(d.getFullYear(), d.getMonth()+1, d.getDate());
+  return j[2] + ' ' + jMonths[j[1]-1] + ' ' + j[0];
+}
+function timeString(d){
+  return d.toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
 
-ورود پرسنل
-نام کاربری رمز عبور ورود
+// ---------- Clock ----------
+function tickClock(){
+  var now = new Date();
+  var el = document.getElementById('clockBox');
+  if(el) el.innerHTML = jalaliString(now) + '<br>' + timeString(now);
+}
+setInterval(tickClock, 1000); tickClock();
 
+// ---------- API helpers (Google Apps Script backend) ----------
+async function apiGet(action, params){
+  var qs = new URLSearchParams(Object.assign({action:action}, params||{})).toString();
+  var res = await fetch(API_URL + '?' + qs, {method:'GET'});
+  return await res.json();
+}
+async function apiPost(action, payload){
+  var res = await fetch(API_URL, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'}, // avoids CORS preflight
+    body: JSON.stringify(Object.assign({action:action}, payload||{}))
+  });
+  return await res.json();
+}
+async function apiCall(fn){
+  try{ return await fn(); }
+  catch(e){ console.error(e); return {ok:false, error: (e && e.message) ? e.message : 'خطای شبکه'}; }
+}
 
-خوش آمدید،
-خروج از حساب
-📍 ثبت تردد 📨 ثبت دستی 🌴 مرخصی
+// ---------- State ----------
+var projects = [];
+var employees = [];
+var currentPos = null;
+var chosenProject = null;
+var loggedInEmployee = null;
+var adminPin = null;
+var adminUsername = null;
+var todayLastType = null; // 'ورود' | 'خروج' | null — from server data, used to only enable the valid next action
+var editingEmpId = null;
+var editingProjId = null;
+var editingLogId = null;
 
+// ---------- Tabs ----------
+function switchTab(which){
+  document.getElementById('tabEmpBtn').classList.toggle('active', which==='emp');
+  document.getElementById('tabAdminBtn').classList.toggle('active', which==='admin');
+  if(which==='emp'){
+    if(loggedInEmployee){
+      document.getElementById('empLoginGate').style.display='none';
+      document.getElementById('empView').style.display='block';
+    } else {
+      document.getElementById('empLoginGate').style.display='block';
+      document.getElementById('empView').style.display='none';
+    }
+  } else {
+    document.getElementById('empLoginGate').style.display='none';
+    document.getElementById('empView').style.display='none';
+  }
+  if(which==='admin'){
+    if(adminPin && adminUsername){
+      document.getElementById('adminGate').style.display='none';
+      document.getElementById('adminView').style.display='block';
+      refreshAdminView();
+    } else {
+      document.getElementById('adminGate').style.display='block';
+      document.getElementById('adminView').style.display='none';
+    }
+  } else {
+    document.getElementById('adminGate').style.display='none';
+    document.getElementById('adminView').style.display='none';
+  }
+}
 
-ثبت تردد
-پروژه در حال بارگذاری...
-📍 در حال بررسی وضعیت امروز...
-📍 روشن کردن موقعیت مکانی
-برای ثبت تردد باید GPS/لوکیشن گوشی روشن باشد و اجازه دسترسی داده شود.
-موقعیت مکانی هنوز بررسی نشده است.
-✅ ثبت ورود 🚪 ثبت خروج
+// ---------- Employee login ----------
+async function employeeLogin(){
+  var username = document.getElementById('empUsername').value.trim();
+  var password = document.getElementById('empPassword').value.trim();
+  if(!username || !password) return;
+  var btn = document.getElementById('empLoginBtn');
+  btn.disabled = true; btn.textContent = 'در حال ورود...';
+  var res = await apiCall(function(){ return apiPost('login', {username:username, password:password, deviceId: DEVICE_ID}); });
+  btn.disabled = false; btn.textContent = 'ورود';
+  if(!res.ok){
+    var msg = 'نام کاربری یا رمز عبور اشتباه است.';
+    if(res.error === 'device_mismatch') msg = '⛔ این حساب قبلاً روی یک گوشی دیگر فعال شده. برای تغییر گوشی، از مدیر بخواهید دستگاه این حساب را ریست کند.';
+    else if(res.error && res.error !== 'invalid_credentials') msg = 'خطا: ' + res.error;
+    document.getElementById('empLoginHint').textContent = msg;
+    document.getElementById('empLoginHint').style.color = '#a32a2a';
+    return;
+  }
+  loggedInEmployee = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, allowedProjects: res.allowedProjects || ''};
+  sessionStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
+  document.getElementById('empUsername').value='';
+  document.getElementById('empPassword').value='';
+  document.getElementById('empWelcomeName').textContent = res.fullName + (res.employeeCode ? ' (کد '+res.employeeCode+')' : '');
+  document.getElementById('empLoginGate').style.display='none';
+  document.getElementById('empView').style.display='block';
+  loadProjectsPublic();
+  loadMyLogs();
+  loadMyRequests();
+  initLeaveDateSelects();
+  loadMyLeaves();
+}
+function employeeLogout(){
+  loggedInEmployee = null;
+  sessionStorage.removeItem('loggedInEmployee');
+  document.getElementById('empLoginGate').style.display='block';
+  document.getElementById('empView').style.display='none';
+}
 
-آخرین ثبت‌های من
-هنوز ثبتی وجود ندارد
+// ---------- Admin PIN ----------
+async function checkPin(){
+  var enteredUser = document.getElementById('adminUsernameInput').value.trim();
+  var entered = document.getElementById('pinInput').value.trim();
+  if(!enteredUser || !entered) return;
+  var btn = document.getElementById('pinBtn');
+  btn.disabled = true; btn.textContent = 'در حال بررسی...';
+  var res = await apiCall(function(){ return apiPost('checkPin', {username: enteredUser, pin: entered}); });
+  btn.disabled = false; btn.textContent = 'ورود';
+  if(res.ok){
+    adminPin = entered;
+    adminUsername = enteredUser;
+    sessionStorage.setItem('adminPin', adminPin);
+    sessionStorage.setItem('adminUsername', adminUsername);
+    document.getElementById('adminGate').style.display='none';
+    document.getElementById('adminView').style.display='block';
+    refreshAdminView();
+  } else {
+    document.getElementById('pinHint').textContent = res.error ? ('خطا: '+res.error) : 'نام کاربری یا رمز اشتباه است. (پیش‌فرض: admin / 1234)';
+    document.getElementById('pinHint').style.color = '#a32a2a';
+  }
+}
+function showEmpSection(name){
+  ['checkin','request','leave'].forEach(function(s){
+    var sec = document.getElementById('empSec-'+s);
+    var btn = document.getElementById('empMenu-'+s);
+    if(sec) sec.style.display = (s===name) ? 'block' : 'none';
+    if(btn) btn.classList.toggle('active', s===name);
+  });
+}
+function showAdminSection(name){
+  ['employees','projects','requests','report','settings'].forEach(function(s){
+    var sec = document.getElementById('admSec-'+s);
+    var btn = document.getElementById('admMenu-'+s);
+    if(sec) sec.style.display = (s===name) ? 'block' : 'none';
+    if(btn) btn.classList.toggle('active', s===name);
+  });
+  if(name === 'projects') initProjMap();
+}
+function adminLogout(){
+  adminPin = null;
+  adminUsername = null;
+  sessionStorage.removeItem('adminPin');
+  sessionStorage.removeItem('adminUsername');
+  document.getElementById('adminView').style.display='none';
+  document.getElementById('adminGate').style.display='block';
+  document.getElementById('pinInput').value='';
+  document.getElementById('adminUsernameInput').value='';
+}
+async function setPin(){
+  var cur = document.getElementById('curPin').value.trim();
+  var newUser = document.getElementById('newAdminUsername').value.trim();
+  var np = document.getElementById('newPin').value.trim();
+  if(!cur){ alert('رمز فعلی را برای تایید وارد کنید'); return; }
+  if(!newUser && !np){ alert('نام کاربری جدید یا رمز جدید را وارد کنید'); return; }
+  if(cur !== adminPin){ alert('رمز فعلی اشتباه است'); return; }
+  var res = await apiCall(function(){ return apiPost('setPin', {pin:adminPin, newUsername:newUser, newPin:np}); });
+  if(!res.ok){ showAdminNotice('ذخیره تغییرات ناموفق بود: ' + (res.error||'')); return; }
+  if(np) adminPin = np;
+  if(newUser) adminUsername = newUser;
+  sessionStorage.setItem('adminPin', adminPin);
+  sessionStorage.setItem('adminUsername', adminUsername);
+  document.getElementById('curPin').value=''; document.getElementById('newPin').value=''; document.getElementById('newAdminUsername').value='';
+  alert('تغییرات ذخیره شد.');
+}
+async function saveNotifyEmail(){
+  var email = document.getElementById('notifyEmail').value.trim();
+  var res = await apiCall(function(){ return apiPost('setNotifyEmail', {pin:adminPin, email:email}); });
+  if(!res.ok){ showAdminNotice('ذخیره ایمیل ناموفق بود: ' + (res.error||'')); return; }
+  alert(email ? 'ایمیل اعلان ذخیره شد.' : 'اعلان ایمیلی غیرفعال شد.');
+}
+function showAdminNotice(msg){
+  var el = document.getElementById('adminNotice');
+  el.style.display='block'; el.textContent = msg;
+}
+function clearAdminNotice(){
+  var el = document.getElementById('adminNotice');
+  el.style.display='none';
+}
 
+// ---------- Employees (admin) ----------
+async function loadEmployeesAdmin(){
+  var res = await apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); });
+  if(!res.ok){ showAdminNotice('دریافت لیست پرسنل ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  employees = res.employees || [];
+  renderEmpList();
+}
+function renderEmpList(){
+  var box = document.getElementById('empList');
+  if(employees.length===0){ box.innerHTML = '<div class="empty">هنوز پرسنلی اضافه نشده</div>'; return; }
+  box.innerHTML = employees.map(function(emp){
+    var deviceBadge = emp.deviceId
+      ? '<span class="badge badge-bound">📱 دستگاه ثبت‌شده</span>'
+      : '<span class="badge badge-unbound">📱 دستگاه ثبت‌نشده</span>';
+    var freeZoneBadge = emp.freeZone ? '<span class="badge badge-bound">🌍 منطقه آزاد</span>' : '';
+    var scopeText = (!emp.allowedProjects || emp.allowedProjects==='ALL') ? 'همه پروژه‌ها' : (emp.allowedProjects.split(',').length + ' پروژه محدود');
+    var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
+    return '<div class="list-item"><div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+
+      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+'</div></div>'+
+      '<div class="actions">'+
+        (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
+        '<button class="icon-btn edit" title="ویرایش" onclick="startEditEmp(\''+emp.id+'\')">✏️</button>'+
+        '<button class="icon-btn del" title="حذف" onclick="deleteEmployee(\''+emp.id+'\')">✕</button>'+
+      '</div></div>';
+  }).join('');
+}
+function renderEmpProjChecks(selectedIds){
+  var box = document.getElementById('empProjChecks');
+  if(!box) return;
+  var sel = selectedIds || [];
+  var isAll = sel.length===0 || sel.indexOf('ALL') !== -1;
+  var html = '<label class="chk-item all-item"><input type="checkbox" id="empProjAll" onchange="toggleAllProjChecks()" '+(isAll?'checked':'')+'>همه پروژه‌ها</label>';
+  html += projects.map(function(p){
+    var checked = !isAll && sel.indexOf(p.id) !== -1;
+    return '<label class="chk-item"><input type="checkbox" class="proj-chk" value="'+p.id+'" '+(checked?'checked':'')+' '+(isAll?'disabled':'')+'>'+esc(p.name)+'</label>';
+  }).join('');
+  box.innerHTML = html || '<span class="hint" style="margin:0;">ابتدا یک پروژه اضافه کنید</span>';
+}
+function toggleAllProjChecks(){
+  var all = document.getElementById('empProjAll').checked;
+  document.querySelectorAll('.proj-chk').forEach(function(c){ c.disabled = all; if(all) c.checked = false; });
+}
+function getSelectedAllowedProjects(){
+  var allBox = document.getElementById('empProjAll');
+  if(allBox && allBox.checked) return 'ALL';
+  var ids = Array.from(document.querySelectorAll('.proj-chk:checked')).map(function(c){ return c.value; });
+  return ids.join(',');
+}
+function startEditEmp(id){
+  var emp = employees.find(function(e){ return e.id===id; });
+  if(!emp) return;
+  editingEmpId = id;
+  document.getElementById('empFormName').value = emp.fullName;
+  document.getElementById('empFormUser').value = emp.username;
+  document.getElementById('empFormPass').value = emp.password;
+  document.getElementById('empFormCode').value = emp.employeeCode || '';
+  document.getElementById('empFormFreeZone').checked = !!emp.freeZone;
+  var sel = emp.allowedProjects ? String(emp.allowedProjects).split(',').map(function(s){return s.trim();}) : [];
+  renderEmpProjChecks(sel.length ? sel : ['ALL']);
+  var btn = document.getElementById('empFormBtn');
+  btn.disabled = false;
+  btn.textContent = '💾 بروزرسانی پرسنل';
+  document.getElementById('empFormCancel').style.display='block';
+  document.getElementById('empFormName').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function cancelEmpEdit(){
+  editingEmpId = null;
+  document.getElementById('empFormName').value='';
+  document.getElementById('empFormUser').value='';
+  document.getElementById('empFormPass').value='';
+  document.getElementById('empFormCode').value='';
+  document.getElementById('empFormFreeZone').checked = false;
+  renderEmpProjChecks(['ALL']);
+  document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
+  document.getElementById('empFormCancel').style.display='none';
+}
+async function saveEmployee(){
+  try{
+    var fullName = document.getElementById('empFormName').value.trim();
+    var username = document.getElementById('empFormUser').value.trim();
+    var password = document.getElementById('empFormPass').value.trim();
+    var employeeCodeCheck = document.getElementById('empFormCode').value.trim();
+    if(!fullName || !username || !password){ alert('همه فیلدها را کامل وارد کنید'); return; }
+    if(!employeeCodeCheck){ alert('کد پرسنلی الزامی است'); return; }
+    var dup = employees.some(function(e){ return String(e.username).toLowerCase()===username.toLowerCase() && e.id!==editingEmpId; });
+    if(dup){ alert('این نام کاربری قبلاً استفاده شده'); return; }
 
-درخواست ثبت دستی
-اگر نتونستی عادی ثبت بزنی (مثلاً بیرون از محدوده پروژه بودی)، اینجا با یک دلیل درخواست بده تا مدیر تایید کنه.
-نوع ورود خروج پروژه ساعت دقیق ورود/خروج (اختیاری)
-اگر خالی بذاری، ساعت تایید مدیر ثبت می‌شود.
-دلیل / توضیح 📨 ارسال درخواست
-همه در انتظار تاییدشده ردشده
-درخواستی ثبت نشده
+    var btn = document.getElementById('empFormBtn');
+    btn.disabled = true;
+    var allowedProjects = getSelectedAllowedProjects();
+    var employeeCode = document.getElementById('empFormCode').value.trim();
+    var freeZone = document.getElementById('empFormFreeZone').checked;
+    var res;
+    if(editingEmpId){
+      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone}); });
+    } else {
+      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone}); });
+    }
+    btn.disabled = false;
+    if(!res.ok){
+      var saveMsg = res.error === 'employee_code_required' ? 'کد پرسنلی الزامی است' : (res.error||'نامشخص');
+      showAdminNotice('ذخیره پرسنل ناموفق بود: ' + saveMsg);
+      return;
+    }
+    clearAdminNotice();
+    cancelEmpEdit();
+    await loadEmployeesAdmin();
+  }catch(e){
+    console.error(e);
+    var btn2 = document.getElementById('empFormBtn');
+    if(btn2) btn2.disabled = false;
+    alert('خطای غیرمنتظره: ' + (e && e.message ? e.message : e));
+  }
+}
+async function deleteEmployee(id){
+  if(!confirm('این پرسنل حذف شود؟')) return;
+  var res = await apiCall(function(){ return apiPost('deleteEmployee', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadEmployeesAdmin();
+}
+async function resetDevice(id){
+  if(!confirm('دستگاه ثبت‌شده این پرسنل ریست شود؟ (دفعه بعد از هر گوشی‌ای بتونه لاگین کنه و همون گوشی جدید قفل می‌شه)')) return;
+  var res = await apiCall(function(){ return apiPost('resetDevice', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('ریست دستگاه ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadEmployeesAdmin();
+}
 
+// ---------- Manual entry requests (admin review) ----------
+async function loadAdminRequests(){
+  var res = await apiCall(function(){ return apiPost('getRequests', {pin:adminPin}); });
+  if(!res.ok){
+    document.getElementById('reqAdminList').innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>';
+    return;
+  }
+  window._allRequests = res.requests || [];
+  renderReqAdminList();
+}
+function renderReqAdminList(){
+  var box = document.getElementById('reqAdminList');
+  var filter = document.getElementById('reqFilterStatus').value;
+  var codeFilter = document.getElementById('reqFilterCode').value.trim().toLowerCase();
+  var all = window._allRequests || [];
+  var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
+  if(codeFilter) list = list.filter(function(r){ return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; });
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    var actions = r.status==='pending'
+      ? '<div class="btn-row" style="margin-top:6px;">'+
+          '<button type="button" class="btn btn-in btn-small" onclick="decideRequest(\''+r.id+'\',true)">✅ تایید</button>'+
+          '<button type="button" class="btn btn-out btn-small" onclick="decideRequest(\''+r.id+'\',false)">❌ رد</button>'+
+        '</div>'
+      : '';
+    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
+      '<label style="display:flex; align-items:center; gap:6px; flex:1;">'+
+        '<input type="checkbox" class="req-chk" value="'+r.id+'" style="width:auto; margin:0;">'+
+        '<b>'+esc(r.employee)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+      '</label>'+
+      '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
+      '<div class="meta">'+r.createdAt+' — '+r.createdTime+(r.requestedDate?(' · زمان درخواستی: '+r.requestedDate+' '+r.requestedTime):'')+'</div>'+
+      (r.reason ? '<div style="margin:6px 0; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      actions+'</div>';
+  }).join('');
+}
+function toggleSelectAllReq(){
+  var boxes = document.querySelectorAll('.req-chk');
+  var allChecked = Array.from(boxes).every(function(c){ return c.checked; });
+  boxes.forEach(function(c){ c.checked = !allChecked; });
+}
+async function deleteSelectedRequests(){
+  var ids = Array.from(document.querySelectorAll('.req-chk:checked')).map(function(c){ return c.value; });
+  if(ids.length===0){ alert('حداقل یک درخواست را انتخاب کنید'); return; }
+  if(!confirm(ids.length + ' درخواست حذف شود؟ این کار قابل بازگشت نیست.')) return;
+  var res = await apiCall(function(){ return apiPost('deleteRequests', {pin:adminPin, ids:ids}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadAdminRequests();
+}
+async function decideRequest(id, approve){
+  var res = await apiCall(function(){ return apiPost(approve ? 'approveRequest' : 'rejectRequest', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('ثبت تصمیم ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadAdminRequests();
+  await loadFullLog();
+}
 
-درخواست مرخصی
-نوع مرخصی روزانه ساعتی از تاریخ
-تا تاریخ
-از ساعت — تا ساعت
-دلیل مرخصی 🌴 ارسال درخواست مرخصی
-همه در انتظار تاییدشده ردشده
-درخواست مرخصی ثبت نشده
+// ---------- Leave requests (admin review) ----------
+async function loadAdminLeaves(){
+  var res = await apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); });
+  if(!res.ok){
+    document.getElementById('leaveAdminList').innerHTML = '<div class="empty">دریافت درخواست‌های مرخصی ناموفق بود</div>';
+    return;
+  }
+  window._allLeaves = res.leaves || [];
+  renderLeaveAdminList();
+}
+function renderLeaveAdminList(){
+  var box = document.getElementById('leaveAdminList');
+  var filter = document.getElementById('leaveFilterStatus').value;
+  var codeFilter = document.getElementById('leaveFilterCode').value.trim().toLowerCase();
+  var all = window._allLeaves || [];
+  var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
+  if(codeFilter) list = list.filter(function(r){ return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; });
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    var actions = r.status==='pending'
+      ? '<div class="btn-row" style="margin-top:6px;">'+
+          '<button type="button" class="btn btn-in btn-small" onclick="decideLeave(\''+r.id+'\',true)">✅ تایید</button>'+
+          '<button type="button" class="btn btn-out btn-small" onclick="decideLeave(\''+r.id+'\',false)">❌ رد</button>'+
+        '</div>'
+      : '';
+    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
+      '<label style="display:flex; align-items:center; gap:6px; flex:1;">'+
+        '<input type="checkbox" class="leave-chk" value="'+r.id+'" style="width:auto; margin:0;">'+
+        '<b>'+esc(r.employee)+'</b> · '+formatLeaveRange(r)+
+      '</label>'+
+      '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
+      (r.reason ? '<div style="margin:6px 0; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      actions+'</div>';
+  }).join('');
+}
+function toggleSelectAllLeave(){
+  var boxes = document.querySelectorAll('.leave-chk');
+  var allChecked = Array.from(boxes).every(function(c){ return c.checked; });
+  boxes.forEach(function(c){ c.checked = !allChecked; });
+}
+async function deleteSelectedLeaves(){
+  var ids = Array.from(document.querySelectorAll('.leave-chk:checked')).map(function(c){ return c.value; });
+  if(ids.length===0){ alert('حداقل یک درخواست را انتخاب کنید'); return; }
+  if(!confirm(ids.length + ' درخواست مرخصی حذف شود؟ این کار قابل بازگشت نیست.')) return;
+  var res = await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin:adminPin, ids:ids}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadAdminLeaves();
+}
+async function decideLeave(id, approve){
+  var res = await apiCall(function(){ return apiPost(approve ? 'approveLeaveRequest' : 'rejectLeaveRequest', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('ثبت تصمیم مرخصی ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadAdminLeaves();
+}
 
+// ---------- Projects ----------
+async function loadProjectsPublic(){
+  var res = await apiCall(function(){ return apiGet('projects'); });
+  if(res.ok){ projects = res.projects || []; renderProjectSelect(); }
+}
+async function loadProjectsAdmin(){
+  var res = await apiCall(function(){ return apiPost('getProjectsAdmin', {pin:adminPin}); });
+  if(!res.ok){ showAdminNotice('دریافت لیست پروژه‌ها ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  projects = res.projects || [];
+  renderProjectSelect();
+  renderProjectList();
+  if(!editingEmpId) renderEmpProjChecks(['ALL']);
+  initProjMap();
+}
+function getEmployeeAllowedProjects(){
+  if(!loggedInEmployee) return projects;
+  var ap = loggedInEmployee.allowedProjects;
+  if(!ap || ap === 'ALL') return projects;
+  var ids = String(ap).split(',').map(function(s){ return s.trim(); });
+  return projects.filter(function(p){ return ids.indexOf(p.id) !== -1; });
+}
+function renderProjectSelect(){
+  var sel = document.getElementById('empProject');
+  var reqSel = document.getElementById('reqProject');
+  var list = getEmployeeAllowedProjects();
+  var html;
+  if(list.length===0){
+    html = '<option value="">' + (projects.length===0 ? 'هنوز پروژه‌ای تعریف نشده' : 'شما به هیچ پروژه‌ای دسترسی ندارید') + '</option>';
+  } else {
+    html = list.map(function(p){ return '<option value="'+projects.indexOf(p)+'">'+esc(p.name)+'</option>'; }).join('');
+  }
+  if(sel) sel.innerHTML = html;
+  if(reqSel) reqSel.innerHTML = html;
+}
+function renderProjectList(){
+  var box = document.getElementById('projList');
+  if(projects.length===0){ box.innerHTML = '<div class="empty">هنوز پروژه‌ای اضافه نشده</div>'; return; }
+  box.innerHTML = projects.map(function(p){
+    return '<div class="list-item"><div><b>'+esc(p.name)+'</b><div class="meta">'+Number(p.lat).toFixed(5)+', '+Number(p.lng).toFixed(5)+' · شعاع '+p.radius+' م</div></div>'+
+      '<div class="actions">'+
+        '<button class="icon-btn edit" title="ویرایش" onclick="startEditProj(\''+p.id+'\')">✏️</button>'+
+        '<button class="icon-btn del" title="حذف" onclick="deleteProject(\''+p.id+'\')">✕</button>'+
+      '</div></div>';
+  }).join('');
+}
+function startEditProj(id){
+  var p = projects.find(function(x){ return x.id===id; });
+  if(!p) return;
+  editingProjId = id;
+  document.getElementById('projFormName').value = p.name;
+  setProjLatLng(Number(p.lat), Number(p.lng), true);
+  document.getElementById('projFormRadius').value = p.radius;
+  document.getElementById('projFormBtn').textContent = '💾 بروزرسانی پروژه';
+  document.getElementById('projFormCancel').style.display='block';
+  document.getElementById('projFormName').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function cancelProjEdit(){
+  editingProjId = null;
+  document.getElementById('projFormName').value='';
+  document.getElementById('projFormLat').value='';
+  document.getElementById('projFormLng').value='';
+  document.getElementById('projFormRadius').value='150';
+  document.getElementById('projFormBtn').textContent = '➕ افزودن پروژه';
+  document.getElementById('projFormCancel').style.display='none';
+}
+async function saveProject(){
+  var name = document.getElementById('projFormName').value.trim();
+  var lat = parseFloat(document.getElementById('projFormLat').value);
+  var lng = parseFloat(document.getElementById('projFormLng').value);
+  var radius = parseInt(document.getElementById('projFormRadius').value) || 150;
+  if(!name || isNaN(lat) || isNaN(lng)){ alert('نام پروژه و مختصات را کامل وارد کنید'); return; }
 
-ورود به بخش مدیریت
-ورود
+  var btn = document.getElementById('projFormBtn');
+  btn.disabled = true;
+  var res;
+  if(editingProjId){
+    res = await apiCall(function(){ return apiPost('updateProject', {pin:adminPin, id:editingProjId, name:name, lat:lat, lng:lng, radius:radius}); });
+  } else {
+    res = await apiCall(function(){ return apiPost('addProject', {pin:adminPin, name:name, lat:lat, lng:lng, radius:radius}); });
+  }
+  btn.disabled = false;
+  if(!res.ok){ showAdminNotice('ذخیره پروژه ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  cancelProjEdit();
+  await loadProjectsAdmin();
+}
+async function deleteProject(id){
+  if(!confirm('این پروژه حذف شود؟')) return;
+  var res = await apiCall(function(){ return apiPost('deleteProject', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadProjectsAdmin();
+}
+function useCurrentLocForProject(){
+  if(!navigator.geolocation){ alert('مرورگر شما GPS را پشتیبانی نمی‌کند'); return; }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    setProjLatLng(pos.coords.latitude, pos.coords.longitude, true);
+  }, function(err){
+    alert('دریافت موقعیت ناموفق بود: ' + err.message);
+  }, {enableHighAccuracy:true, timeout:12000});
+}
 
+// ---------- Map picker (Leaflet + OpenStreetMap) ----------
+var projMap = null, projMarker = null;
+function initProjMap(){
+  var mapEl = document.getElementById('projMap');
+  if(!mapEl || typeof L === 'undefined') return;
+  if(projMap){ setTimeout(function(){ projMap.invalidateSize(); }, 60); return; }
+  var startLat = parseFloat(document.getElementById('projFormLat').value) || 35.6892;
+  var startLng = parseFloat(document.getElementById('projFormLng').value) || 51.3890;
+  projMap = L.map('projMap').setView([startLat, startLng], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 19
+  }).addTo(projMap);
+  projMarker = L.marker([startLat, startLng], {draggable:true}).addTo(projMap);
+  projMarker.on('dragend', function(){
+    var p = projMarker.getLatLng();
+    document.getElementById('projFormLat').value = p.lat.toFixed(6);
+    document.getElementById('projFormLng').value = p.lng.toFixed(6);
+  });
+  projMap.on('click', function(e){
+    projMarker.setLatLng(e.latlng);
+    document.getElementById('projFormLat').value = e.latlng.lat.toFixed(6);
+    document.getElementById('projFormLng').value = e.latlng.lng.toFixed(6);
+  });
+  setTimeout(function(){ projMap.invalidateSize(); }, 150);
+}
+function setProjLatLng(lat, lng, panTo){
+  document.getElementById('projFormLat').value = lat.toFixed(6);
+  document.getElementById('projFormLng').value = lng.toFixed(6);
+  if(projMap && projMarker){
+    projMarker.setLatLng([lat, lng]);
+    if(panTo) projMap.setView([lat, lng], 15);
+  }
+}
+async function searchMapAddress(){
+  var q = document.getElementById('mapSearchInput').value.trim();
+  if(!q) return;
+  try{
+    var res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+    var data = await res.json();
+    if(!data || data.length===0){ alert('آدرسی پیدا نشد، مختصات دقیق‌تری امتحان کنید'); return; }
+    setProjLatLng(parseFloat(data[0].lat), parseFloat(data[0].lon), true);
+  }catch(e){ alert('جستجوی آدرس ناموفق بود (اتصال اینترنت را چک کنید)'); }
+}
 
-⚙️ پنل مدیریت
-خروج از مدیریت
-👥 پرسنل 📍 پروژه‌ها 📨 درخواست‌ها 📊 گزارش ⚙️ تنظیمات
+// ---------- Geolocation + geofence ----------
+function distMeters(lat1, lng1, lat2, lng2){
+  var R = 6371000;
+  var dLat = (lat2-lat1) * Math.PI/180;
+  var dLng = (lng2-lng1) * Math.PI/180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+          Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+          Math.sin(dLng/2)*Math.sin(dLng/2);
+  var c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+function setStatus(msg, kind){
+  var el = document.getElementById('locStatus');
+  el.className = 'status ' + kind;
+  el.innerHTML = msg;
+}
+function locateAndCheck(){
+  var selIdx = document.getElementById('empProject').value;
+  if(selIdx === '' || !projects[selIdx]){
+    setStatus('لطفاً ابتدا یک پروژه انتخاب کنید.', 'err');
+    return;
+  }
+  chosenProject = projects[selIdx];
+  if(!navigator.geolocation){
+    setStatus('مرورگر شما از موقعیت مکانی پشتیبانی نمی‌کند.', 'err');
+    return;
+  }
+  setStatus('در حال دریافت موقعیت مکانی... لطفاً اجازه دسترسی به لوکیشن را تایید کنید.', 'wait');
+  document.getElementById('checkInBtn').disabled = true;
+  document.getElementById('checkOutBtn').disabled = true;
 
+  navigator.geolocation.getCurrentPosition(function(pos){
+    currentPos = pos.coords;
+    var line1 = 'lat: '+currentPos.latitude.toFixed(6)+'  lng: '+currentPos.longitude.toFixed(6)+'  (±'+Math.round(currentPos.accuracy)+'m)';
 
-حساب‌های پرسنل
-در حال بارگذاری...
-نام و نام خانوادگی
+    if(loggedInEmployee.freeZone){
+      setStatus('✅ موقعیت ثبت شد (این پرسنل محدودیت مکانی ندارد).<br>'+line1, 'ok');
+      document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
+      document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
+      return;
+    }
 
-نام کاربری
-رمز عبور
-کد پرسنلی (الزامی) این پرسنل محدودیت موقعیت مکانی نداشته باشد (منطقه آزاد) پروژه‌های مجاز برای این پرسنل
-➕ افزودن پرسنل لغو ویرایش
+    var d = distMeters(currentPos.latitude, currentPos.longitude, Number(chosenProject.lat), Number(chosenProject.lng));
+    var line2 = 'فاصله تا «'+chosenProject.name+'»: '+Math.round(d)+' متر (مجاز: '+chosenProject.radius+' متر)';
+    if(d <= Number(chosenProject.radius)){
+      setStatus('✅ در محدوده مجاز هستید.<br>'+line1+'<br>'+line2, 'ok');
+      document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
+      document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
+    } else {
+      setStatus('⛔ خارج از محدوده پروژه هستید.<br>'+line1+'<br>'+line2, 'err');
+    }
+  }, function(err){
+    setStatus('⛔ دریافت موقعیت ناموفق بود: '+err.message+'<br>لطفاً GPS را روشن و دسترسی مرورگر را تایید کنید.', 'err');
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+}
 
+// ---------- Submit entry ----------
+async function submitEntry(type){
+  if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
+  if(!currentPos || !chosenProject){ alert('ابتدا موقعیت مکانی را بررسی کنید'); return; }
 
-پروژه‌ها و محدوده مجاز
-در حال بارگذاری...
-نام پروژه موقعیت روی نقشه (کلیک کن یا پین رو بکش)
-🔍
-📍 استفاده از موقعیت فعلی من
+  var entry = {
+    employee: loggedInEmployee.fullName,
+    username: loggedInEmployee.username,
+    project: chosenProject.name,
+    type: type,
+    lat: currentPos.latitude,
+    lng: currentPos.longitude,
+    accuracy: Math.round(currentPos.accuracy),
+    clientIso: new Date().toISOString() // reference only — server time is what actually gets recorded
+  };
 
-عرض جغرافیایی (lat)
-طول جغرافیایی (lng)
-شعاع مجاز (متر)
-➕ افزودن پروژه لغو ویرایش
+  document.getElementById('checkInBtn').disabled = true;
+  document.getElementById('checkOutBtn').disabled = true;
+  var res = await apiCall(function(){ return apiPost('addLog', {entry: entry, deviceId: DEVICE_ID, project_id: chosenProject.id}); });
+  if(!res.ok){
+    var msg = res.error || 'خطای شبکه';
+    if(res.error === 'device_mismatch') msg = 'این حساب روی گوشی دیگری فعال است — از مدیر بخواهید دستگاه را ریست کند.';
+    if(res.error === 'project_not_allowed') msg = 'شما اجازه ثبت تردد برای این پروژه را ندارید.';
+    if(res.error === 'outside_geofence') msg = 'موقعیت شما خارج از محدوده مجاز پروژه است.';
+    if(res.error === 'already_checked_in') msg = 'شما امروز قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
+    if(res.error === 'not_checked_in') msg = 'شما هنوز امروز ورود نزده‌اید — ابتدا ورود بزنید.';
+    setStatus('⛔ ثبت ناموفق بود: ' + msg + '. دوباره تلاش کنید.', 'err');
+    loadMyLogs(); // re-sync today's status in case it was out of date
+    return;
+  }
+  setStatus('✅ '+(type==='in' ? 'ورود' : 'خروج')+' با موفقیت ثبت شد — ساعت سرور: '+(res.time||''), 'ok');
+  loadMyLogs();
+}
 
+// ---------- My logs (employee view) ----------
+async function loadMyLogs(){
+  if(!loggedInEmployee) return;
+  var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
+  if(!res.ok){
+    document.getElementById('myLogs').innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>';
+    return;
+  }
+  var entries = res.logs || [];
+  entries.sort(function(a,b){ return String(b.isoTimestamp).localeCompare(String(a.isoTimestamp)); });
 
-تنظیمات ورود مدیر
-رمز عبور فعلی (برای تایید تغییرات) نام کاربری جدید (اختیاری) رمز عبور جدید (اختیاری) 💾 ذخیره تغییرات
+  var todayStr = jalaliString(new Date());
+  var todaysEntries = entries.filter(function(e){ return e.jalaliDate === todayStr; });
+  todayLastType = todaysEntries.length ? todaysEntries[0].type : null; // entries already sorted desc
+  updateTodayStatusHint();
 
-اعلان ایمیلی درخواست‌ها
-با هر درخواست ثبت دستی یا مرخصی جدید، یک ایمیل به این آدرس ارسال می‌شود.
-ایمیل دریافت اعلان 💾 ذخیره ایمیل
-ایمیل نمیاد؟
-دفعه اول باید یک‌بار مجوز ارسال ایمیل رو دستی تایید کنی: برو داخل Apps Script، از لیست توابع بالا (کنار دکمه Run) گزینه testEmailSetup رو انتخاب کن و دکمه ▶ Run رو بزن. یک پنجره مجوز باز می‌شه، Allow رو بزن. اگه ایمیل تستی رسید یعنی درست شده.
+  entries = entries.slice(0,8);
+  if(entries.length===0){
+    document.getElementById('myLogs').innerHTML = '<div class="empty">هنوز ثبتی وجود ندارد</div>';
+    return;
+  }
+  document.getElementById('myLogs').innerHTML = entries.map(function(e){
+    return '<div class="list-item"><div>'+
+      '<span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span> · '+esc(e.project)+
+      '<div class="meta">'+e.jalaliDate+' — '+e.time+'</div></div></div>';
+  }).join('');
+}
+function updateTodayStatusHint(){
+  var hint = todayLastType === 'ورود'
+    ? '📍 امروز ورود زده‌اید — نوبت ثبت خروج است.'
+    : (todayLastType === 'خروج' ? '📍 امروز آخرین ثبت شما خروج بوده — می‌توانید دوباره ورود بزنید.' : '📍 امروز هنوز ثبتی نزده‌اید.');
+  var el = document.getElementById('todayStatusHint');
+  if(el) el.textContent = hint;
+}
 
+// ---------- Manual entry requests (employee) ----------
+async function submitRequest(){
+  if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
+  var type = document.getElementById('reqType').value;
+  var projSel = document.getElementById('reqProject');
+  var idx = projSel.value;
+  if(idx === ''){ alert('یک پروژه انتخاب کنید'); return; }
+  var project = projects[idx];
+  var reason = document.getElementById('reqReason').value.trim();
+  if(!reason){ alert('لطفاً دلیل درخواست را بنویسید'); return; }
+  var reqTime = document.getElementById('reqTime').value;
+  var requestedDate = reqTime ? readDateSelect('reqDate') : '';
+  var requestedTime = reqTime || '';
 
-درخواست‌های ثبت دستی
-در انتظار تاییدشده ردشده همه انتخاب همه 🗑 حذف
-در حال بارگذاری...
+  var res = await apiCall(function(){ return apiPost('createRequest', {
+    username: loggedInEmployee.username, project: project.name, type: type, reason: reason, deviceId: DEVICE_ID,
+    requestedDate: requestedDate, requestedTime: requestedTime
+  }); });
+  if(!res.ok){
+    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.' : (res.error || 'خطای شبکه');
+    alert('ارسال درخواست ناموفق بود: ' + msg);
+    return;
+  }
+  document.getElementById('reqReason').value = '';
+  document.getElementById('reqTime').value = '';
+  alert('درخواست شما ارسال شد و در انتظار تایید مدیر است.');
+  loadMyRequests();
+}
+async function loadMyRequests(){
+  if(!loggedInEmployee) return;
+  var res = await apiCall(function(){ return apiPost('getMyRequests', {username: loggedInEmployee.username}); });
+  var box = document.getElementById('myRequests');
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
+  var filter = document.getElementById('myReqFilterStatus').value;
+  var all = res.requests || [];
+  var list = (filter === 'all' ? all : all.filter(function(r){ return r.status === filter; })).slice(0,10);
+  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  box.innerHTML = list.map(function(r){
+    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
+      '<div>'+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+'</div>'+
+      '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
+      '<div class="meta">'+r.createdAt+' — '+r.createdTime+(r.requestedDate?(' · زمان درخواستی: '+r.requestedDate+' '+r.requestedTime):'')+'</div>'+
+      (r.reason ? '<div style="margin-top:4px; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      '</div>';
+  }).join('');
+}
 
-درخواست‌های مرخصی
-در انتظار تاییدشده ردشده همه انتخاب همه 🗑 حذف
-در حال بارگذاری...
+// ---------- Leave requests (employee) ----------
+function initLeaveDateSelects(){
+  var today = new Date();
+  var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+  var curJY = tj[0];
+  ['leaveStart','leaveEnd','reqDate'].forEach(function(prefix){
+    var daySel = document.getElementById(prefix+'Day');
+    var monthSel = document.getElementById(prefix+'Month');
+    var yearSel = document.getElementById(prefix+'Year');
+    if(!daySel || daySel.options.length) return; // already populated
+    for(var d=1; d<=31; d++){ daySel.innerHTML += '<option value="'+d+'"'+(d===tj[2]?' selected':'')+'>'+d+'</option>'; }
+    jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'"'+((i+1)===tj[1]?' selected':'')+'>'+m+'</option>'; });
+    for(var y=curJY-1; y<=curJY+1; y++){ yearSel.innerHTML += '<option value="'+y+'"'+(y===curJY?' selected':'')+'>'+y+'</option>'; }
+  });
+}
+function readDateSelect(prefix){
+  var d = document.getElementById(prefix+'Day').value;
+  var mIdx = parseInt(document.getElementById(prefix+'Month').value, 10);
+  var y = document.getElementById(prefix+'Year').value;
+  return d + ' ' + jMonths[mIdx-1] + ' ' + y;
+}
+function toggleLeaveType(){
+  var hourly = document.getElementById('leaveType').value === 'hourly';
+  document.getElementById('leaveEndDateBlock').style.display = hourly ? 'none' : 'block';
+  document.getElementById('leaveTimeBlock').style.display = hourly ? 'block' : 'none';
+}
+async function submitLeaveRequest(){
+  if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
+  var reason = document.getElementById('leaveReason').value.trim();
+  if(!reason){ alert('لطفاً دلیل مرخصی را بنویسید'); return; }
+  var leaveType = document.getElementById('leaveType').value;
+  var startDate = readDateSelect('leaveStart');
+  var endDate, startTime = '', endTime = '';
+  if(leaveType === 'hourly'){
+    endDate = startDate;
+    startTime = document.getElementById('leaveStartTime').value;
+    endTime = document.getElementById('leaveEndTime').value;
+    if(!startTime || !endTime){ alert('ساعت شروع و پایان مرخصی را وارد کنید'); return; }
+  } else {
+    endDate = readDateSelect('leaveEnd');
+  }
+  var res = await apiCall(function(){ return apiPost('createLeaveRequest', {
+    username: loggedInEmployee.username, startDate: startDate, endDate: endDate,
+    leaveType: leaveType, startTime: startTime, endTime: endTime, reason: reason, deviceId: DEVICE_ID
+  }); });
+  if(!res.ok){
+    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.' : (res.error || 'خطای شبکه');
+    alert('ارسال درخواست مرخصی ناموفق بود: ' + msg);
+    return;
+  }
+  document.getElementById('leaveReason').value = '';
+  alert('درخواست مرخصی شما ارسال شد و در انتظار تایید مدیر است.');
+  loadMyLeaves();
+}
+async function loadMyLeaves(){
+  if(!loggedInEmployee) return;
+  var res = await apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}); });
+  var box = document.getElementById('myLeaves');
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
+  var filter = document.getElementById('myLeaveFilterStatus').value;
+  var all = res.leaves || [];
+  var list = (filter === 'all' ? all : all.filter(function(r){ return r.status === filter; })).slice(0,10);
+  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  box.innerHTML = list.map(function(r){
+    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center;">'+
+      '<div>'+formatLeaveRange(r)+'</div>'+
+      '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
+      (r.reason ? '<div style="margin-top:4px; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      '</div>';
+  }).join('');
+}
 
+// ---------- Admin: log table ----------
+async function loadFullLog(){
+  var res = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
+  var tbody = document.getElementById('logTableBody');
+  if(!res.ok){
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">دریافت گزارش ناموفق بود</td></tr>';
+    showAdminNotice('دریافت گزارش تردد ناموفق بود: ' + (res.error||''));
+    return;
+  }
+  var entries = res.logs || [];
+  entries.sort(function(a,b){ return String(b.isoTimestamp).localeCompare(String(a.isoTimestamp)); });
+  window._allEntries = entries;
+  renderLogTable();
+}
+function renderLogTable(){
+  var tbody = document.getElementById('logTableBody');
+  var all = window._allEntries || [];
+  var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
+  var entries = codeFilter ? all.filter(function(e){ return String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; }) : all;
+  if(entries.length===0){
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">'+(codeFilter ? 'با این کد پرسنلی ثبتی یافت نشد' : 'هنوز ثبتی وجود ندارد')+'</td></tr>';
+    return;
+  }
 
-گزارش کامل تردد
+  tbody.innerHTML = entries.map(function(e){
+    if(e.id && e.id === editingLogId){
+      var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===e.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
+      var prOpts = projects.map(function(p){ return '<option'+(p.name===e.project?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('');
+      return '<tr class="edit-row"><td colspan="6">'+
+        '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
+          '<input type="text" id="logEditDate" value="'+esc(e.jalaliDate)+'" style="width:120px;" placeholder="15 مرداد 1405">'+
+          '<input type="text" id="logEditTime" value="'+esc(e.time)+'" style="width:90px;" class="field-mono" placeholder="14:30:00">'+
+          '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
+          '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
+          '<select id="logEditType" style="width:90px;"><option value="in"'+(e.type==='ورود'?' selected':'')+'>ورود</option><option value="out"'+(e.type==='خروج'?' selected':'')+'>خروج</option></select>'+
+        '</div>'+
+        '<div class="btn-row">'+
+          '<button type="button" class="btn btn-in btn-small" onclick="saveEditLog(\''+e.id+'\')">💾 ذخیره</button>'+
+          '<button type="button" class="btn btn-ghost btn-small" onclick="cancelEditLog()">لغو</button>'+
+        '</div></td></tr>';
+    }
+    var actions = e.id
+      ? '<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>'
+      : '';
+    return '<tr><td>'+e.jalaliDate+'</td><td class="mono">'+e.time+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
+      '<td><span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span></td>'+
+      '<td style="white-space:nowrap;">'+actions+'</td></tr>';
+  }).join('');
+}
+function startEditLog(id){ editingLogId = id; renderLogTable(); }
+function cancelEditLog(){ editingLogId = null; renderLogTable(); }
+async function saveEditLog(id){
+  var payload = {
+    pin: adminPin, id: id,
+    jalaliDate: document.getElementById('logEditDate').value.trim(),
+    time: document.getElementById('logEditTime').value.trim(),
+    employee: document.getElementById('logEditEmp').value,
+    project: document.getElementById('logEditProj').value,
+    type: document.getElementById('logEditType').value
+  };
+  var res = await apiCall(function(){ return apiPost('updateLog', payload); });
+  if(!res.ok){ showAdminNotice('ویرایش ثبت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  editingLogId = null;
+  await loadFullLog();
+}
+async function deleteLogEntry(id){
+  if(!confirm('این ثبت تردد حذف شود؟ این کار قابل بازگشت نیست.')) return;
+  var res = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ثبت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadFullLog();
+}
+function exportCSV(){
+  var all = window._allEntries || [];
+  var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
+  var entries = codeFilter ? all.filter(function(e){ return String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; }) : all;
+  if(entries.length===0){ alert('داده‌ای برای خروجی وجود ندارد'); return; }
+  var rows = [['تاریخ','ساعت','پرسنل','کد پرسنلی','پروژه','نوع','lat','lng','accuracy','یادداشت']];
+  entries.forEach(function(e){
+    rows.push([e.jalaliDate, e.time, e.employee, e.employeeCode||'', e.project, e.type, e.lat, e.lng, e.accuracy, e.note||'']);
+  });
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'attendance.csv';
+  a.click();
+}
 
-تاریخ
-ساعت
-پرسنل
-پروژه
-نوع
-عملیات
-در حال بارگذاری...
+function formatLeaveRange(r){
+  if(r.leaveType === 'hourly'){
+    return r.startDate + ' ساعت ' + (r.startTime||'') + ' تا ' + (r.endTime||'');
+  }
+  return r.startDate + ' تا ' + r.endDate;
+}
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function copyScript(){
+  var code = document.getElementById('scriptCode').textContent;
+  navigator.clipboard.writeText(code).then(function(){ alert('کد کپی شد.'); });
+}
 
-⬇️ خروجی CSV
-این گزارش همیشه در Google Sheet متصل هم به‌صورت زنده موجود است.
+async function refreshAdminView(){
+  await loadEmployeesAdmin();
+  await loadProjectsAdmin();
+  await loadAdminRequests();
+  await loadAdminLeaves();
+  await loadFullLog();
+  var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
+  if(emailRes.ok){
+    document.getElementById('notifyEmail').value = emailRes.email || '';
+    var stEl = document.getElementById('notifyEmailStatus');
+    if(stEl) stEl.textContent = emailRes.lastStatus ? ('آخرین وضعیت ارسال: ' + emailRes.lastStatus) : 'هنوز ایمیلی ارسال نشده.';
+  }
+}
+
+// ---------- Init ----------
+function init(){
+  if(!API_URL){
+    document.getElementById('setupScreen').style.display='block';
+    document.getElementById('mainApp').style.display='none';
+    return;
+  }
+  document.getElementById('setupScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+
+  loadProjectsPublic();
+
+  var savedEmp = sessionStorage.getItem('loggedInEmployee');
+  if(savedEmp){
+    try{
+      loggedInEmployee = JSON.parse(savedEmp);
+      document.getElementById('empWelcomeName').textContent = loggedInEmployee.fullName + (loggedInEmployee.employeeCode ? ' (کد '+loggedInEmployee.employeeCode+')' : '');
+      document.getElementById('empLoginGate').style.display='none';
+      document.getElementById('empView').style.display='block';
+      loadMyLogs();
+      loadMyRequests();
+      initLeaveDateSelects();
+      loadMyLeaves();
+    }catch(e){}
+  }
+  var savedPin = sessionStorage.getItem('adminPin');
+  var savedUser = sessionStorage.getItem('adminUsername');
+  if(savedPin && savedUser){ adminPin = savedPin; adminUsername = savedUser; }
+}
+// ---------- PWA install support ----------
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('service-worker.js').catch(function(e){ console.warn('SW register failed', e); });
+  });
+}
+
+init();
+</script>
+</body>
+</html>
