@@ -460,7 +460,33 @@ function doPost(e){
     }
 
     var d = body.entry;
-    var t = serverNow(); // <-- authoritative; client-sent date/time is ignored
+    var isOffline = !!body.offline;
+    var t;
+    var note = '';
+    if(isOffline && d.clientIso){
+      // Trust the device clock ONLY for offline-queued entries, and flag it clearly for the admin.
+      var offDate = new Date(d.clientIso);
+      var ogy = parseInt(Utilities.formatDate(offDate, TZ, 'yyyy'), 10);
+      var ogm = parseInt(Utilities.formatDate(offDate, TZ, 'MM'), 10);
+      var ogd = parseInt(Utilities.formatDate(offDate, TZ, 'dd'), 10);
+      var ohms = Utilities.formatDate(offDate, TZ, 'HH:mm:ss');
+      var oj = toJalaali(ogy, ogm, ogd);
+      t = {
+        jalaliDate: oj[2] + ' ' + J_MONTHS[oj[1]-1] + ' ' + oj[0],
+        time: toFaDigits(ohms),
+        isoTimestamp: offDate.toISOString()
+      };
+      note = '⚠ ثبت آفلاین — بر اساس ساعت دستگاه (نه سرور)';
+    } else {
+      t = serverNow(); // <-- authoritative; client-sent date/time is ignored
+      if(d.clientIso){
+        var drift = Math.abs(new Date(t.isoTimestamp).getTime() - new Date(d.clientIso).getTime());
+        if(drift > 10*60*1000){ note = '⚠ اختلاف ساعت گوشی با سرور بیش از ۱۰ دقیقه بود'; }
+      }
+    }
+    if(d.accuracy && Number(d.accuracy) > 100){
+      note = (note ? note + ' | ' : '') + '⚠ دقت موقعیت پایین بود (±' + Math.round(Number(d.accuracy)) + 'م)';
+    }
 
     var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
     var todayRows = readRows(lsh2).filter(function(r){ return r.username === d.username && r.jalaliDate === t.jalaliDate; });
@@ -472,12 +498,6 @@ function doPost(e){
     }
     if(!wantIn && (!lastToday || lastToday.type === 'خروج')){
       return jsonOut({ok:false, error:'not_checked_in'});
-    }
-
-    var note = '';
-    if(d.clientIso){
-      var drift = Math.abs(new Date(t.isoTimestamp).getTime() - new Date(d.clientIso).getTime());
-      if(drift > 10*60*1000){ note = '⚠ اختلاف ساعت گوشی با سرور بیش از ۱۰ دقیقه بود'; }
     }
 
     var id = Utilities.getUuid();
@@ -1151,7 +1171,7 @@ async function apiPost(action, payload){
 }
 async function apiCall(fn){
   try{ return await fn(); }
-  catch(e){ console.error(e); return {ok:false, error: (e && e.message) ? e.message : 'خطای شبکه'}; }
+  catch(e){ console.error(e); return {ok:false, error: (e && e.message) ? e.message : 'خطای شبکه', networkError:true}; }
 }
 
 // ---------- State ----------
@@ -1216,7 +1236,7 @@ async function employeeLogin(){
     return;
   }
   loggedInEmployee = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, allowedProjects: res.allowedProjects || ''};
-  sessionStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
+  localStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
   document.getElementById('empUsername').value='';
   document.getElementById('empPassword').value='';
   document.getElementById('empWelcomeName').textContent = res.fullName + (res.employeeCode ? ' (کد '+res.employeeCode+')' : '');
@@ -1230,7 +1250,7 @@ async function employeeLogin(){
 }
 function employeeLogout(){
   loggedInEmployee = null;
-  sessionStorage.removeItem('loggedInEmployee');
+  localStorage.removeItem('loggedInEmployee');
   document.getElementById('empLoginGate').style.display='block';
   document.getElementById('empView').style.display='none';
 }
@@ -1564,7 +1584,16 @@ async function decideLeave(id, approve){
 // ---------- Projects ----------
 async function loadProjectsPublic(){
   var res = await apiCall(function(){ return apiGet('projects'); });
-  if(res.ok){ projects = res.projects || []; renderProjectSelect(); }
+  if(res.ok){
+    projects = res.projects || [];
+    try{ localStorage.setItem('cachedProjects', JSON.stringify(projects)); }catch(e){}
+    renderProjectSelect();
+  } else {
+    try{
+      var cached = JSON.parse(localStorage.getItem('cachedProjects') || '[]');
+      if(cached.length){ projects = cached; renderProjectSelect(); }
+    }catch(e){}
+  }
 }
 async function loadProjectsAdmin(){
   var res = await apiCall(function(){ return apiPost('getProjectsAdmin', {pin:adminPin}); });
@@ -1724,6 +1753,15 @@ function setStatus(msg, kind){
   el.className = 'status ' + kind;
   el.innerHTML = msg;
 }
+function goToManualRequest(type){
+  showEmpSection('request');
+  var projSel = document.getElementById('empProject');
+  var reqSel = document.getElementById('reqProject');
+  if(projSel && reqSel) reqSel.value = projSel.value;
+  var typeSel = document.getElementById('reqType');
+  if(typeSel) typeSel.value = type;
+  document.getElementById('reqReason') && document.getElementById('reqReason').focus();
+}
 function locateAndCheck(){
   var selIdx = document.getElementById('empProject').value;
   if(selIdx === '' || !projects[selIdx]){
@@ -1760,11 +1798,45 @@ function locateAndCheck(){
       setStatus('⛔ خارج از محدوده پروژه هستید.<br>'+line1+'<br>'+line2, 'err');
     }
   }, function(err){
-    setStatus('⛔ دریافت موقعیت ناموفق بود: '+err.message+'<br>لطفاً GPS را روشن و دسترسی مرورگر را تایید کنید.', 'err');
+    var suggestedType = (todayLastType === 'ورود') ? 'out' : 'in';
+    setStatus('⛔ دریافت موقعیت ناموفق بود: '+err.message+'<br>لطفاً GPS را روشن و دسترسی مرورگر را تایید کنید.<br><br>'+
+      '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\''+suggestedType+'\')">📨 به‌جاش درخواست ثبت دستی بفرست</button>', 'err');
   }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
 }
 
 // ---------- Submit entry ----------
+// ---------- Offline queue (used when the phone has no signal at the moment of check-in/out) ----------
+function getOfflineQueue(){
+  try{ return JSON.parse(localStorage.getItem('offlineQueue') || '[]'); }
+  catch(e){ return []; }
+}
+function setOfflineQueue(q){
+  try{ localStorage.setItem('offlineQueue', JSON.stringify(q)); }catch(e){}
+}
+function queueOfflineEntry(entry, projectId){
+  var q = getOfflineQueue();
+  q.push({entry: entry, deviceId: DEVICE_ID, project_id: projectId, queuedAt: new Date().toISOString()});
+  setOfflineQueue(q);
+}
+async function syncOfflineQueue(){
+  var q = getOfflineQueue();
+  if(q.length === 0) return;
+  var remaining = [];
+  var syncedAny = false;
+  for(var i=0;i<q.length;i++){
+    var item = q[i];
+    var res = await apiCall(function(){ return apiPost('addLog', {entry:item.entry, deviceId:item.deviceId, project_id:item.project_id, offline:true}); });
+    if(!res.ok && res.networkError){
+      remaining.push(item); // still offline — try again next time
+    } else {
+      syncedAny = true; // either synced ok, or the server rejected it for a real reason (e.g. stale toggle state) — either way, drop from queue
+    }
+  }
+  setOfflineQueue(remaining);
+  if(syncedAny && loggedInEmployee){ loadMyLogs(); }
+}
+window.addEventListener('online', syncOfflineQueue);
+
 async function submitEntry(type){
   if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
   if(!currentPos || !chosenProject){ alert('ابتدا موقعیت مکانی را بررسی کنید'); return; }
@@ -1777,12 +1849,30 @@ async function submitEntry(type){
     lat: currentPos.latitude,
     lng: currentPos.longitude,
     accuracy: Math.round(currentPos.accuracy),
-    clientIso: new Date().toISOString() // reference only — server time is what actually gets recorded
+    clientIso: new Date().toISOString() // reference only when online — server time is what actually gets recorded; used as-is only when queued offline
   };
 
   document.getElementById('checkInBtn').disabled = true;
   document.getElementById('checkOutBtn').disabled = true;
+
+  if(!navigator.onLine){
+    queueOfflineEntry(entry, chosenProject.id);
+    todayLastType = (type === 'in') ? 'ورود' : 'خروج';
+    updateTodayStatusHint();
+    setStatus('📦 اینترنت وصل نیست — ثبت ذخیره شد و به‌محض وصل‌شدن اینترنت خودکار ارسال می‌شود.', 'wait');
+    renderQueuedInMyLogs();
+    return;
+  }
+
   var res = await apiCall(function(){ return apiPost('addLog', {entry: entry, deviceId: DEVICE_ID, project_id: chosenProject.id}); });
+  if(!res.ok && res.networkError){
+    queueOfflineEntry(entry, chosenProject.id);
+    todayLastType = (type === 'in') ? 'ورود' : 'خروج';
+    updateTodayStatusHint();
+    setStatus('📦 ارتباط با سرور برقرار نشد — ثبت ذخیره شد و به‌محض وصل‌شدن اینترنت خودکار ارسال می‌شود.', 'wait');
+    renderQueuedInMyLogs();
+    return;
+  }
   if(!res.ok){
     var msg = res.error || 'خطای شبکه';
     if(res.error === 'device_mismatch') msg = 'این حساب روی گوشی دیگری فعال است — از مدیر بخواهید دستگاه را ریست کند.';
@@ -1802,29 +1892,38 @@ async function submitEntry(type){
 async function loadMyLogs(){
   if(!loggedInEmployee) return;
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
-  if(!res.ok){
-    document.getElementById('myLogs').innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>';
-    return;
-  }
-  var entries = res.logs || [];
+  var entries = res.ok ? (res.logs || []) : [];
   entries.sort(function(a,b){ return String(b.isoTimestamp).localeCompare(String(a.isoTimestamp)); });
 
   var todayStr = jalaliString(new Date());
+  var queue = getOfflineQueue().filter(function(q){ return q.entry.username === loggedInEmployee.username; });
+
   var todaysEntries = entries.filter(function(e){ return e.jalaliDate === todayStr; });
-  todayLastType = todaysEntries.length ? todaysEntries[0].type : null; // entries already sorted desc
+  var lastServerType = todaysEntries.length ? todaysEntries[0].type : null;
+  var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
+  todayLastType = lastQueuedType || lastServerType; // a still-pending queued entry takes priority over server state
   updateTodayStatusHint();
 
-  entries = entries.slice(0,8);
-  if(entries.length===0){
-    document.getElementById('myLogs').innerHTML = '<div class="empty">هنوز ثبتی وجود ندارد</div>';
+  if(!res.ok && queue.length === 0){
+    document.getElementById('myLogs').innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>';
     return;
   }
-  document.getElementById('myLogs').innerHTML = entries.map(function(e){
+
+  var queuedHtml = queue.slice().reverse().map(function(q){
+    return '<div class="list-item"><div>'+
+      '<span class="'+(q.entry.type==='in'?'in-tag':'out-tag')+'">'+(q.entry.type==='in'?'ورود':'خروج')+'</span> · '+esc(q.entry.project)+
+      ' · <span style="color:#8a5a10;">⏳ در انتظار همگام‌سازی</span></div></div>';
+  }).join('');
+
+  var serverHtml = entries.slice(0,8).map(function(e){
     return '<div class="list-item"><div>'+
       '<span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span> · '+esc(e.project)+
-      '<div class="meta">'+e.jalaliDate+' — '+e.time+'</div></div></div>';
+      '<div class="meta">'+e.jalaliDate+' — '+e.time+(e.note?(' · '+esc(e.note)):'')+'</div></div></div>';
   }).join('');
+
+  document.getElementById('myLogs').innerHTML = (queuedHtml + serverHtml) || '<div class="empty">هنوز ثبتی وجود ندارد</div>';
 }
+function renderQueuedInMyLogs(){ loadMyLogs(); }
 function updateTodayStatusHint(){
   var hint = todayLastType === 'ورود'
     ? '📍 امروز ورود زده‌اید — نوبت ثبت خروج است.'
@@ -2086,7 +2185,7 @@ function init(){
 
   loadProjectsPublic();
 
-  var savedEmp = sessionStorage.getItem('loggedInEmployee');
+  var savedEmp = localStorage.getItem('loggedInEmployee');
   if(savedEmp){
     try{
       loggedInEmployee = JSON.parse(savedEmp);
@@ -2097,6 +2196,7 @@ function init(){
       loadMyRequests();
       initLeaveDateSelects();
       loadMyLeaves();
+      if(navigator.onLine) syncOfflineQueue();
     }catch(e){}
   }
   var savedPin = sessionStorage.getItem('adminPin');
