@@ -1055,6 +1055,10 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedRequests()">🗑 حذف</button>
       </div>
       <input type="text" id="reqFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderReqAdminList()">
+      <div class="date-row">
+        <select id="reqFilterMonth" onchange="renderReqAdminList()"><option value="">همه ماه‌ها</option></select>
+        <select id="reqFilterYear" onchange="renderReqAdminList()"><option value="">همه سال‌ها</option></select>
+      </div>
       <div id="reqAdminList"><div class="empty">در حال بارگذاری...</div></div>
     </div>
 
@@ -1071,6 +1075,10 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedLeaves()">🗑 حذف</button>
       </div>
       <input type="text" id="leaveFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLeaveAdminList()">
+      <div class="date-row">
+        <select id="leaveFilterMonth" onchange="renderLeaveAdminList()"><option value="">همه ماه‌ها</option></select>
+        <select id="leaveFilterYear" onchange="renderLeaveAdminList()"><option value="">همه سال‌ها</option></select>
+      </div>
       <div id="leaveAdminList"><div class="empty">در حال بارگذاری...</div></div>
     </div>
     </div><!-- /admSec-requests -->
@@ -1079,6 +1087,10 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="card">
       <div class="eyebrow">گزارش کامل تردد</div>
       <input type="text" id="logFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLogTable()">
+      <div class="date-row">
+        <select id="logFilterMonth" onchange="renderLogTable()"><option value="">همه ماه‌ها</option></select>
+        <select id="logFilterYear" onchange="renderLogTable()"><option value="">همه سال‌ها</option></select>
+      </div>
       <div style="overflow-x:auto;">
         <table id="logTable">
           <thead><tr><th>تاریخ</th><th>ساعت</th><th>پرسنل</th><th>پروژه</th><th>نوع</th><th>عملیات</th></tr></thead>
@@ -1477,11 +1489,15 @@ async function loadAdminRequests(){
 }
 function renderReqAdminList(){
   var box = document.getElementById('reqAdminList');
+  populateMonthYearFilter('reqFilterMonth','reqFilterYear');
   var filter = document.getElementById('reqFilterStatus').value;
   var codeFilter = document.getElementById('reqFilterCode').value.trim().toLowerCase();
+  var monthFilter = document.getElementById('reqFilterMonth').value;
+  var yearFilter = document.getElementById('reqFilterYear').value;
   var all = window._allRequests || [];
   var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
   if(codeFilter) list = list.filter(function(r){ return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; });
+  list = list.filter(function(r){ return matchesMonthYear(r.createdAt, monthFilter, yearFilter); });
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   box.innerHTML = list.map(function(r){
@@ -1536,11 +1552,15 @@ async function loadAdminLeaves(){
 }
 function renderLeaveAdminList(){
   var box = document.getElementById('leaveAdminList');
+  populateMonthYearFilter('leaveFilterMonth','leaveFilterYear');
   var filter = document.getElementById('leaveFilterStatus').value;
   var codeFilter = document.getElementById('leaveFilterCode').value.trim().toLowerCase();
+  var monthFilter = document.getElementById('leaveFilterMonth').value;
+  var yearFilter = document.getElementById('leaveFilterYear').value;
   var all = window._allLeaves || [];
   var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
   if(codeFilter) list = list.filter(function(r){ return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; });
+  list = list.filter(function(r){ return matchesMonthYear(r.startDate, monthFilter, yearFilter); });
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   box.innerHTML = list.map(function(r){
@@ -2069,11 +2089,18 @@ async function loadFullLog(){
 }
 function renderLogTable(){
   var tbody = document.getElementById('logTableBody');
+  populateMonthYearFilter('logFilterMonth','logFilterYear');
   var all = window._allEntries || [];
   var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
-  var entries = codeFilter ? all.filter(function(e){ return String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; }) : all;
+  var monthFilter = document.getElementById('logFilterMonth').value;
+  var yearFilter = document.getElementById('logFilterYear').value;
+  var entries = all.filter(function(e){
+    if(codeFilter && String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) === -1) return false;
+    if(!matchesMonthYear(e.jalaliDate, monthFilter, yearFilter)) return false;
+    return true;
+  });
   if(entries.length===0){
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">'+(codeFilter ? 'با این کد پرسنلی ثبتی یافت نشد' : 'هنوز ثبتی وجود ندارد')+'</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">'+((codeFilter||monthFilter||yearFilter) ? 'با این فیلتر ثبتی یافت نشد' : 'هنوز ثبتی وجود ندارد')+'</td></tr>';
     return;
   }
 
@@ -2130,7 +2157,13 @@ async function deleteLogEntry(id){
 function exportCSV(){
   var all = window._allEntries || [];
   var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
-  var entries = codeFilter ? all.filter(function(e){ return String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; }) : all;
+  var monthFilter = document.getElementById('logFilterMonth').value;
+  var yearFilter = document.getElementById('logFilterYear').value;
+  var entries = all.filter(function(e){
+    if(codeFilter && String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) === -1) return false;
+    if(!matchesMonthYear(e.jalaliDate, monthFilter, yearFilter)) return false;
+    return true;
+  });
   if(entries.length===0){ alert('داده‌ای برای خروجی وجود ندارد'); return; }
   var rows = [['تاریخ','ساعت','پرسنل','کد پرسنلی','پروژه','نوع','lat','lng','accuracy','یادداشت']];
   entries.forEach(function(e){
@@ -2149,6 +2182,28 @@ function formatLeaveRange(r){
     return r.startDate + ' ساعت ' + (r.startTime||'') + ' تا ' + (r.endTime||'');
   }
   return r.startDate + ' تا ' + r.endDate;
+}
+function parseJalaliDateStr(s){
+  var parts = String(s||'').trim().split(' ');
+  if(parts.length < 3) return null;
+  return { day: parts[0], month: parts[1], year: parts[parts.length-1] };
+}
+function matchesMonthYear(dateStr, monthFilter, yearFilter){
+  if(!monthFilter && !yearFilter) return true;
+  var p = parseJalaliDateStr(dateStr);
+  if(!p) return false;
+  if(monthFilter && p.month !== monthFilter) return false;
+  if(yearFilter && p.year !== yearFilter) return false;
+  return true;
+}
+function populateMonthYearFilter(monthId, yearId){
+  var monthSel = document.getElementById(monthId);
+  var yearSel = document.getElementById(yearId);
+  if(!monthSel || monthSel.options.length > 1) return; // already populated
+  jMonths.forEach(function(m){ monthSel.innerHTML += '<option value="'+m+'">'+m+'</option>'; });
+  var today = new Date();
+  var curJY = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate())[0];
+  for(var y=curJY+1; y>=curJY-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
 }
 function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g, function(c){
