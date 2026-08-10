@@ -2097,7 +2097,8 @@ function renderLogTable(){
     var actions = e.id
       ? '<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>'
       : '';
-    return '<tr><td>'+e.jalaliDate+'</td><td class="mono">'+e.time+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
+    var noteHtml = e.note ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(e.note)+'</span>' : '';
+    return '<tr><td>'+e.jalaliDate+'</td><td class="mono">'+e.time+noteHtml+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
       '<td><span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span></td>'+
       '<td style="white-space:nowrap;">'+actions+'</td></tr>';
   }).join('');
