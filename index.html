@@ -354,7 +354,7 @@ function normalizeTimeInput(t){
   var parts = String(t).split(':');
   var hh = (parts[0]||'00'); if(hh.length<2) hh='0'+hh;
   var mm = (parts[1]||'00'); if(mm.length<2) mm='0'+mm;
-  return toFaDigits(hh + ':' + mm + ':00');
+  return hh + ':' + mm + ':00';
 }
 function serverNow(){
   var now = new Date();
@@ -365,7 +365,7 @@ function serverNow(){
   var j = toJalaali(gy, gm, gd);
   return {
     jalaliDate: j[2] + ' ' + J_MONTHS[j[1]-1] + ' ' + j[0],
-    time: toFaDigits(hms),
+    time: hms,
     isoTimestamp: now.toISOString()
   };
 }
@@ -473,7 +473,7 @@ function doPost(e){
       var oj = toJalaali(ogy, ogm, ogd);
       t = {
         jalaliDate: oj[2] + ' ' + J_MONTHS[oj[1]-1] + ' ' + oj[0],
-        time: toFaDigits(ohms),
+        time: ohms,
         isoTimestamp: offDate.toISOString()
       };
       note = '⚠ ثبت آفلاین — بر اساس ساعت دستگاه (نه سرور)';
@@ -820,7 +820,10 @@ function esh_set(sheet, rowNum, headerName, value){
   <div id="empView" style="display:none;">
     <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
       <div>خوش آمدید، <b id="empWelcomeName"></b></div>
-      <button type="button" class="btn btn-ghost btn-small" onclick="employeeLogout()">خروج از حساب</button>
+      <div class="btn-row" style="width:auto; margin:0;">
+        <button type="button" class="btn btn-ghost btn-small" onclick="refreshCurrentEmpSection()">🔄</button>
+        <button type="button" class="btn btn-ghost btn-small" onclick="employeeLogout()">خروج از حساب</button>
+      </div>
     </div>
     <div class="btn-row" style="flex-wrap:wrap; margin-bottom:14px;">
       <button type="button" class="tab-btn active" id="empMenu-checkin" style="flex:1 1 30%;" onclick="showEmpSection('checkin')">📍 ثبت تردد</button>
@@ -847,7 +850,14 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
 
     <div class="card">
-      <div class="eyebrow">آخرین ثبت‌های من</div>
+      <div class="eyebrow" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>آخرین ثبت‌های من</span>
+        <button type="button" class="icon-btn" title="بروزرسانی" onclick="loadMyLogs()">🔄</button>
+      </div>
+      <div class="date-row">
+        <select id="myLogFilterMonth" onchange="loadMyLogs()"><option value="">همه ماه‌ها</option></select>
+        <select id="myLogFilterYear" onchange="loadMyLogs()"><option value="">همه سال‌ها</option></select>
+      </div>
       <div id="myLogs"><div class="empty">هنوز ثبتی وجود ندارد</div></div>
     </div>
     </div><!-- /empSec-checkin -->
@@ -881,6 +891,10 @@ function esh_set(sheet, rowNum, headerName, value){
         <option value="approved">تاییدشده</option>
         <option value="rejected">ردشده</option>
       </select>
+      <div class="date-row">
+        <select id="myReqFilterMonth" onchange="loadMyRequests()"><option value="">همه ماه‌ها</option></select>
+        <select id="myReqFilterYear" onchange="loadMyRequests()"><option value="">همه سال‌ها</option></select>
+      </div>
       <div id="myRequests"><div class="empty">درخواستی ثبت نشده</div></div>
     </div>
     </div><!-- /empSec-request -->
@@ -924,6 +938,10 @@ function esh_set(sheet, rowNum, headerName, value){
         <option value="approved">تاییدشده</option>
         <option value="rejected">ردشده</option>
       </select>
+      <div class="date-row">
+        <select id="myLeaveFilterMonth" onchange="loadMyLeaves()"><option value="">همه ماه‌ها</option></select>
+        <select id="myLeaveFilterYear" onchange="loadMyLeaves()"><option value="">همه سال‌ها</option></select>
+      </div>
       <div id="myLeaves"><div class="empty">درخواست مرخصی ثبت نشده</div></div>
     </div>
     </div><!-- /empSec-leave -->
@@ -945,7 +963,10 @@ function esh_set(sheet, rowNum, headerName, value){
 
     <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
       <div>⚙️ پنل مدیریت</div>
-      <button type="button" class="btn btn-ghost btn-small" onclick="adminLogout()">خروج از مدیریت</button>
+      <div class="btn-row" style="width:auto; margin:0;">
+        <button type="button" class="btn btn-ghost btn-small" onclick="refreshCurrentAdminSection()">🔄</button>
+        <button type="button" class="btn btn-ghost btn-small" onclick="adminLogout()">خروج از مدیریت</button>
+      </div>
     </div>
 
     <div id="adminNotice" class="status err" style="display:none; margin-bottom:14px;"></div>
@@ -1156,7 +1177,10 @@ function jalaliString(d){
   return j[2] + ' ' + jMonths[j[1]-1] + ' ' + j[0];
 }
 function timeString(d){
-  return d.toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  var hh = String(d.getHours()).padStart(2,'0');
+  var mm = String(d.getMinutes()).padStart(2,'0');
+  var ss = String(d.getSeconds()).padStart(2,'0');
+  return hh+':'+mm+':'+ss;
 }
 
 // ---------- Clock ----------
@@ -1289,6 +1313,13 @@ async function checkPin(){
     document.getElementById('pinHint').style.color = '#a32a2a';
   }
 }
+function refreshCurrentEmpSection(){
+  var active = ['checkin','request','leave'].find(function(s){
+    var sec = document.getElementById('empSec-'+s);
+    return sec && sec.style.display !== 'none';
+  }) || 'checkin';
+  showEmpSection(active);
+}
 function showEmpSection(name){
   ['checkin','request','leave'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
@@ -1296,6 +1327,16 @@ function showEmpSection(name){
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
     if(btn) btn.classList.toggle('active', s===name);
   });
+  if(name === 'checkin') loadMyLogs();
+  else if(name === 'request') loadMyRequests();
+  else if(name === 'leave') loadMyLeaves();
+}
+function refreshCurrentAdminSection(){
+  var active = ['employees','projects','requests','report','settings'].find(function(s){
+    var sec = document.getElementById('admSec-'+s);
+    return sec && sec.style.display !== 'none';
+  }) || 'employees';
+  refreshAdminSection(active);
 }
 function showAdminSection(name){
   ['employees','projects','requests','report','settings'].forEach(function(s){
@@ -1305,6 +1346,21 @@ function showAdminSection(name){
     if(btn) btn.classList.toggle('active', s===name);
   });
   if(name === 'projects') initProjMap();
+  refreshAdminSection(name);
+}
+async function refreshAdminSection(name){
+  if(name === 'employees') await loadEmployeesAdmin();
+  else if(name === 'projects') await loadProjectsAdmin();
+  else if(name === 'requests'){ await loadAdminRequests(); await loadAdminLeaves(); }
+  else if(name === 'report') await loadFullLog();
+  else if(name === 'settings'){
+    var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
+    if(emailRes.ok){
+      document.getElementById('notifyEmail').value = emailRes.email || '';
+      var stEl = document.getElementById('notifyEmailStatus');
+      if(stEl) stEl.textContent = emailRes.lastStatus ? ('آخرین وضعیت ارسال: ' + emailRes.lastStatus) : 'هنوز ایمیلی ارسال نشده.';
+    }
+  }
 }
 function adminLogout(){
   adminPin = null;
@@ -1929,13 +1985,18 @@ async function loadMyLogs(){
     return;
   }
 
+  populateMonthYearFilter('myLogFilterMonth','myLogFilterYear');
+  var monthFilter = document.getElementById('myLogFilterMonth').value;
+  var yearFilter = document.getElementById('myLogFilterYear').value;
+  var displayEntries = entries.filter(function(e){ return matchesMonthYear(e.jalaliDate, monthFilter, yearFilter); });
+
   var queuedHtml = queue.slice().reverse().map(function(q){
     return '<div class="list-item"><div>'+
       '<span class="'+(q.entry.type==='in'?'in-tag':'out-tag')+'">'+(q.entry.type==='in'?'ورود':'خروج')+'</span> · '+esc(q.entry.project)+
       ' · <span style="color:#8a5a10;">⏳ در انتظار همگام‌سازی</span></div></div>';
   }).join('');
 
-  var serverHtml = entries.slice(0,8).map(function(e){
+  var serverHtml = displayEntries.slice(0,8).map(function(e){
     return '<div class="list-item"><div>'+
       '<span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span> · '+esc(e.project)+
       '<div class="meta">'+e.jalaliDate+' — '+e.time+(e.note?(' · '+esc(e.note)):'')+'</div></div></div>';
@@ -1985,9 +2046,14 @@ async function loadMyRequests(){
   var res = await apiCall(function(){ return apiPost('getMyRequests', {username: loggedInEmployee.username}); });
   var box = document.getElementById('myRequests');
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
+  populateMonthYearFilter('myReqFilterMonth','myReqFilterYear');
   var filter = document.getElementById('myReqFilterStatus').value;
+  var monthFilter = document.getElementById('myReqFilterMonth').value;
+  var yearFilter = document.getElementById('myReqFilterYear').value;
   var all = res.requests || [];
-  var list = (filter === 'all' ? all : all.filter(function(r){ return r.status === filter; })).slice(0,10);
+  var list = (filter === 'all' ? all : all.filter(function(r){ return r.status === filter; }))
+    .filter(function(r){ return matchesMonthYear(r.createdAt, monthFilter, yearFilter); })
+    .slice(0,10);
   if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   box.innerHTML = list.map(function(r){
@@ -2059,9 +2125,14 @@ async function loadMyLeaves(){
   var res = await apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}); });
   var box = document.getElementById('myLeaves');
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>'; return; }
+  populateMonthYearFilter('myLeaveFilterMonth','myLeaveFilterYear');
   var filter = document.getElementById('myLeaveFilterStatus').value;
+  var monthFilter = document.getElementById('myLeaveFilterMonth').value;
+  var yearFilter = document.getElementById('myLeaveFilterYear').value;
   var all = res.leaves || [];
-  var list = (filter === 'all' ? all : all.filter(function(r){ return r.status === filter; })).slice(0,10);
+  var list = (filter === 'all' ? all : all.filter(function(r){ return r.status === filter; }))
+    .filter(function(r){ return matchesMonthYear(r.startDate, monthFilter, yearFilter); })
+    .slice(0,10);
   if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   box.innerHTML = list.map(function(r){
