@@ -213,14 +213,19 @@ function getSheet(name, headers){
   if(!sh){
     sh = ss.insertSheet(name);
     sh.appendRow(headers);
-    return sh;
+  } else {
+    var lastCol = Math.max(sh.getLastColumn(), 1);
+    var existing = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var missing = headers.filter(function(h){ return existing.indexOf(h) === -1; });
+    if(missing.length > 0){
+      sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+    }
   }
-  var lastCol = Math.max(sh.getLastColumn(), 1);
-  var existing = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-  var missing = headers.filter(function(h){ return existing.indexOf(h) === -1; });
-  if(missing.length > 0){
-    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
-  }
+  // Force plain-text formatting on the whole working area. Without this, Sheets
+  // silently reinterprets strings like "14:00:00" as its own internal time type,
+  // which then comes back from the API as a garbled 1899-12-30T...Z value.
+  var wideCols = Math.max(headers.length, sh.getLastColumn(), 20);
+  sh.getRange(1, 1, 1000, wideCols).setNumberFormat('@');
   return sh;
 }
 
@@ -682,7 +687,9 @@ function doPost(e){
     esh_set(lsh5, row6._row, 'employee', body.employee);
     esh_set(lsh5, row6._row, 'project', body.project);
     esh_set(lsh5, row6._row, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
-    esh_set(lsh5, row6._row, 'note', (row6.note ? row6.note + ' | ' : '') + 'ویرایش‌شده توسط مدیر');
+    if(String(row6.note||'').indexOf('ویرایش‌شده توسط مدیر') === -1){
+      esh_set(lsh5, row6._row, 'note', (row6.note ? row6.note + ' | ' : '') + 'ویرایش‌شده توسط مدیر');
+    }
     return jsonOut({ok:true});
   }
   if(action === 'deleteLog'){
