@@ -383,7 +383,7 @@ function doGet(e){
 
   if(action === 'projects'){
     var sh = getSheet('Projects', ['id','name','lat','lng','radius']);
-    return jsonOut({ok:true, projects: readRows(sh)});
+    return jsonOut({ok:true, projects: readRows(sh), fingerprintRequired: getSetting('fingerprint_required') === 'yes'});
   }
 
   if(action === 'logs'){
@@ -462,6 +462,9 @@ function doPost(e){
           return jsonOut({ok:false, error:'outside_geofence'});
         }
       }
+    }
+    if(getSetting('fingerprint_required') === 'yes' && body.entry.supportsFingerprint && !body.entry.fingerprintVerified){
+      return jsonOut({ok:false, error:'fingerprint_required'});
     }
 
     var d = body.entry;
@@ -687,9 +690,15 @@ function doPost(e){
     esh_set(lsh5, row6._row, 'employee', body.employee);
     esh_set(lsh5, row6._row, 'project', body.project);
     esh_set(lsh5, row6._row, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
-    if(String(row6.note||'').indexOf('ویرایش‌شده توسط مدیر') === -1){
-      esh_set(lsh5, row6._row, 'note', (row6.note ? row6.note + ' | ' : '') + 'ویرایش‌شده توسط مدیر');
+    var noteStr = String(row6.note || '');
+    var editMatch = noteStr.match(/ویرایش‌شده توسط مدیر \((\d+)\)/);
+    if(editMatch){
+      var newCount = parseInt(editMatch[1], 10) + 1;
+      noteStr = noteStr.replace(/ویرایش‌شده توسط مدیر \(\d+\)/, 'ویرایش‌شده توسط مدیر ('+newCount+')');
+    } else {
+      noteStr = (noteStr ? noteStr + ' | ' : '') + 'ویرایش‌شده توسط مدیر (1)';
     }
+    esh_set(lsh5, row6._row, 'note', noteStr);
     return jsonOut({ok:true});
   }
   if(action === 'deleteLog'){
@@ -777,6 +786,10 @@ function doPost(e){
   }
   if(action === 'setNotifyEmail'){
     setSetting('notify_email', body.email || '');
+    return jsonOut({ok:true});
+  }
+  if(action === 'setFingerprintRequired'){
+    setSetting('fingerprint_required', body.required ? 'yes' : '');
     return jsonOut({ok:true});
   }
   if(action === 'getNotifyEmail'){
@@ -1067,6 +1080,15 @@ function esh_set(sheet, rowNum, headerName, value){
         </p>
       </details>
     </div>
+
+    <div class="card">
+      <div class="eyebrow">اثر انگشت برای ثبت تردد</div>
+      <div class="hint" style="margin-top:-4px;">اگر فعال باشد، روی گوشی‌هایی که حسگر اثر انگشت/چهره دارند، علاوه بر موقعیت مکانی، تایید بیومتریک هم لازم می‌شود. گوشی‌های بدون این حسگر تحت تاثیر قرار نمی‌گیرند.</div>
+      <label class="chk-item" style="width:100%; box-sizing:border-box;">
+        <input type="checkbox" id="fingerprintToggle"> الزامی بودن اثر انگشت (در گوشی‌های دارای این قابلیت)
+      </label>
+      <button type="button" class="btn btn-ghost" onclick="saveFingerprintSetting()">💾 ذخیره</button>
+    </div>
     </div><!-- /admSec-settings -->
 
     <div class="admin-section" id="admSec-requests" style="display:none;">
@@ -1158,6 +1180,35 @@ function getDeviceId(){
   }
 }
 const DEVICE_ID = getDeviceId();
+
+// ---------- Fingerprint / biometric gate (WebAuthn) ----------
+var fingerprintRequired = false; // set from server config after login (admin toggle)
+var deviceHasFingerprint = false; // detected once at startup
+async function detectFingerprintSupport(){
+  try{
+    if(!window.PublicKeyCredential || !PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  }catch(e){ return false; }
+}
+async function verifyFingerprint(){
+  // Triggers a real OS-level biometric/PIN prompt via WebAuthn. We don't need to keep the
+  // resulting credential — a successful ceremony IS the proof we need for this use case.
+  try{
+    var challenge = new Uint8Array(32); crypto.getRandomValues(challenge);
+    var userId = new Uint8Array(16); crypto.getRandomValues(userId);
+    await navigator.credentials.create({
+      publicKey: {
+        challenge: challenge,
+        rp: { name: "ثبت تردد سایت" },
+        user: { id: userId, name: (loggedInEmployee?loggedInEmployee.username:'user'), displayName: (loggedInEmployee?loggedInEmployee.fullName:'user') },
+        pubKeyCredParams: [{type:"public-key", alg:-7}, {type:"public-key", alg:-257}],
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        timeout: 30000
+      }
+    });
+    return true;
+  }catch(e){ console.warn('fingerprint verify failed', e); return false; }
+}
 
 // ---------- Jalali (Shamsi) date conversion ----------
 function toJalaali(gy, gm, gd) {
@@ -1367,6 +1418,8 @@ async function refreshAdminSection(name){
       var stEl = document.getElementById('notifyEmailStatus');
       if(stEl) stEl.textContent = emailRes.lastStatus ? ('آخرین وضعیت ارسال: ' + emailRes.lastStatus) : 'هنوز ایمیلی ارسال نشده.';
     }
+    var projRes = await apiCall(function(){ return apiGet('projects'); });
+    if(projRes.ok) document.getElementById('fingerprintToggle').checked = !!projRes.fingerprintRequired;
   }
 }
 function adminLogout(){
@@ -1400,6 +1453,12 @@ async function saveNotifyEmail(){
   var res = await apiCall(function(){ return apiPost('setNotifyEmail', {pin:adminPin, email:email}); });
   if(!res.ok){ showAdminNotice('ذخیره ایمیل ناموفق بود: ' + (res.error||'')); return; }
   alert(email ? 'ایمیل اعلان ذخیره شد.' : 'اعلان ایمیلی غیرفعال شد.');
+}
+async function saveFingerprintSetting(){
+  var required = document.getElementById('fingerprintToggle').checked;
+  var res = await apiCall(function(){ return apiPost('setFingerprintRequired', {pin:adminPin, required:required}); });
+  if(!res.ok){ showAdminNotice('ذخیره تنظیمات ناموفق بود: ' + (res.error||'')); return; }
+  alert(required ? 'اثر انگشت الزامی شد.' : 'اثر انگشت غیرفعال شد.');
 }
 function showAdminNotice(msg){
   var el = document.getElementById('adminNotice');
@@ -1669,6 +1728,7 @@ async function loadProjectsPublic(){
   var res = await apiCall(function(){ return apiGet('projects'); });
   if(res.ok){
     projects = res.projects || [];
+    fingerprintRequired = !!res.fingerprintRequired;
     try{ localStorage.setItem('cachedProjects', JSON.stringify(projects)); }catch(e){}
     renderProjectSelect();
   } else {
@@ -1924,6 +1984,16 @@ async function submitEntry(type){
   if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
   if(!currentPos || !chosenProject){ alert('ابتدا موقعیت مکانی را بررسی کنید'); return; }
 
+  var fingerprintVerified = false;
+  if(fingerprintRequired && deviceHasFingerprint){
+    setStatus('👆 لطفاً انگشت خود را روی حسگر گوشی قرار دهید...', 'wait');
+    fingerprintVerified = await verifyFingerprint();
+    if(!fingerprintVerified){
+      setStatus('⛔ تایید اثر انگشت ناموفق بود یا لغو شد. دوباره تلاش کنید.', 'err');
+      return;
+    }
+  }
+
   var entry = {
     employee: loggedInEmployee.fullName,
     username: loggedInEmployee.username,
@@ -1932,7 +2002,9 @@ async function submitEntry(type){
     lat: currentPos.latitude,
     lng: currentPos.longitude,
     accuracy: Math.round(currentPos.accuracy),
-    clientIso: new Date().toISOString() // reference only when online — server time is what actually gets recorded; used as-is only when queued offline
+    clientIso: new Date().toISOString(), // reference only when online — server time is what actually gets recorded; used as-is only when queued offline
+    supportsFingerprint: deviceHasFingerprint,
+    fingerprintVerified: fingerprintVerified
   };
 
   document.getElementById('checkInBtn').disabled = true;
@@ -1961,6 +2033,7 @@ async function submitEntry(type){
     if(res.error === 'device_mismatch') msg = 'این حساب روی گوشی دیگری فعال است — از مدیر بخواهید دستگاه را ریست کند.';
     if(res.error === 'project_not_allowed') msg = 'شما اجازه ثبت تردد برای این پروژه را ندارید.';
     if(res.error === 'outside_geofence') msg = 'موقعیت شما خارج از محدوده مجاز پروژه است.';
+    if(res.error === 'fingerprint_required') msg = 'تایید اثر انگشت لازم است. دوباره تلاش کنید.';
     if(res.error === 'already_checked_in') msg = 'شما امروز قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
     if(res.error === 'not_checked_in') msg = 'شما هنوز امروز ورود نزده‌اید — ابتدا ورود بزنید.';
     setStatus('⛔ ثبت ناموفق بود: ' + msg + '. دوباره تلاش کنید.', 'err');
@@ -2314,6 +2387,7 @@ function init(){
     document.getElementById('mainApp').style.display='none';
     return;
   }
+  detectFingerprintSupport().then(function(v){ deviceHasFingerprint = v; });
   document.getElementById('setupScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
 
