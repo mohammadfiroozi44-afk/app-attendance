@@ -361,12 +361,16 @@ function normalizeTimeInput(t){
   var mm = (parts[1]||'00'); if(mm.length<2) mm='0'+mm;
   return hh + ':' + mm + ':00';
 }
+function pad2(n){ n = String(n); return n.length < 2 ? '0'+n : n; }
 function serverNow(){
   var now = new Date();
   var gy = parseInt(Utilities.formatDate(now, TZ, 'yyyy'), 10);
   var gm = parseInt(Utilities.formatDate(now, TZ, 'MM'), 10);
   var gd = parseInt(Utilities.formatDate(now, TZ, 'dd'), 10);
-  var hms = Utilities.formatDate(now, TZ, 'HH:mm:ss');
+  var hh = parseInt(Utilities.formatDate(now, TZ, 'HH'), 10);
+  var mi = parseInt(Utilities.formatDate(now, TZ, 'mm'), 10);
+  var ss = parseInt(Utilities.formatDate(now, TZ, 'ss'), 10);
+  var hms = pad2(hh)+':'+pad2(mi)+':'+pad2(ss);
   var j = toJalaali(gy, gm, gd);
   return {
     jalaliDate: j[2] + ' ' + J_MONTHS[j[1]-1] + ' ' + j[0],
@@ -383,7 +387,7 @@ function doGet(e){
 
   if(action === 'projects'){
     var sh = getSheet('Projects', ['id','name','lat','lng','radius']);
-    return jsonOut({ok:true, projects: readRows(sh), fingerprintRequired: getSetting('fingerprint_required') === 'yes'});
+    return jsonOut({ok:true, projects: readRows(sh)});
   }
 
   if(action === 'logs'){
@@ -407,7 +411,7 @@ function doPost(e){
 
   // ---------------- login (device-locked) ----------------
   if(action === 'login'){
-    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var erows = readRows(esh);
     var match = erows.filter(function(r){
       return String(r.username).toLowerCase() === String(body.username).toLowerCase() &&
@@ -429,6 +433,7 @@ function doPost(e){
       username: match.username,
       employeeCode: match.employeeCode || '',
       freeZone: !!match.freeZone,
+      fingerprintRequired: !!match.fingerprintRequired,
       allowedProjects: match.allowedProjects || ''  // '' or 'ALL' = unrestricted; else comma-separated project ids
     });
   }
@@ -441,7 +446,7 @@ function doPost(e){
 
   // ---------------- attendance logging (server time is authoritative) ----------------
   if(action === 'addLog'){
-    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var emp = readRows(esh2).filter(function(r){ return r.username === body.entry.username; })[0];
     if(!emp) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp.deviceId && String(emp.deviceId) !== String(body.deviceId||'')){
@@ -463,7 +468,7 @@ function doPost(e){
         }
       }
     }
-    if(getSetting('fingerprint_required') === 'yes' && body.entry.supportsFingerprint && !body.entry.fingerprintVerified){
+    if(emp.fingerprintRequired && body.entry.supportsFingerprint && !body.entry.fingerprintVerified){
       return jsonOut({ok:false, error:'fingerprint_required'});
     }
 
@@ -477,7 +482,10 @@ function doPost(e){
       var ogy = parseInt(Utilities.formatDate(offDate, TZ, 'yyyy'), 10);
       var ogm = parseInt(Utilities.formatDate(offDate, TZ, 'MM'), 10);
       var ogd = parseInt(Utilities.formatDate(offDate, TZ, 'dd'), 10);
-      var ohms = Utilities.formatDate(offDate, TZ, 'HH:mm:ss');
+      var ohh = parseInt(Utilities.formatDate(offDate, TZ, 'HH'), 10);
+      var omi = parseInt(Utilities.formatDate(offDate, TZ, 'mm'), 10);
+      var oss = parseInt(Utilities.formatDate(offDate, TZ, 'ss'), 10);
+      var ohms = pad2(ohh)+':'+pad2(omi)+':'+pad2(oss);
       var oj = toJalaali(ogy, ogm, ogd);
       t = {
         jalaliDate: oj[2] + ' ' + J_MONTHS[oj[1]-1] + ' ' + oj[0],
@@ -497,15 +505,21 @@ function doPost(e){
     }
 
     var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
-    var todayRows = readRows(lsh2).filter(function(r){ return r.username === d.username && r.jalaliDate === t.jalaliDate; });
-    todayRows.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
-    var lastToday = todayRows.length ? todayRows[todayRows.length-1] : null;
+    var empRows = readRows(lsh2).filter(function(r){ return r.username === d.username; });
+    empRows.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    var lastEntry = empRows.length ? empRows[empRows.length-1] : null;
     var wantIn = (d.type === 'in');
-    if(wantIn && lastToday && lastToday.type === 'ورود'){
+    if(wantIn && lastEntry && lastEntry.type === 'ورود'){
       return jsonOut({ok:false, error:'already_checked_in'});
     }
-    if(!wantIn && (!lastToday || lastToday.type === 'خروج')){
-      return jsonOut({ok:false, error:'not_checked_in'});
+    if(!wantIn){
+      if(!lastEntry || lastEntry.type === 'خروج'){
+        return jsonOut({ok:false, error:'not_checked_in'});
+      }
+      var hoursSinceIn = (new Date(t.isoTimestamp).getTime() - new Date(lastEntry.isoTimestamp).getTime()) / 3600000;
+      if(hoursSinceIn > 24){
+        return jsonOut({ok:false, error:'checkout_expired'});
+      }
     }
 
     var id = Utilities.getUuid();
@@ -526,7 +540,7 @@ function doPost(e){
 
   // ---------------- manual entry requests ----------------
   if(action === 'createRequest'){
-    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var emp2 = readRows(esh3).filter(function(r){ return r.username === body.username; })[0];
     if(!emp2) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp2.deviceId && String(emp2.deviceId) !== String(body.deviceId||'')){
@@ -560,7 +574,7 @@ function doPost(e){
 
   // ---------------- leave requests ----------------
   if(action === 'createLeaveRequest'){
-    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var empL = readRows(eshL).filter(function(r){ return r.username === body.username; })[0];
     if(!empL) return jsonOut({ok:false, error:'unknown_employee'});
     if(empL.deviceId && String(empL.deviceId) !== String(body.deviceId||'')){
@@ -600,7 +614,7 @@ function doPost(e){
 
   // ---------------- employees ----------------
   if(action === 'getEmployees'){
-    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var rows5 = readRows(esh4).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, employees: rows5});
   }
@@ -608,12 +622,12 @@ function doPost(e){
     if(!body.employeeCode || !String(body.employeeCode).trim()){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
-    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var id2 = Utilities.getUuid();
     appendRowByHeader(esh5, {
       id:id2, fullName:body.fullName, username:body.username, password:body.password,
       deviceId:'', allowedProjects: body.allowedProjects || '', employeeCode: body.employeeCode || '',
-      freeZone: body.freeZone ? 'yes' : ''
+      freeZone: body.freeZone ? 'yes' : '', fingerprintRequired: body.fingerprintRequired ? 'yes' : ''
     });
     return jsonOut({ok:true, id:id2});
   }
@@ -621,7 +635,7 @@ function doPost(e){
     if(!body.employeeCode || !String(body.employeeCode).trim()){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
-    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var row = readRows(esh6).filter(function(r){ return r.id === body.id; })[0];
     if(!row) return jsonOut({ok:false, error:'not found'});
     esh6.getRange(row._row, colIndex(esh6,'fullName')).setValue(body.fullName);
@@ -630,16 +644,17 @@ function doPost(e){
     esh6.getRange(row._row, colIndex(esh6,'allowedProjects')).setValue(body.allowedProjects || '');
     esh6.getRange(row._row, colIndex(esh6,'employeeCode')).setValue(body.employeeCode || '');
     esh6.getRange(row._row, colIndex(esh6,'freeZone')).setValue(body.freeZone ? 'yes' : '');
+    esh6.getRange(row._row, colIndex(esh6,'fingerprintRequired')).setValue(body.fingerprintRequired ? 'yes' : '');
     return jsonOut({ok:true});
   }
   if(action === 'deleteEmployee'){
-    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var row2 = readRows(esh7).filter(function(r){ return r.id === body.id; })[0];
     if(row2) esh7.deleteRow(row2._row);
     return jsonOut({ok:true});
   }
   if(action === 'resetDevice'){
-    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone']);
+    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
     var row3 = readRows(esh8).filter(function(r){ return r.id === body.id; })[0];
     if(!row3) return jsonOut({ok:false, error:'not found'});
     esh8.getRange(row3._row, colIndex(esh8,'deviceId')).setValue('');
@@ -679,6 +694,22 @@ function doPost(e){
     var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
     var rows6 = ensureIds(lsh4, readRows(lsh4)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6});
+  }
+  if(action === 'getHolidays'){
+    var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
+    return jsonOut({ok:true, holidays: readRows(hsh).map(function(r){ delete r._row; return r; })});
+  }
+  if(action === 'addHoliday'){
+    var hsh2 = getSheet('Holidays', ['id','jalaliDate','reason']);
+    var hid = Utilities.getUuid();
+    appendRowByHeader(hsh2, {id:hid, jalaliDate: body.jalaliDate, reason: body.reason||''});
+    return jsonOut({ok:true});
+  }
+  if(action === 'deleteHoliday'){
+    var hsh3 = getSheet('Holidays', ['id','jalaliDate','reason']);
+    var hrow = readRows(hsh3).filter(function(r){ return r.id === body.id; })[0];
+    if(hrow) hsh3.deleteRow(hrow._row);
+    return jsonOut({ok:true});
   }
   if(action === 'updateLog'){
     var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
@@ -786,10 +817,6 @@ function doPost(e){
   }
   if(action === 'setNotifyEmail'){
     setSetting('notify_email', body.email || '');
-    return jsonOut({ok:true});
-  }
-  if(action === 'setFingerprintRequired'){
-    setSetting('fingerprint_required', body.required ? 'yes' : '');
     return jsonOut({ok:true});
   }
   if(action === 'getNotifyEmail'){
@@ -1015,6 +1042,9 @@ function esh_set(sheet, rowNum, headerName, value){
       <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:14px;">
         <input type="checkbox" id="empFormFreeZone"> این پرسنل محدودیت موقعیت مکانی نداشته باشد (منطقه آزاد)
       </label>
+      <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:14px;">
+        <input type="checkbox" id="empFormFingerprint"> این پرسنل موقع ثبت تردد اثر انگشت هم نیاز داشته باشد (در گوشی‌های دارای این قابلیت)
+      </label>
       <label>پروژه‌های مجاز برای این پرسنل</label>
       <div class="chk-list" id="empProjChecks"></div>
       <div class="btn-row">
@@ -1080,15 +1110,6 @@ function esh_set(sheet, rowNum, headerName, value){
         </p>
       </details>
     </div>
-
-    <div class="card">
-      <div class="eyebrow">اثر انگشت برای ثبت تردد</div>
-      <div class="hint" style="margin-top:-4px;">اگر فعال باشد، روی گوشی‌هایی که حسگر اثر انگشت/چهره دارند، علاوه بر موقعیت مکانی، تایید بیومتریک هم لازم می‌شود. گوشی‌های بدون این حسگر تحت تاثیر قرار نمی‌گیرند.</div>
-      <label class="chk-item" style="width:100%; box-sizing:border-box;">
-        <input type="checkbox" id="fingerprintToggle"> الزامی بودن اثر انگشت (در گوشی‌های دارای این قابلیت)
-      </label>
-      <button type="button" class="btn btn-ghost" onclick="saveFingerprintSetting()">💾 ذخیره</button>
-    </div>
     </div><!-- /admSec-settings -->
 
     <div class="admin-section" id="admSec-requests" style="display:none;">
@@ -1134,6 +1155,21 @@ function esh_set(sheet, rowNum, headerName, value){
     </div><!-- /admSec-requests -->
 
     <div class="admin-section" id="admSec-report" style="display:none;">
+
+    <div class="card">
+      <div class="eyebrow">روزهای تعطیل</div>
+      <div class="hint" style="margin-top:-4px;">جمعه‌ها خودکار تشخیص داده می‌شوند. برای تعطیلات دیگر (رسمی یا موردی)، اینجا اضافه کن.</div>
+      <div class="date-row">
+        <select id="holidayDay"></select>
+        <select id="holidayMonth"></select>
+        <select id="holidayYear"></select>
+      </div>
+      <input type="text" id="holidayReason" placeholder="دلیل (اختیاری) — مثلاً: تعطیل رسمی">
+      <button type="button" class="btn btn-ghost" onclick="addHoliday()">➕ افزودن روز تعطیل</button>
+      <div class="divider"></div>
+      <div id="holidayList"><div class="empty">تعطیلی دستی ثبت نشده</div></div>
+    </div>
+
     <div class="card">
       <div class="eyebrow">گزارش کامل تردد</div>
       <input type="text" id="logFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLogTable()">
@@ -1182,7 +1218,6 @@ function getDeviceId(){
 const DEVICE_ID = getDeviceId();
 
 // ---------- Fingerprint / biometric gate (WebAuthn) ----------
-var fingerprintRequired = false; // set from server config after login (admin toggle)
 var deviceHasFingerprint = false; // detected once at startup
 async function detectFingerprintSupport(){
   try{
@@ -1329,7 +1364,7 @@ async function employeeLogin(){
     document.getElementById('empLoginHint').style.color = '#a32a2a';
     return;
   }
-  loggedInEmployee = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, allowedProjects: res.allowedProjects || ''};
+  loggedInEmployee = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || ''};
   localStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
   document.getElementById('empUsername').value='';
   document.getElementById('empPassword').value='';
@@ -1410,7 +1445,7 @@ async function refreshAdminSection(name){
   if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
   else if(name === 'requests'){ await loadAdminRequests(); await loadAdminLeaves(); }
-  else if(name === 'report') await loadFullLog();
+  else if(name === 'report'){ await loadHolidays(); await loadFullLog(); }
   else if(name === 'settings'){
     var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
     if(emailRes.ok){
@@ -1418,8 +1453,6 @@ async function refreshAdminSection(name){
       var stEl = document.getElementById('notifyEmailStatus');
       if(stEl) stEl.textContent = emailRes.lastStatus ? ('آخرین وضعیت ارسال: ' + emailRes.lastStatus) : 'هنوز ایمیلی ارسال نشده.';
     }
-    var projRes = await apiCall(function(){ return apiGet('projects'); });
-    if(projRes.ok) document.getElementById('fingerprintToggle').checked = !!projRes.fingerprintRequired;
   }
 }
 function adminLogout(){
@@ -1454,12 +1487,6 @@ async function saveNotifyEmail(){
   if(!res.ok){ showAdminNotice('ذخیره ایمیل ناموفق بود: ' + (res.error||'')); return; }
   alert(email ? 'ایمیل اعلان ذخیره شد.' : 'اعلان ایمیلی غیرفعال شد.');
 }
-async function saveFingerprintSetting(){
-  var required = document.getElementById('fingerprintToggle').checked;
-  var res = await apiCall(function(){ return apiPost('setFingerprintRequired', {pin:adminPin, required:required}); });
-  if(!res.ok){ showAdminNotice('ذخیره تنظیمات ناموفق بود: ' + (res.error||'')); return; }
-  alert(required ? 'اثر انگشت الزامی شد.' : 'اثر انگشت غیرفعال شد.');
-}
 function showAdminNotice(msg){
   var el = document.getElementById('adminNotice');
   el.style.display='block'; el.textContent = msg;
@@ -1485,9 +1512,10 @@ function renderEmpList(){
       ? '<span class="badge badge-bound">📱 دستگاه ثبت‌شده</span>'
       : '<span class="badge badge-unbound">📱 دستگاه ثبت‌نشده</span>';
     var freeZoneBadge = emp.freeZone ? '<span class="badge badge-bound">🌍 منطقه آزاد</span>' : '';
+    var fpBadge = emp.fingerprintRequired ? '<span class="badge badge-bound">👆 اثر انگشت</span>' : '';
     var scopeText = (!emp.allowedProjects || emp.allowedProjects==='ALL') ? 'همه پروژه‌ها' : (emp.allowedProjects.split(',').length + ' پروژه محدود');
     var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
-    return '<div class="list-item"><div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+
+    return '<div class="list-item"><div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+
       '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+'</div></div>'+
       '<div class="actions">'+
         (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
@@ -1527,6 +1555,7 @@ function startEditEmp(id){
   document.getElementById('empFormPass').value = emp.password;
   document.getElementById('empFormCode').value = emp.employeeCode || '';
   document.getElementById('empFormFreeZone').checked = !!emp.freeZone;
+  document.getElementById('empFormFingerprint').checked = !!emp.fingerprintRequired;
   var sel = emp.allowedProjects ? String(emp.allowedProjects).split(',').map(function(s){return s.trim();}) : [];
   renderEmpProjChecks(sel.length ? sel : ['ALL']);
   var btn = document.getElementById('empFormBtn');
@@ -1542,6 +1571,7 @@ function cancelEmpEdit(){
   document.getElementById('empFormPass').value='';
   document.getElementById('empFormCode').value='';
   document.getElementById('empFormFreeZone').checked = false;
+  document.getElementById('empFormFingerprint').checked = false;
   renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
@@ -1562,11 +1592,12 @@ async function saveEmployee(){
     var allowedProjects = getSelectedAllowedProjects();
     var employeeCode = document.getElementById('empFormCode').value.trim();
     var freeZone = document.getElementById('empFormFreeZone').checked;
+    var fingerprintReq = document.getElementById('empFormFingerprint').checked;
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone}); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq}); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone}); });
+      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq}); });
     }
     btn.disabled = false;
     if(!res.ok){
@@ -1728,7 +1759,6 @@ async function loadProjectsPublic(){
   var res = await apiCall(function(){ return apiGet('projects'); });
   if(res.ok){
     projects = res.projects || [];
-    fingerprintRequired = !!res.fingerprintRequired;
     try{ localStorage.setItem('cachedProjects', JSON.stringify(projects)); }catch(e){}
     renderProjectSelect();
   } else {
@@ -1985,7 +2015,7 @@ async function submitEntry(type){
   if(!currentPos || !chosenProject){ alert('ابتدا موقعیت مکانی را بررسی کنید'); return; }
 
   var fingerprintVerified = false;
-  if(fingerprintRequired && deviceHasFingerprint){
+  if(loggedInEmployee.fingerprintRequired && deviceHasFingerprint){
     setStatus('👆 لطفاً انگشت خود را روی حسگر گوشی قرار دهید...', 'wait');
     fingerprintVerified = await verifyFingerprint();
     if(!fingerprintVerified){
@@ -2034,10 +2064,15 @@ async function submitEntry(type){
     if(res.error === 'project_not_allowed') msg = 'شما اجازه ثبت تردد برای این پروژه را ندارید.';
     if(res.error === 'outside_geofence') msg = 'موقعیت شما خارج از محدوده مجاز پروژه است.';
     if(res.error === 'fingerprint_required') msg = 'تایید اثر انگشت لازم است. دوباره تلاش کنید.';
-    if(res.error === 'already_checked_in') msg = 'شما امروز قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
-    if(res.error === 'not_checked_in') msg = 'شما هنوز امروز ورود نزده‌اید — ابتدا ورود بزنید.';
+    if(res.error === 'already_checked_in') msg = 'شما قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
+    if(res.error === 'not_checked_in') msg = 'شما هنوز ورود نزده‌اید — ابتدا ورود بزنید.';
+    if(res.error === 'checkout_expired'){
+      setStatus('⛔ بیش از ۲۴ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید.<br><br>'+
+        '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\'out\')">📨 درخواست ثبت دستی خروج بفرست</button>', 'err');
+      return;
+    }
     setStatus('⛔ ثبت ناموفق بود: ' + msg + '. دوباره تلاش کنید.', 'err');
-    loadMyLogs(); // re-sync today's status in case it was out of date
+    loadMyLogs(); // re-sync status in case it was out of date
     return;
   }
   setStatus('✅ '+(type==='in' ? 'ورود' : 'خروج')+' با موفقیت ثبت شد — ساعت سرور: '+(res.time||''), 'ok');
@@ -2051,11 +2086,10 @@ async function loadMyLogs(){
   var entries = res.ok ? (res.logs || []) : [];
   entries.sort(function(a,b){ return String(b.isoTimestamp).localeCompare(String(a.isoTimestamp)); });
 
-  var todayStr = jalaliString(new Date());
   var queue = getOfflineQueue().filter(function(q){ return q.entry.username === loggedInEmployee.username; });
 
-  var todaysEntries = entries.filter(function(e){ return e.jalaliDate === todayStr; });
-  var lastServerType = todaysEntries.length ? todaysEntries[0].type : null;
+  // entries already sorted desc by isoTimestamp — entries[0] is the absolute last entry (matches server logic)
+  var lastServerType = entries.length ? entries[0].type : null;
   var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
   todayLastType = lastQueuedType || lastServerType; // a still-pending queued entry takes priority over server state
   updateTodayStatusHint();
@@ -2087,8 +2121,8 @@ async function loadMyLogs(){
 function renderQueuedInMyLogs(){ loadMyLogs(); }
 function updateTodayStatusHint(){
   var hint = todayLastType === 'ورود'
-    ? '📍 امروز ورود زده‌اید — نوبت ثبت خروج است.'
-    : (todayLastType === 'خروج' ? '📍 امروز آخرین ثبت شما خروج بوده — می‌توانید دوباره ورود بزنید.' : '📍 امروز هنوز ثبتی نزده‌اید.');
+    ? '📍 آخرین ثبت شما ورود بوده — نوبت ثبت خروج است.'
+    : (todayLastType === 'خروج' ? '📍 آخرین ثبت شما خروج بوده — می‌توانید دوباره ورود بزنید.' : '📍 هنوز ثبتی نزده‌اید.');
   var el = document.getElementById('todayStatusHint');
   if(el) el.textContent = hint;
 }
@@ -2151,7 +2185,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
@@ -2166,6 +2200,46 @@ function readDateSelect(prefix){
   var mIdx = parseInt(document.getElementById(prefix+'Month').value, 10);
   var y = document.getElementById(prefix+'Year').value;
   return d + ' ' + jMonths[mIdx-1] + ' ' + y;
+}
+
+// ---------- Holidays ----------
+async function loadHolidays(){
+  initLeaveDateSelects();
+  var res = await apiCall(function(){ return apiPost('getHolidays', {pin:adminPin}); });
+  var box = document.getElementById('holidayList');
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت تعطیلات ناموفق بود</div>'; return; }
+  window._holidays = res.holidays || [];
+  window._holidaySet = {};
+  window._holidays.forEach(function(h){ window._holidaySet[h.jalaliDate] = true; });
+  if(window._holidays.length===0){ box.innerHTML = '<div class="empty">تعطیلی دستی ثبت نشده</div>'; return; }
+  box.innerHTML = window._holidays.map(function(h){
+    return '<div class="list-item"><div><b>'+esc(h.jalaliDate)+'</b>'+(h.reason?'<div class="meta">'+esc(h.reason)+'</div>':'')+'</div>'+
+      '<button class="icon-btn del" title="حذف" onclick="deleteHoliday(\''+h.id+'\')">✕</button></div>';
+  }).join('');
+  renderLogTable();
+}
+async function addHoliday(){
+  var jalaliDate = readDateSelect('holiday');
+  var reason = document.getElementById('holidayReason').value.trim();
+  var res = await apiCall(function(){ return apiPost('addHoliday', {pin:adminPin, jalaliDate:jalaliDate, reason:reason}); });
+  if(!res.ok){ showAdminNotice('افزودن تعطیلی ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  document.getElementById('holidayReason').value = '';
+  await loadHolidays();
+}
+async function deleteHoliday(id){
+  if(!confirm('این روز تعطیل حذف شود؟')) return;
+  var res = await apiCall(function(){ return apiPost('deleteHoliday', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadHolidays();
+}
+function isHolidayEntry(e){
+  if(e.isoTimestamp){
+    var d = new Date(e.isoTimestamp);
+    if(!isNaN(d.getTime()) && d.getDay() === 5) return true; // Friday
+  }
+  return !!(window._holidaySet && window._holidaySet[e.jalaliDate]);
 }
 function toggleLeaveType(){
   var hourly = document.getElementById('leaveType').value === 'hourly';
@@ -2259,10 +2333,17 @@ function renderLogTable(){
     if(e.id && e.id === editingLogId){
       var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===e.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
       var prOpts = projects.map(function(p){ return '<option'+(p.name===e.project?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('');
+      var edp = parseJalaliDateStr(e.jalaliDate);
+      var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
+      var dayOpts = ''; for(var dd=1; dd<=31; dd++){ dayOpts += '<option value="'+dd+'"'+(edp && String(dd)===edp.day?' selected':'')+'>'+dd+'</option>'; }
+      var monthOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(edp && m===edp.month?' selected':'')+'>'+m+'</option>'; }).join('');
+      var yearOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
       return '<tr class="edit-row"><td colspan="6">'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
-          '<input type="text" id="logEditDate" value="'+esc(e.jalaliDate)+'" style="width:120px;" placeholder="15 مرداد 1405">'+
-          '<input type="text" id="logEditTime" value="'+esc(e.time)+'" style="width:90px;" class="field-mono" placeholder="14:30:00">'+
+          '<select id="logEditDay" style="width:64px;">'+dayOpts+'</select>'+
+          '<select id="logEditMonth" style="width:100px;">'+monthOpts+'</select>'+
+          '<select id="logEditYear" style="width:80px;">'+yearOpts+'</select>'+
+          '<input type="time" id="logEditTime" step="1" value="'+esc(e.time)+'" style="width:110px;" class="field-mono">'+
           '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
           '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
           '<select id="logEditType" style="width:90px;"><option value="in"'+(e.type==='ورود'?' selected':'')+'>ورود</option><option value="out"'+(e.type==='خروج'?' selected':'')+'>خروج</option></select>'+
@@ -2276,7 +2357,8 @@ function renderLogTable(){
       ? '<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>'
       : '';
     var noteHtml = e.note ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(e.note)+'</span>' : '';
-    return '<tr><td>'+e.jalaliDate+'</td><td class="mono">'+e.time+noteHtml+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
+    var holidayHtml = isHolidayEntry(e) ? '<br><span style="color:#1f7a4d; font-size:10px;">🎌 تعطیل</span>' : '';
+    return '<tr><td>'+e.jalaliDate+holidayHtml+'</td><td class="mono">'+e.time+noteHtml+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
       '<td><span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span></td>'+
       '<td style="white-space:nowrap;">'+actions+'</td></tr>';
   }).join('');
@@ -2284,10 +2366,18 @@ function renderLogTable(){
 function startEditLog(id){ editingLogId = id; renderLogTable(); }
 function cancelEditLog(){ editingLogId = null; renderLogTable(); }
 async function saveEditLog(id){
+  var day = document.getElementById('logEditDay').value;
+  var monthIdx = parseInt(document.getElementById('logEditMonth').value, 10);
+  var year = document.getElementById('logEditYear').value;
+  var jalaliDate = day + ' ' + jMonths[monthIdx-1] + ' ' + year;
+  var timeParts = document.getElementById('logEditTime').value.split(':');
+  var hh = timeParts[0]||'00'; if(hh.length<2) hh='0'+hh;
+  var mm = timeParts[1]||'00'; if(mm.length<2) mm='0'+mm;
+  var ss = timeParts[2]||'00'; if(ss.length<2) ss='0'+ss;
   var payload = {
     pin: adminPin, id: id,
-    jalaliDate: document.getElementById('logEditDate').value.trim(),
-    time: document.getElementById('logEditTime').value.trim(),
+    jalaliDate: jalaliDate,
+    time: hh+':'+mm+':'+ss,
     employee: document.getElementById('logEditEmp').value,
     project: document.getElementById('logEditProj').value,
     type: document.getElementById('logEditType').value
