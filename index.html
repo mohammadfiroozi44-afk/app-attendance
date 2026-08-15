@@ -362,6 +362,35 @@ function normalizeTimeInput(t){
   return hh + ':' + mm + ':00';
 }
 function pad2(n){ n = String(n); return n.length < 2 ? '0'+n : n; }
+function timeToMinutes(hhmm){
+  var parts = String(hhmm||'0:0').split(':');
+  return (parseInt(parts[0],10)||0)*60 + (parseInt(parts[1],10)||0);
+}
+function jalaliDateSortKey(dateStr){
+  var p = String(dateStr||'').trim().split(' ');
+  if(p.length < 3) return 0;
+  var day = parseInt(p[0],10)||0;
+  var monthIdx = J_MONTHS.indexOf(p[1]) + 1;
+  var year = parseInt(p[p.length-1],10)||0;
+  return year*10000 + monthIdx*100 + day;
+}
+function getEffectiveShift(username, jalaliDateStr, emp){
+  var sash = getSheet('ShiftAssignments', ['id','username','startDate','endDate','shiftStart','shiftEnd','shiftName']);
+  var key = jalaliDateSortKey(jalaliDateStr);
+  var match = readRows(sash).filter(function(r){
+    return r.username === username && jalaliDateSortKey(r.startDate) <= key && key <= jalaliDateSortKey(r.endDate);
+  })[0];
+  if(match) return {shiftStart: match.shiftStart, shiftEnd: match.shiftEnd, shiftName: match.shiftName};
+  return {shiftStart: emp.shiftStart, shiftEnd: emp.shiftEnd, shiftName: ''};
+}
+function getHolidayInfo(jalaliDateStr, dateObj){
+  var isFriday = Utilities.formatDate(dateObj, TZ, 'u') === '5';
+  if(isFriday) return {isHoliday:true, reason:'جمعه'};
+  var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
+  var match = readRows(hsh).filter(function(r){ return r.jalaliDate === jalaliDateStr; })[0];
+  if(match) return {isHoliday:true, reason: match.reason || 'تعطیل رسمی'};
+  return {isHoliday:false, reason:''};
+}
 function serverNow(){
   var now = new Date();
   var gy = parseInt(Utilities.formatDate(now, TZ, 'yyyy'), 10);
@@ -394,7 +423,7 @@ function doGet(e){
     if(String(e.parameter.pin) !== getAdminPin()){
       return jsonOut({ok:false, error:'invalid pin'});
     }
-    var lsh = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
+    var lsh = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var rows = ensureIds(lsh, readRows(lsh)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows});
   }
@@ -411,7 +440,7 @@ function doPost(e){
 
   // ---------------- login (device-locked) ----------------
   if(action === 'login'){
-    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var erows = readRows(esh);
     var match = erows.filter(function(r){
       return String(r.username).toLowerCase() === String(body.username).toLowerCase() &&
@@ -434,6 +463,7 @@ function doPost(e){
       employeeCode: match.employeeCode || '',
       freeZone: !!match.freeZone,
       fingerprintRequired: !!match.fingerprintRequired,
+      jobTitle: match.jobTitle||'', shiftType: match.shiftType||'', shiftStart: match.shiftStart||'', shiftEnd: match.shiftEnd||'',
       allowedProjects: match.allowedProjects || ''  // '' or 'ALL' = unrestricted; else comma-separated project ids
     });
   }
@@ -446,7 +476,7 @@ function doPost(e){
 
   // ---------------- attendance logging (server time is authoritative) ----------------
   if(action === 'addLog'){
-    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var emp = readRows(esh2).filter(function(r){ return r.username === body.entry.username; })[0];
     if(!emp) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp.deviceId && String(emp.deviceId) !== String(body.deviceId||'')){
@@ -504,7 +534,7 @@ function doPost(e){
       note = (note ? note + ' | ' : '') + '⚠ دقت موقعیت پایین بود (±' + Math.round(Number(d.accuracy)) + 'م)';
     }
 
-    var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
+    var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var empRows = readRows(lsh2).filter(function(r){ return r.username === d.username; });
     empRows.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
     var lastEntry = empRows.length ? empRows[empRows.length-1] : null;
@@ -522,17 +552,30 @@ function doPost(e){
       }
     }
 
+    var effShift = getEffectiveShift(d.username, t.jalaliDate, emp);
+    if(effShift.shiftStart && wantIn){
+      var diffIn = timeToMinutes(t.time) - timeToMinutes(effShift.shiftStart);
+      if(diffIn > 0){ note = (note ? note + ' | ' : '') + '⏰ تاخیر ورود: ' + diffIn + ' دقیقه'; }
+    }
+    if(effShift.shiftEnd && !wantIn){
+      var diffOut = timeToMinutes(effShift.shiftEnd) - timeToMinutes(t.time);
+      if(diffOut > 0){ note = (note ? note + ' | ' : '') + '⏰ تعجیل خروج: ' + diffOut + ' دقیقه'; }
+      else if(diffOut < 0){ note = (note ? note + ' | ' : '') + '⏰ اضافه‌کاری: ' + (-diffOut) + ' دقیقه'; }
+    }
+
+    var holInfo = getHolidayInfo(t.jalaliDate, new Date(t.isoTimestamp));
     var id = Utilities.getUuid();
     appendRowByHeader(lsh2, {
       id:id, jalaliDate:t.jalaliDate, time:t.time, employee:d.employee, username:d.username, project:d.project,
       type: d.type === 'in' ? 'ورود' : 'خروج', lat:d.lat, lng:d.lng, accuracy:d.accuracy,
-      isoTimestamp:t.isoTimestamp, note:note, employeeCode: emp.employeeCode || ''
+      isoTimestamp:t.isoTimestamp, note:note, employeeCode: emp.employeeCode || '',
+      isHoliday: holInfo.isHoliday ? 'yes' : '', holidayReason: holInfo.reason
     });
     return jsonOut({ok:true, jalaliDate:t.jalaliDate, time:t.time});
   }
 
   if(action === 'getMyLogs'){
-    var lsh3 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
+    var lsh3 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var rows3 = ensureIds(lsh3, readRows(lsh3)).filter(function(r){ return r.username === body.username; })
       .map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows3});
@@ -540,7 +583,7 @@ function doPost(e){
 
   // ---------------- manual entry requests ----------------
   if(action === 'createRequest'){
-    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var emp2 = readRows(esh3).filter(function(r){ return r.username === body.username; })[0];
     if(!emp2) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp2.deviceId && String(emp2.deviceId) !== String(body.deviceId||'')){
@@ -574,19 +617,20 @@ function doPost(e){
 
   // ---------------- leave requests ----------------
   if(action === 'createLeaveRequest'){
-    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var empL = readRows(eshL).filter(function(r){ return r.username === body.username; })[0];
     if(!empL) return jsonOut({ok:false, error:'unknown_employee'});
     if(empL.deviceId && String(empL.deviceId) !== String(body.deviceId||'')){
       return jsonOut({ok:false, error:'device_mismatch'});
     }
-    var lrsh = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrsh = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var tL = serverNow();
     var lrid = Utilities.getUuid();
     appendRowByHeader(lrsh, {
       id:lrid, username:body.username, employee:empL.fullName, employeeCode: empL.employeeCode||'', startDate:body.startDate, endDate:body.endDate,
       reason: body.reason||'', status:'pending', createdAt:tL.jalaliDate, createdTime:tL.time,
-      leaveType: body.leaveType || 'daily', startTime: normalizeTimeInput(body.startTime), endTime: normalizeTimeInput(body.endTime)
+      leaveType: body.leaveType || 'daily', startTime: normalizeTimeInput(body.startTime), endTime: normalizeTimeInput(body.endTime),
+      requestType: body.requestType || 'leave', leaveCategory: body.leaveCategory || ''
     });
     var when = (body.leaveType === 'hourly')
       ? (body.startDate + ' ساعت ' + (body.startTime||'') + ' تا ' + (body.endTime||''))
@@ -600,7 +644,7 @@ function doPost(e){
     return jsonOut({ok:true});
   }
   if(action === 'getMyLeaveRequests'){
-    var lrsh2 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrsh2 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var lrows = readRows(lrsh2).filter(function(r){ return r.username === body.username; })
       .map(function(r){ delete r._row; return r; })
       .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
@@ -614,7 +658,7 @@ function doPost(e){
 
   // ---------------- employees ----------------
   if(action === 'getEmployees'){
-    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var rows5 = readRows(esh4).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, employees: rows5});
   }
@@ -622,12 +666,14 @@ function doPost(e){
     if(!body.employeeCode || !String(body.employeeCode).trim()){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
-    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var id2 = Utilities.getUuid();
     appendRowByHeader(esh5, {
       id:id2, fullName:body.fullName, username:body.username, password:body.password,
       deviceId:'', allowedProjects: body.allowedProjects || '', employeeCode: body.employeeCode || '',
-      freeZone: body.freeZone ? 'yes' : '', fingerprintRequired: body.fingerprintRequired ? 'yes' : ''
+      freeZone: body.freeZone ? 'yes' : '', fingerprintRequired: body.fingerprintRequired ? 'yes' : '',
+      jobTitle: body.jobTitle||'', shiftType: body.shiftType||'', shiftStart: body.shiftStart||'', shiftEnd: body.shiftEnd||'',
+      nationalId: body.nationalId||'', jobGroup: body.jobGroup||'', photoUrl: body.photoUrl||''
     });
     return jsonOut({ok:true, id:id2});
   }
@@ -635,7 +681,7 @@ function doPost(e){
     if(!body.employeeCode || !String(body.employeeCode).trim()){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
-    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var row = readRows(esh6).filter(function(r){ return r.id === body.id; })[0];
     if(!row) return jsonOut({ok:false, error:'not found'});
     esh6.getRange(row._row, colIndex(esh6,'fullName')).setValue(body.fullName);
@@ -645,16 +691,23 @@ function doPost(e){
     esh6.getRange(row._row, colIndex(esh6,'employeeCode')).setValue(body.employeeCode || '');
     esh6.getRange(row._row, colIndex(esh6,'freeZone')).setValue(body.freeZone ? 'yes' : '');
     esh6.getRange(row._row, colIndex(esh6,'fingerprintRequired')).setValue(body.fingerprintRequired ? 'yes' : '');
+    esh6.getRange(row._row, colIndex(esh6,'jobTitle')).setValue(body.jobTitle||'');
+    esh6.getRange(row._row, colIndex(esh6,'shiftType')).setValue(body.shiftType||'');
+    esh6.getRange(row._row, colIndex(esh6,'shiftStart')).setValue(body.shiftStart||'');
+    esh6.getRange(row._row, colIndex(esh6,'shiftEnd')).setValue(body.shiftEnd||'');
+    esh6.getRange(row._row, colIndex(esh6,'nationalId')).setValue(body.nationalId||'');
+    esh6.getRange(row._row, colIndex(esh6,'jobGroup')).setValue(body.jobGroup||'');
+    if(body.photoUrl) esh6.getRange(row._row, colIndex(esh6,'photoUrl')).setValue(body.photoUrl);
     return jsonOut({ok:true});
   }
   if(action === 'deleteEmployee'){
-    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var row2 = readRows(esh7).filter(function(r){ return r.id === body.id; })[0];
     if(row2) esh7.deleteRow(row2._row);
     return jsonOut({ok:true});
   }
   if(action === 'resetDevice'){
-    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired']);
+    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
     var row3 = readRows(esh8).filter(function(r){ return r.id === body.id; })[0];
     if(!row3) return jsonOut({ok:false, error:'not found'});
     esh8.getRange(row3._row, colIndex(esh8,'deviceId')).setValue('');
@@ -691,13 +744,32 @@ function doPost(e){
 
   // ---------------- logs (admin edit/delete) ----------------
   if(action === 'getLogs'){
-    var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
+    var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var rows6 = ensureIds(lsh4, readRows(lsh4)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6});
   }
   if(action === 'getHolidays'){
     var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
     return jsonOut({ok:true, holidays: readRows(hsh).map(function(r){ delete r._row; return r; })});
+  }
+  if(action === 'getShiftAssignments'){
+    var sash2 = getSheet('ShiftAssignments', ['id','username','startDate','endDate','shiftStart','shiftEnd','shiftName']);
+    return jsonOut({ok:true, assignments: readRows(sash2).map(function(r){ delete r._row; return r; })});
+  }
+  if(action === 'addShiftAssignment'){
+    var sash3 = getSheet('ShiftAssignments', ['id','username','startDate','endDate','shiftStart','shiftEnd','shiftName']);
+    var said = Utilities.getUuid();
+    appendRowByHeader(sash3, {
+      id:said, username: body.username, startDate: body.startDate, endDate: body.endDate,
+      shiftStart: body.shiftStart||'', shiftEnd: body.shiftEnd||'', shiftName: body.shiftName||''
+    });
+    return jsonOut({ok:true});
+  }
+  if(action === 'deleteShiftAssignment'){
+    var sash4 = getSheet('ShiftAssignments', ['id','username','startDate','endDate','shiftStart','shiftEnd','shiftName']);
+    var sarow = readRows(sash4).filter(function(r){ return r.id === body.id; })[0];
+    if(sarow) sash4.deleteRow(sarow._row);
+    return jsonOut({ok:true});
   }
   if(action === 'addHoliday'){
     var hsh2 = getSheet('Holidays', ['id','jalaliDate','reason']);
@@ -712,7 +784,7 @@ function doPost(e){
     return jsonOut({ok:true});
   }
   if(action === 'updateLog'){
-    var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
+    var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var rows7 = ensureIds(lsh5, readRows(lsh5));
     var row6 = rows7.filter(function(r){ return r.id === body.id; })[0];
     if(!row6) return jsonOut({ok:false, error:'not found'});
@@ -721,6 +793,13 @@ function doPost(e){
     esh_set(lsh5, row6._row, 'employee', body.employee);
     esh_set(lsh5, row6._row, 'project', body.project);
     esh_set(lsh5, row6._row, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
+    var eshFind = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var empMatch = readRows(eshFind).filter(function(r){ return r.fullName === body.employee; })[0];
+    esh_set(lsh5, row6._row, 'employeeCode', empMatch ? (empMatch.employeeCode||'') : (row6.employeeCode||''));
+    var hsh5 = getSheet('Holidays', ['id','jalaliDate','reason']);
+    var hMatch2 = readRows(hsh5).filter(function(r){ return r.jalaliDate === body.jalaliDate; })[0];
+    esh_set(lsh5, row6._row, 'isHoliday', hMatch2 ? 'yes' : '');
+    esh_set(lsh5, row6._row, 'holidayReason', hMatch2 ? (hMatch2.reason||'تعطیل رسمی') : '');
     var noteStr = String(row6.note || '');
     var editMatch = noteStr.match(/ویرایش‌شده توسط مدیر \((\d+)\)/);
     if(editMatch){
@@ -733,7 +812,7 @@ function doPost(e){
     return jsonOut({ok:true});
   }
   if(action === 'deleteLog'){
-    var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
+    var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var row7 = ensureIds(lsh6, readRows(lsh6)).filter(function(r){ return r.id === body.id; })[0];
     if(row7) lsh6.deleteRow(row7._row);
     return jsonOut({ok:true});
@@ -766,26 +845,36 @@ function doPost(e){
       var t3 = serverNow();
       var useDate = rrow.requestedDate || t3.jalaliDate;
       var useTime = rrow.requestedTime || t3.time;
-      var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode']);
+      var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
       var lid = Utilities.getUuid();
+      var holInfo3;
+      if(rrow.requestedDate){
+        // custom backdated date — only check the manual holidays list (Friday auto-check needs a reliable Gregorian date we don't have here)
+        var hsh4 = getSheet('Holidays', ['id','jalaliDate','reason']);
+        var hMatch = readRows(hsh4).filter(function(r){ return r.jalaliDate === useDate; })[0];
+        holInfo3 = hMatch ? {isHoliday:true, reason: hMatch.reason||'تعطیل رسمی'} : {isHoliday:false, reason:''};
+      } else {
+        holInfo3 = getHolidayInfo(useDate, new Date(t3.isoTimestamp));
+      }
       appendRowByHeader(lsh7, {
         id:lid, jalaliDate:useDate, time:useTime, employee:rrow.employee, username:rrow.username, project:rrow.project,
         type: rrow.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:t3.isoTimestamp,
         note: 'ثبت دستی (تاییدشده) — دلیل: ' + (rrow.reason || '-') + (rrow.requestedDate ? ' — زمان درخواستی توسط پرسنل' : ''),
-        employeeCode:''
+        employeeCode: rrow.employeeCode || '',
+        isHoliday: holInfo3.isHoliday ? 'yes' : '', holidayReason: holInfo3.reason
       });
     }
     return jsonOut({ok:true});
   }
 
   if(action === 'getLeaveRequests'){
-    var lrsh3 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrsh3 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var lrows2 = readRows(lrsh3).map(function(r){ delete r._row; return r; })
       .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
     return jsonOut({ok:true, leaves: lrows2});
   }
   if(action === 'deleteLeaveRequests'){
-    var lrshDel = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrshDel = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var idsDel2 = body.ids || [];
     var toDel2 = readRows(lrshDel).filter(function(r){ return idsDel2.indexOf(r.id) !== -1; });
     toDel2.sort(function(a,b){ return b._row - a._row; });
@@ -793,7 +882,7 @@ function doPost(e){
     return jsonOut({ok:true, deleted: toDel2.length});
   }
   if(action === 'approveLeaveRequest' || action === 'rejectLeaveRequest'){
-    var lrsh4 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime']);
+    var lrsh4 = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var lrow2 = readRows(lrsh4).filter(function(r){ return r.id === body.id; })[0];
     if(!lrow2) return jsonOut({ok:false, error:'not found'});
     esh_set(lrsh4, lrow2._row, 'status', (action === 'approveLeaveRequest') ? 'approved' : 'rejected');
@@ -948,8 +1037,21 @@ function esh_set(sheet, rowNum, headerName, value){
 
     <div class="emp-section" id="empSec-leave" style="display:none;">
     <div class="card">
-      <div class="eyebrow">درخواست مرخصی</div>
-      <label>نوع مرخصی</label>
+      <div class="eyebrow">درخواست مرخصی / ماموریت</div>
+      <label>نوع درخواست</label>
+      <select id="leaveRequestType" onchange="toggleRequestType()">
+        <option value="leave">مرخصی</option>
+        <option value="mission">ماموریت</option>
+      </select>
+      <div id="leaveCategoryBlock">
+        <label>دسته مرخصی</label>
+        <select id="leaveCategory">
+          <option value="استحقاقی">استحقاقی</option>
+          <option value="استعلاجی">استعلاجی</option>
+          <option value="بدون‌حقوق">بدون‌حقوق</option>
+        </select>
+      </div>
+      <label>نوع بازه</label>
       <select id="leaveType" onchange="toggleLeaveType()">
         <option value="daily">روزانه</option>
         <option value="hourly">ساعتی</option>
@@ -976,7 +1078,7 @@ function esh_set(sheet, rowNum, headerName, value){
         </div>
       </div>
       <label>دلیل مرخصی</label>
-      <textarea id="leaveReason" placeholder="مثلاً: مرخصی استعلاجی"></textarea>
+      <textarea id="leaveReason" placeholder="مثلاً: مرخصی استعلاجی یا ماموریت اداری"></textarea>
       <button type="button" class="btn btn-ghost" onclick="submitLeaveRequest()">🌴 ارسال درخواست مرخصی</button>
       <div class="divider"></div>
       <select id="myLeaveFilterStatus" onchange="loadMyLeaves()">
@@ -1029,6 +1131,7 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="admin-section" id="admSec-employees">
     <div class="card">
       <div class="eyebrow">حساب‌های پرسنل</div>
+      <input type="text" id="empFilterSearch" placeholder="جستجو با نام، یوزرنیم یا کد پرسنلی" oninput="renderEmpList()">
       <div id="empList"><div class="empty">در حال بارگذاری...</div></div>
       <div class="divider"></div>
       <label>نام و نام خانوادگی</label>
@@ -1045,6 +1148,29 @@ function esh_set(sheet, rowNum, headerName, value){
       <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:14px;">
         <input type="checkbox" id="empFormFingerprint"> این پرسنل موقع ثبت تردد اثر انگشت هم نیاز داشته باشد (در گوشی‌های دارای این قابلیت)
       </label>
+      <label>عنوان شغلی (اختیاری)</label>
+      <input type="text" id="empFormJobTitle" placeholder="مثلاً: نگهبان، سرکارگر، تکنسین">
+      <label>گروه شغلی (اختیاری)</label>
+      <input type="text" id="empFormJobGroup" placeholder="مثلاً: اجرایی، فنی، اداری">
+      <label>کد ملی (اختیاری)</label>
+      <input type="text" id="empFormNationalId" class="field-mono" placeholder="۱۰ رقم">
+      <label>عکس پرسنلی (اختیاری)</label>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+        <img id="empFormPhotoPreview" style="width:56px; height:56px; border-radius:50%; object-fit:cover; background:#eee7d6; display:none;">
+        <input type="file" id="empFormPhoto" accept="image/*" style="flex:1;" onchange="handlePhotoSelect(event)">
+      </div>
+      <label>نوع شیفت</label>
+      <select id="empFormShiftType">
+        <option value="">تعریف نشده</option>
+        <option value="day">روزکار</option>
+        <option value="night">شب‌کار</option>
+        <option value="custom">سفارشی</option>
+      </select>
+      <label>ساعت شروع و پایان شیفت (برای تشخیص تاخیر/تعجیل)</label>
+      <div class="date-row">
+        <input type="time" id="empFormShiftStart" style="flex:1;">
+        <input type="time" id="empFormShiftEnd" style="flex:1;">
+      </div>
       <label>پروژه‌های مجاز برای این پرسنل</label>
       <div class="chk-list" id="empProjChecks"></div>
       <div class="btn-row">
@@ -1052,11 +1178,41 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="btn btn-ghost" id="empFormCancel" style="display:none;" onclick="cancelEmpEdit()">لغو ویرایش</button>
       </div>
     </div>
+
+    <div class="card">
+      <div class="eyebrow">تخصیص شیفت موقت به پرسنل</div>
+      <div class="hint" style="margin-top:-4px;">برای یک بازه تاریخ، شیفت متفاوتی به یک پرسنل بده (مثلاً یک هفته شیفت شب) — بدون تغییر شیفت پیش‌فرضش.</div>
+      <label>پرسنل</label>
+      <select id="shiftAssignEmp"></select>
+      <label>نام شیفت (اختیاری)</label>
+      <input type="text" id="shiftAssignName" placeholder="مثلاً: شیفت شب موقت">
+      <label>ساعت شروع و پایان</label>
+      <div class="date-row">
+        <input type="time" id="shiftAssignStart" style="flex:1;">
+        <input type="time" id="shiftAssignEnd" style="flex:1;">
+      </div>
+      <label>از تاریخ</label>
+      <div class="date-row">
+        <select id="shiftAssignStartDay"></select>
+        <select id="shiftAssignStartMonth"></select>
+        <select id="shiftAssignStartYear"></select>
+      </div>
+      <label>تا تاریخ</label>
+      <div class="date-row">
+        <select id="shiftAssignEndDay"></select>
+        <select id="shiftAssignEndMonth"></select>
+        <select id="shiftAssignEndYear"></select>
+      </div>
+      <button type="button" class="btn btn-ghost" onclick="addShiftAssignment()">➕ افزودن تخصیص</button>
+      <div class="divider"></div>
+      <div id="shiftAssignList"><div class="empty">تخصیصی ثبت نشده</div></div>
+    </div>
     </div><!-- /admSec-employees -->
 
     <div class="admin-section" id="admSec-projects" style="display:none;">
     <div class="card">
       <div class="eyebrow">پروژه‌ها و محدوده مجاز</div>
+      <input type="text" id="projFilterSearch" placeholder="جستجو با نام پروژه" oninput="renderProjectList()">
       <div id="projList"><div class="empty">در حال بارگذاری...</div></div>
       <div class="divider"></div>
       <label>نام پروژه</label>
@@ -1167,12 +1323,16 @@ function esh_set(sheet, rowNum, headerName, value){
       <input type="text" id="holidayReason" placeholder="دلیل (اختیاری) — مثلاً: تعطیل رسمی">
       <button type="button" class="btn btn-ghost" onclick="addHoliday()">➕ افزودن روز تعطیل</button>
       <div class="divider"></div>
+      <div class="date-row">
+        <select id="holidayFilterMonth" onchange="renderHolidayList()"><option value="">همه ماه‌ها</option></select>
+        <select id="holidayFilterYear" onchange="renderHolidayList()"><option value="">همه سال‌ها</option></select>
+      </div>
       <div id="holidayList"><div class="empty">تعطیلی دستی ثبت نشده</div></div>
     </div>
 
     <div class="card">
       <div class="eyebrow">گزارش کامل تردد</div>
-      <input type="text" id="logFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLogTable()">
+      <input type="text" id="logFilterCode" placeholder="فیلتر با نام یا کد پرسنلی" class="field-mono" oninput="renderLogTable()">
       <div class="date-row">
         <select id="logFilterMonth" onchange="renderLogTable()"><option value="">همه ماه‌ها</option></select>
         <select id="logFilterYear" onchange="renderLogTable()"><option value="">همه سال‌ها</option></select>
@@ -1503,11 +1663,87 @@ async function loadEmployeesAdmin(){
   clearAdminNotice();
   employees = res.employees || [];
   renderEmpList();
+  var saSel = document.getElementById('shiftAssignEmp');
+  if(saSel) saSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+'</option>'; }).join('');
+  await loadShiftAssignments();
+}
+async function loadShiftAssignments(){
+  initLeaveDateSelects();
+  var res = await apiCall(function(){ return apiPost('getShiftAssignments', {pin:adminPin}); });
+  var box = document.getElementById('shiftAssignList');
+  if(!box) return;
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت تخصیص‌ها ناموفق بود</div>'; return; }
+  var list = res.assignments || [];
+  if(list.length===0){ box.innerHTML = '<div class="empty">تخصیصی ثبت نشده</div>'; return; }
+  var byUser = {}; employees.forEach(function(e){ byUser[e.username] = e.fullName; });
+  box.innerHTML = list.map(function(a){
+    return '<div class="list-item"><div><b>'+esc(byUser[a.username]||a.username)+'</b>'+(a.shiftName?' · '+esc(a.shiftName):'')+
+      '<div class="meta">'+a.startDate+' تا '+a.endDate+' · '+a.shiftStart+'-'+a.shiftEnd+'</div></div>'+
+      '<button class="icon-btn del" title="حذف" onclick="deleteShiftAssignment(\''+a.id+'\')">✕</button></div>';
+  }).join('');
+}
+async function addShiftAssignment(){
+  var username = document.getElementById('shiftAssignEmp').value;
+  if(!username){ alert('یک پرسنل انتخاب کنید'); return; }
+  var shiftStart = document.getElementById('shiftAssignStart').value;
+  var shiftEnd = document.getElementById('shiftAssignEnd').value;
+  if(!shiftStart || !shiftEnd){ alert('ساعت شروع و پایان شیفت را وارد کنید'); return; }
+  var payload = {
+    pin: adminPin, username: username,
+    startDate: readDateSelect('shiftAssignStart'), endDate: readDateSelect('shiftAssignEnd'),
+    shiftStart: shiftStart, shiftEnd: shiftEnd,
+    shiftName: document.getElementById('shiftAssignName').value.trim()
+  };
+  var res = await apiCall(function(){ return apiPost('addShiftAssignment', payload); });
+  if(!res.ok){ showAdminNotice('افزودن تخصیص شیفت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  document.getElementById('shiftAssignName').value = '';
+  document.getElementById('shiftAssignStart').value = '';
+  document.getElementById('shiftAssignEnd').value = '';
+  await loadShiftAssignments();
+}
+async function deleteShiftAssignment(id){
+  if(!confirm('این تخصیص شیفت حذف شود؟')) return;
+  var res = await apiCall(function(){ return apiPost('deleteShiftAssignment', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadShiftAssignments();
+}
+var pendingPhotoDataUrl = null;
+function handlePhotoSelect(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var size = 120;
+      var canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      var ctx = canvas.getContext('2d');
+      var srcSize = Math.min(img.width, img.height);
+      var sx = (img.width - srcSize)/2, sy = (img.height - srcSize)/2;
+      ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, size, size);
+      pendingPhotoDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      var prev = document.getElementById('empFormPhotoPreview');
+      prev.src = pendingPhotoDataUrl;
+      prev.style.display = 'inline-block';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 function renderEmpList(){
   var box = document.getElementById('empList');
   if(employees.length===0){ box.innerHTML = '<div class="empty">هنوز پرسنلی اضافه نشده</div>'; return; }
-  box.innerHTML = employees.map(function(emp){
+  var q = (document.getElementById('empFilterSearch').value||'').trim().toLowerCase();
+  var list = !q ? employees : employees.filter(function(emp){
+    return String(emp.fullName||'').toLowerCase().indexOf(q)!==-1 ||
+           String(emp.username||'').toLowerCase().indexOf(q)!==-1 ||
+           String(emp.employeeCode||'').toLowerCase().indexOf(q)!==-1;
+  });
+  if(list.length===0){ box.innerHTML = '<div class="empty">پرسنلی با این مشخصات یافت نشد</div>'; return; }
+  box.innerHTML = list.map(function(emp){
     var deviceBadge = emp.deviceId
       ? '<span class="badge badge-bound">📱 دستگاه ثبت‌شده</span>'
       : '<span class="badge badge-unbound">📱 دستگاه ثبت‌نشده</span>';
@@ -1515,8 +1751,13 @@ function renderEmpList(){
     var fpBadge = emp.fingerprintRequired ? '<span class="badge badge-bound">👆 اثر انگشت</span>' : '';
     var scopeText = (!emp.allowedProjects || emp.allowedProjects==='ALL') ? 'همه پروژه‌ها' : (emp.allowedProjects.split(',').length + ' پروژه محدود');
     var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
-    return '<div class="list-item"><div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+
-      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+'</div></div>'+
+    var jobText = emp.jobTitle ? (' · '+esc(emp.jobTitle)) : '';
+    var groupText = emp.jobGroup ? (' · '+esc(emp.jobGroup)) : '';
+    var shiftFa = {day:'روزکار', night:'شب‌کار', custom:'سفارشی'};
+    var shiftText = emp.shiftType ? (' · '+(shiftFa[emp.shiftType]||emp.shiftType)+(emp.shiftStart?(' '+emp.shiftStart+'-'+emp.shiftEnd):'')) : '';
+    var photoHtml = emp.photoUrl ? '<img src="'+emp.photoUrl+'" style="width:34px; height:34px; border-radius:50%; object-fit:cover; margin-inline-end:8px; vertical-align:middle;">' : '';
+    return '<div class="list-item"><div style="display:flex; align-items:center;">'+photoHtml+'<div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+
+      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+jobText+groupText+shiftText+'</div></div></div>'+
       '<div class="actions">'+
         (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditEmp(\''+emp.id+'\')">✏️</button>'+
@@ -1556,6 +1797,16 @@ function startEditEmp(id){
   document.getElementById('empFormCode').value = emp.employeeCode || '';
   document.getElementById('empFormFreeZone').checked = !!emp.freeZone;
   document.getElementById('empFormFingerprint').checked = !!emp.fingerprintRequired;
+  document.getElementById('empFormJobTitle').value = emp.jobTitle || '';
+  document.getElementById('empFormJobGroup').value = emp.jobGroup || '';
+  document.getElementById('empFormNationalId').value = emp.nationalId || '';
+  pendingPhotoDataUrl = null;
+  var prevImg = document.getElementById('empFormPhotoPreview');
+  if(emp.photoUrl){ prevImg.src = emp.photoUrl; prevImg.style.display = 'inline-block'; }
+  else{ prevImg.style.display = 'none'; }
+  document.getElementById('empFormShiftType').value = emp.shiftType || '';
+  document.getElementById('empFormShiftStart').value = emp.shiftStart || '';
+  document.getElementById('empFormShiftEnd').value = emp.shiftEnd || '';
   var sel = emp.allowedProjects ? String(emp.allowedProjects).split(',').map(function(s){return s.trim();}) : [];
   renderEmpProjChecks(sel.length ? sel : ['ALL']);
   var btn = document.getElementById('empFormBtn');
@@ -1572,6 +1823,15 @@ function cancelEmpEdit(){
   document.getElementById('empFormCode').value='';
   document.getElementById('empFormFreeZone').checked = false;
   document.getElementById('empFormFingerprint').checked = false;
+  document.getElementById('empFormJobTitle').value = '';
+  document.getElementById('empFormJobGroup').value = '';
+  document.getElementById('empFormNationalId').value = '';
+  document.getElementById('empFormPhoto').value = '';
+  document.getElementById('empFormPhotoPreview').style.display = 'none';
+  pendingPhotoDataUrl = null;
+  document.getElementById('empFormShiftType').value = '';
+  document.getElementById('empFormShiftStart').value = '';
+  document.getElementById('empFormShiftEnd').value = '';
   renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
@@ -1593,11 +1853,17 @@ async function saveEmployee(){
     var employeeCode = document.getElementById('empFormCode').value.trim();
     var freeZone = document.getElementById('empFormFreeZone').checked;
     var fingerprintReq = document.getElementById('empFormFingerprint').checked;
+    var jobTitle = document.getElementById('empFormJobTitle').value.trim();
+    var shiftType = document.getElementById('empFormShiftType').value;
+    var shiftStart = document.getElementById('empFormShiftStart').value;
+    var shiftEnd = document.getElementById('empFormShiftEnd').value;
+    var jobGroup = document.getElementById('empFormJobGroup').value.trim();
+    var nationalId = document.getElementById('empFormNationalId').value.trim();
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq}); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, shiftType:shiftType, shiftStart:shiftStart, shiftEnd:shiftEnd, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq}); });
+      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, shiftType:shiftType, shiftStart:shiftStart, shiftEnd:shiftEnd, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
     }
     btn.disabled = false;
     if(!res.ok){
@@ -1801,7 +2067,10 @@ function renderProjectSelect(){
 function renderProjectList(){
   var box = document.getElementById('projList');
   if(projects.length===0){ box.innerHTML = '<div class="empty">هنوز پروژه‌ای اضافه نشده</div>'; return; }
-  box.innerHTML = projects.map(function(p){
+  var q = (document.getElementById('projFilterSearch').value||'').trim().toLowerCase();
+  var list = !q ? projects : projects.filter(function(p){ return String(p.name||'').toLowerCase().indexOf(q)!==-1; });
+  if(list.length===0){ box.innerHTML = '<div class="empty">پروژه‌ای با این نام یافت نشد</div>'; return; }
+  box.innerHTML = list.map(function(p){
     return '<div class="list-item"><div><b>'+esc(p.name)+'</b><div class="meta">'+Number(p.lat).toFixed(5)+', '+Number(p.lng).toFixed(5)+' · شعاع '+p.radius+' م</div></div>'+
       '<div class="actions">'+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditProj(\''+p.id+'\')">✏️</button>'+
@@ -2185,7 +2454,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','shiftAssignStart','shiftAssignEnd'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
@@ -2206,17 +2475,24 @@ function readDateSelect(prefix){
 async function loadHolidays(){
   initLeaveDateSelects();
   var res = await apiCall(function(){ return apiPost('getHolidays', {pin:adminPin}); });
-  var box = document.getElementById('holidayList');
-  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت تعطیلات ناموفق بود</div>'; return; }
+  if(!res.ok){ document.getElementById('holidayList').innerHTML = '<div class="empty">دریافت تعطیلات ناموفق بود</div>'; return; }
   window._holidays = res.holidays || [];
   window._holidaySet = {};
   window._holidays.forEach(function(h){ window._holidaySet[h.jalaliDate] = true; });
-  if(window._holidays.length===0){ box.innerHTML = '<div class="empty">تعطیلی دستی ثبت نشده</div>'; return; }
-  box.innerHTML = window._holidays.map(function(h){
+  populateMonthYearFilter('holidayFilterMonth','holidayFilterYear');
+  renderHolidayList();
+  renderLogTable();
+}
+function renderHolidayList(){
+  var box = document.getElementById('holidayList');
+  var monthFilter = document.getElementById('holidayFilterMonth').value;
+  var yearFilter = document.getElementById('holidayFilterYear').value;
+  var list = (window._holidays||[]).filter(function(h){ return matchesMonthYear(h.jalaliDate, monthFilter, yearFilter); });
+  if(list.length===0){ box.innerHTML = '<div class="empty">تعطیلی دستی ثبت نشده</div>'; return; }
+  box.innerHTML = list.map(function(h){
     return '<div class="list-item"><div><b>'+esc(h.jalaliDate)+'</b>'+(h.reason?'<div class="meta">'+esc(h.reason)+'</div>':'')+'</div>'+
       '<button class="icon-btn del" title="حذف" onclick="deleteHoliday(\''+h.id+'\')">✕</button></div>';
   }).join('');
-  renderLogTable();
 }
 async function addHoliday(){
   var jalaliDate = readDateSelect('holiday');
@@ -2235,21 +2511,33 @@ async function deleteHoliday(id){
   await loadHolidays();
 }
 function isHolidayEntry(e){
+  if(e.isHoliday === 'yes') return true;
+  if(e.hasOwnProperty('isHoliday')) return false; // server already decided (new-format row), trust it
+  // fallback for entries recorded before this column existed
   if(e.isoTimestamp){
     var d = new Date(e.isoTimestamp);
-    if(!isNaN(d.getTime()) && d.getDay() === 5) return true; // Friday
+    if(!isNaN(d.getTime()) && d.getDay() === 5) return true;
   }
   return !!(window._holidaySet && window._holidaySet[e.jalaliDate]);
+}
+function holidayReasonOf(e){
+  return e.holidayReason || (isHolidayEntry(e) ? 'تعطیل' : '');
 }
 function toggleLeaveType(){
   var hourly = document.getElementById('leaveType').value === 'hourly';
   document.getElementById('leaveEndDateBlock').style.display = hourly ? 'none' : 'block';
   document.getElementById('leaveTimeBlock').style.display = hourly ? 'block' : 'none';
 }
+function toggleRequestType(){
+  var isMission = document.getElementById('leaveRequestType').value === 'mission';
+  document.getElementById('leaveCategoryBlock').style.display = isMission ? 'none' : 'block';
+}
 async function submitLeaveRequest(){
   if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
   var reason = document.getElementById('leaveReason').value.trim();
-  if(!reason){ alert('لطفاً دلیل مرخصی را بنویسید'); return; }
+  if(!reason){ alert('لطفاً دلیل را بنویسید'); return; }
+  var requestType = document.getElementById('leaveRequestType').value;
+  var leaveCategory = requestType === 'leave' ? document.getElementById('leaveCategory').value : '';
   var leaveType = document.getElementById('leaveType').value;
   var startDate = readDateSelect('leaveStart');
   var endDate, startTime = '', endTime = '';
@@ -2257,21 +2545,22 @@ async function submitLeaveRequest(){
     endDate = startDate;
     startTime = document.getElementById('leaveStartTime').value;
     endTime = document.getElementById('leaveEndTime').value;
-    if(!startTime || !endTime){ alert('ساعت شروع و پایان مرخصی را وارد کنید'); return; }
+    if(!startTime || !endTime){ alert('ساعت شروع و پایان را وارد کنید'); return; }
   } else {
     endDate = readDateSelect('leaveEnd');
   }
   var res = await apiCall(function(){ return apiPost('createLeaveRequest', {
     username: loggedInEmployee.username, startDate: startDate, endDate: endDate,
-    leaveType: leaveType, startTime: startTime, endTime: endTime, reason: reason, deviceId: DEVICE_ID
+    leaveType: leaveType, startTime: startTime, endTime: endTime, reason: reason, deviceId: DEVICE_ID,
+    requestType: requestType, leaveCategory: leaveCategory
   }); });
   if(!res.ok){
     var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.' : (res.error || 'خطای شبکه');
-    alert('ارسال درخواست مرخصی ناموفق بود: ' + msg);
+    alert('ارسال درخواست ناموفق بود: ' + msg);
     return;
   }
   document.getElementById('leaveReason').value = '';
-  alert('درخواست مرخصی شما ارسال شد و در انتظار تایید مدیر است.');
+  alert('درخواست شما ارسال شد و در انتظار تایید مدیر است.');
   loadMyLeaves();
 }
 async function loadMyLeaves(){
@@ -2320,7 +2609,7 @@ function renderLogTable(){
   var monthFilter = document.getElementById('logFilterMonth').value;
   var yearFilter = document.getElementById('logFilterYear').value;
   var entries = all.filter(function(e){
-    if(codeFilter && String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) === -1) return false;
+    if(codeFilter && String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) === -1 && String(e.employee||'').toLowerCase().indexOf(codeFilter) === -1) return false;
     if(!matchesMonthYear(e.jalaliDate, monthFilter, yearFilter)) return false;
     return true;
   });
@@ -2357,7 +2646,7 @@ function renderLogTable(){
       ? '<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>'
       : '';
     var noteHtml = e.note ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(e.note)+'</span>' : '';
-    var holidayHtml = isHolidayEntry(e) ? '<br><span style="color:#1f7a4d; font-size:10px;">🎌 تعطیل</span>' : '';
+    var holidayHtml = isHolidayEntry(e) ? '<br><span style="color:#1f7a4d; font-size:10px;">🎌 '+esc(holidayReasonOf(e))+'</span>' : '';
     return '<tr><td>'+e.jalaliDate+holidayHtml+'</td><td class="mono">'+e.time+noteHtml+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
       '<td><span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span></td>'+
       '<td style="white-space:nowrap;">'+actions+'</td></tr>';
@@ -2401,7 +2690,7 @@ function exportCSV(){
   var monthFilter = document.getElementById('logFilterMonth').value;
   var yearFilter = document.getElementById('logFilterYear').value;
   var entries = all.filter(function(e){
-    if(codeFilter && String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) === -1) return false;
+    if(codeFilter && String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) === -1 && String(e.employee||'').toLowerCase().indexOf(codeFilter) === -1) return false;
     if(!matchesMonthYear(e.jalaliDate, monthFilter, yearFilter)) return false;
     return true;
   });
@@ -2419,10 +2708,11 @@ function exportCSV(){
 }
 
 function formatLeaveRange(r){
-  if(r.leaveType === 'hourly'){
-    return r.startDate + ' ساعت ' + (r.startTime||'') + ' تا ' + (r.endTime||'');
-  }
-  return r.startDate + ' تا ' + r.endDate;
+  var typeLabel = r.requestType === 'mission' ? '🧳 ماموریت' : ('🏖 مرخصی'+(r.leaveCategory?(' '+r.leaveCategory):''));
+  var range = (r.leaveType === 'hourly')
+    ? (r.startDate + ' ساعت ' + (r.startTime||'') + ' تا ' + (r.endTime||''))
+    : (r.startDate + ' تا ' + r.endDate);
+  return typeLabel + ' — ' + range;
 }
 function parseJalaliDateStr(s){
   var parts = String(s||'').trim().split(' ');
@@ -2444,7 +2734,8 @@ function populateMonthYearFilter(monthId, yearId){
   jMonths.forEach(function(m){ monthSel.innerHTML += '<option value="'+m+'">'+m+'</option>'; });
   var today = new Date();
   var curJY = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate())[0];
-  for(var y=curJY+1; y>=curJY-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+  var topYear = Math.max(1425, curJY+1);
+  for(var y=topYear; y>=curJY-5; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
 }
 function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g, function(c){
