@@ -66,6 +66,35 @@
 
   .tabs{display:flex; gap:8px; margin-bottom:14px;}
 
+  .checkin-hero{
+    background:linear-gradient(135deg, var(--navy), var(--navy-2)); color:var(--paper);
+    padding:22px 20px 40px; text-align:center; border-radius:0 0 34px 34px; margin:-18px -14px 0;
+  }
+  .checkin-clock{ font-family:var(--mono); font-size:34px; font-weight:700; letter-spacing:1px; }
+  .checkin-date{ font-size:13px; color:var(--cyan); margin-top:4px; }
+  .checkin-map-wrap{ position:relative; margin:-26px 0 0; }
+  #checkinMap{ height:200px; width:100%; border-radius:16px; box-shadow:0 8px 20px -6px #00000050; }
+  .checkin-loc-badge{
+    position:absolute; top:10px; right:10px; left:10px; background:var(--paper); border-radius:10px;
+    padding:8px 12px; font-size:12.5px; font-weight:700; box-shadow:0 4px 10px #00000030; text-align:center;
+  }
+  .swipe-track{
+    position:relative; height:56px; border-radius:28px; margin-top:6px; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; user-select:none; touch-action:pan-y;
+  }
+  .swipe-track.swipe-disabled{ background:#e5e0d0; }
+  .swipe-track.swipe-in{ background:linear-gradient(90deg, #cdeedd, var(--ok)); }
+  .swipe-track.swipe-out{ background:linear-gradient(90deg, #ffd9c7, var(--orange)); }
+  .swipe-label{ font-size:14px; font-weight:700; color:#fff; pointer-events:none; }
+  .swipe-track.swipe-disabled .swipe-label{ color:#8a8368; }
+  .swipe-handle{
+    position:absolute; right:4px; top:4px; width:48px; height:48px; border-radius:50%; background:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--navy);
+    box-shadow:0 3px 8px #00000040; cursor:grab; transition:transform .05s linear;
+  }
+  .swipe-track.swipe-disabled .swipe-handle{ cursor:not-allowed; color:#b5ae98; }
+  .bottom-sheet{ padding-bottom:14px; }
+
   .hamburger-btn{
     background:var(--navy); border:1px solid var(--navy); border-radius:9px; width:38px; height:38px;
     font-size:18px; color:#fff; cursor:pointer; flex-shrink:0;
@@ -989,33 +1018,46 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
 
     <div class="emp-section" id="empSec-checkin">
-    <div class="card">
-      <div class="eyebrow">ثبت تردد</div>
-      <label>پروژه</label>
-      <select id="empProject"><option value="">در حال بارگذاری...</option></select>
-      <div class="hint" id="todayStatusHint" style="margin-top:-8px;">📍 در حال بررسی وضعیت امروز...</div>
+    <div class="checkin-hero">
+      <div class="checkin-clock" id="checkinClockBox">—</div>
+      <div class="checkin-date" id="checkinDateBox">—</div>
+    </div>
+    <div class="checkin-map-wrap">
+      <div id="checkinMap"></div>
+      <div class="checkin-loc-badge" id="checkinLocBadge">📍 یک پروژه انتخاب کن</div>
+    </div>
 
+    <div class="card" style="border-radius:0 0 14px 14px; margin-top:-1px;">
+      <label>پروژه</label>
+      <select id="empProject" onchange="onProjectPicked()"><option value="">در حال بارگذاری...</option></select>
+      <div class="hint" id="todayStatusHint" style="margin-top:-8px;">📍 در حال بررسی وضعیت امروز...</div>
       <button type="button" class="btn btn-primary" id="locateBtn" onclick="locateAndCheck()">📍 روشن کردن موقعیت مکانی</button>
       <div class="hint">برای ثبت تردد باید GPS/لوکیشن گوشی روشن باشد و اجازه دسترسی داده شود.</div>
-
       <div id="locStatus" class="status idle" style="margin-top:12px;">موقعیت مکانی هنوز بررسی نشده است.</div>
 
-      <div class="btn-row">
+      <div class="btn-row" style="display:none;">
         <button type="button" class="btn btn-in" id="checkInBtn" disabled onclick="submitEntry('in')">✅ ثبت ورود</button>
         <button type="button" class="btn btn-out" id="checkOutBtn" disabled onclick="submitEntry('out')">🚪 ثبت خروج</button>
       </div>
+
+      <div class="swipe-track swipe-disabled" id="swipeTrack">
+        <span class="swipe-label" id="swipeLabel">ابتدا موقعیت مکانی را بررسی کن</span>
+        <div class="swipe-handle" id="swipeHandle">‹‹</div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="eyebrow" style="display:flex; justify-content:space-between; align-items:center;">
-        <span>آخرین ثبت‌های من</span>
-        <button type="button" class="icon-btn" title="بروزرسانی" onclick="loadMyLogs()">🔄</button>
+    <div class="card bottom-sheet">
+      <div class="eyebrow" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleTodayPanel()">
+        <span id="todayPanelTitle">🔽 تردد های امروز</span>
+        <button type="button" class="icon-btn" title="بروزرسانی" onclick="event.stopPropagation(); loadMyLogs();">🔄</button>
       </div>
-      <div class="date-row">
-        <select id="myLogFilterMonth" onchange="loadMyLogs()"><option value="">همه ماه‌ها</option></select>
-        <select id="myLogFilterYear" onchange="loadMyLogs()"><option value="">همه سال‌ها</option></select>
+      <div id="todayPanelBody" style="display:none;">
+        <div class="date-row">
+          <select id="myLogFilterMonth" onchange="loadMyLogs()"><option value="">همه ماه‌ها</option></select>
+          <select id="myLogFilterYear" onchange="loadMyLogs()"><option value="">همه سال‌ها</option></select>
+        </div>
+        <div id="myLogs"><div class="empty">هنوز ثبتی وجود ندارد</div></div>
       </div>
-      <div id="myLogs"><div class="empty">هنوز ثبتی وجود ندارد</div></div>
     </div>
     </div><!-- /empSec-checkin -->
 
@@ -1521,6 +1563,10 @@ function tickClock(){
   var now = new Date();
   var el = document.getElementById('clockBox');
   if(el) el.innerHTML = jalaliString(now) + '<br>' + timeString(now);
+  var cEl = document.getElementById('checkinClockBox');
+  if(cEl) cEl.textContent = timeString(now);
+  var dEl = document.getElementById('checkinDateBox');
+  if(dEl) dEl.textContent = jalaliString(now);
 }
 setInterval(tickClock, 1000); tickClock();
 
@@ -1616,6 +1662,8 @@ async function employeeLogin(){
   loadMyRequests();
   initLeaveDateSelects();
   loadMyLeaves();
+  initCheckinMap();
+  if(window.refreshSwipeState) refreshSwipeState();
 }
 function employeeLogout(){
   loggedInEmployee = null;
@@ -1674,7 +1722,7 @@ function showEmpSection(name){
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
     if(btn) btn.classList.toggle('active', s===name);
   });
-  if(name === 'checkin') loadMyLogs();
+  if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); }
   else if(name === 'request') loadMyRequests();
   else if(name === 'leave') loadMyLeaves();
   closeDrawer();
@@ -2315,15 +2363,22 @@ function locateAndCheck(){
   setStatus('در حال دریافت موقعیت مکانی... لطفاً اجازه دسترسی به لوکیشن را تایید کنید.', 'wait');
   document.getElementById('checkInBtn').disabled = true;
   document.getElementById('checkOutBtn').disabled = true;
+  if(window.refreshSwipeState) refreshSwipeState();
+  var locBadge = document.getElementById('checkinLocBadge');
+  if(locBadge) locBadge.textContent = '⏳ در حال دریافت موقعیت...';
 
   navigator.geolocation.getCurrentPosition(function(pos){
     currentPos = pos.coords;
+    initCheckinMap(currentPos.latitude, currentPos.longitude);
+    updateCheckinProjectMarker();
     var line1 = 'lat: '+currentPos.latitude.toFixed(6)+'  lng: '+currentPos.longitude.toFixed(6)+'  (±'+Math.round(currentPos.accuracy)+'m)';
 
     if(loggedInEmployee.freeZone){
       setStatus('✅ موقعیت ثبت شد (این پرسنل محدودیت مکانی ندارد).<br>'+line1, 'ok');
       document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
       document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
+      if(locBadge) locBadge.textContent = '✅ بدون محدودیت مکانی';
+      if(window.refreshSwipeState) refreshSwipeState();
       return;
     }
 
@@ -2333,15 +2388,126 @@ function locateAndCheck(){
       setStatus('✅ در محدوده مجاز هستید.<br>'+line1+'<br>'+line2, 'ok');
       document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
       document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
+      if(locBadge) locBadge.textContent = '✅ داخل محدوده «'+chosenProject.name+'» ('+Math.round(d)+' متر)';
     } else {
       setStatus('⛔ خارج از محدوده پروژه هستید.<br>'+line1+'<br>'+line2, 'err');
+      if(locBadge) locBadge.textContent = '⛔ خارج از محدوده ('+Math.round(d)+' متر تا «'+chosenProject.name+'»)';
     }
+    if(window.refreshSwipeState) refreshSwipeState();
   }, function(err){
     var suggestedType = (todayLastType === 'ورود') ? 'out' : 'in';
     setStatus('⛔ دریافت موقعیت ناموفق بود: '+err.message+'<br>لطفاً GPS را روشن و دسترسی مرورگر را تایید کنید.<br><br>'+
       '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\''+suggestedType+'\')">📨 به‌جاش درخواست ثبت دستی بفرست</button>', 'err');
+    if(locBadge) locBadge.textContent = '⛔ دریافت موقعیت ناموفق بود';
+    if(window.refreshSwipeState) refreshSwipeState();
   }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
 }
+function onProjectPicked(){
+  var selIdx = document.getElementById('empProject').value;
+  if(selIdx === '' || !projects[selIdx]) return;
+  chosenProject = projects[selIdx];
+  initCheckinMap(Number(chosenProject.lat), Number(chosenProject.lng));
+  updateCheckinProjectMarker();
+  var locBadge = document.getElementById('checkinLocBadge');
+  if(locBadge) locBadge.textContent = '📍 «'+chosenProject.name+'» — دکمه موقعیت را بزن';
+}
+function toggleTodayPanel(){
+  var body = document.getElementById('todayPanelBody');
+  var title = document.getElementById('todayPanelTitle');
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  title.textContent = (open ? '🔽' : '🔼') + ' تردد های امروز';
+}
+
+// ---------- Check-in map (Leaflet) ----------
+var checkinMap = null, checkinUserMarker = null, checkinProjMarker = null, checkinRadiusCircle = null;
+function initCheckinMap(lat, lng){
+  if(typeof L === 'undefined') return;
+  var mapEl = document.getElementById('checkinMap');
+  if(!mapEl) return;
+  if(!checkinMap){
+    checkinMap = L.map('checkinMap', {zoomControl:false, attributionControl:false}).setView([lat||35.6892, lng||51.3890], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(checkinMap);
+    setTimeout(function(){ checkinMap.invalidateSize(); }, 150);
+  } else {
+    setTimeout(function(){ checkinMap.invalidateSize(); }, 60);
+  }
+  if(lat && lng){
+    checkinMap.setView([lat,lng], 16);
+    if(checkinUserMarker) checkinUserMarker.setLatLng([lat,lng]);
+    else checkinUserMarker = L.circleMarker([lat,lng], {radius:8, color:'#fff', weight:3, fillColor:'#2f6f8f', fillOpacity:1}).addTo(checkinMap);
+  }
+}
+function updateCheckinProjectMarker(){
+  if(!checkinMap || !chosenProject) return;
+  if(checkinProjMarker) checkinMap.removeLayer(checkinProjMarker);
+  if(checkinRadiusCircle) checkinMap.removeLayer(checkinRadiusCircle);
+  var plat = Number(chosenProject.lat), plng = Number(chosenProject.lng);
+  checkinProjMarker = L.marker([plat, plng]).addTo(checkinMap);
+  checkinRadiusCircle = L.circle([plat, plng], {radius:Number(chosenProject.radius)||100, color:'#ff6a3d', fillColor:'#ff6a3d', fillOpacity:0.08}).addTo(checkinMap);
+  if(currentPos){
+    checkinMap.fitBounds(L.latLngBounds([[currentPos.latitude,currentPos.longitude],[plat,plng]]).pad(0.3));
+  }
+}
+
+// ---------- Swipe-to-confirm slider ----------
+(function(){
+  var track, handle, dragging=false, startX=0, maxDrag=0, curX=0;
+  function init(){
+    track = document.getElementById('swipeTrack');
+    handle = document.getElementById('swipeHandle');
+    if(!track || !handle || track._wired) return;
+    track._wired = true;
+    handle.addEventListener('mousedown', onStart);
+    handle.addEventListener('touchstart', onStart, {passive:true});
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, {passive:true});
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchend', onEnd);
+  }
+  function onStart(e){
+    if(track.classList.contains('swipe-disabled')) return;
+    dragging = true;
+    startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    maxDrag = Math.max(track.offsetWidth - handle.offsetWidth - 8, 10);
+    handle.style.transition = 'none';
+  }
+  function onMove(e){
+    if(!dragging) return;
+    var x = (e.touches ? e.touches[0].clientX : e.clientX);
+    var delta = startX - x; // RTL: dragging toward the left = progress
+    curX = Math.min(Math.max(delta,0), maxDrag);
+    handle.style.transform = 'translateX(-'+curX+'px)';
+  }
+  function onEnd(){
+    if(!dragging) return;
+    dragging = false;
+    handle.style.transition = 'transform .2s ease';
+    if(curX >= maxDrag*0.8 && maxDrag>10){
+      handle.style.transform = 'translateX(-'+maxDrag+'px)';
+      var inOk = !document.getElementById('checkInBtn').disabled;
+      var outOk = !document.getElementById('checkOutBtn').disabled;
+      var targetId = inOk ? 'checkInBtn' : (outOk ? 'checkOutBtn' : null);
+      if(targetId){ setTimeout(function(){ document.getElementById(targetId).click(); }, 120); }
+      setTimeout(reset, 500);
+    } else { reset(); }
+  }
+  function reset(){ curX=0; if(handle) handle.style.transform='translateX(0)'; }
+  window.refreshSwipeState = function(){
+    init();
+    if(!track) return;
+    var inBtn = document.getElementById('checkInBtn'), outBtn = document.getElementById('checkOutBtn');
+    var inOk = inBtn && !inBtn.disabled, outOk = outBtn && !outBtn.disabled;
+    track.classList.remove('swipe-in','swipe-out','swipe-disabled');
+    var label = document.getElementById('swipeLabel');
+    if(inOk){ track.classList.add('swipe-in'); label.textContent = 'برای ثبت ورود بکش ‹‹'; }
+    else if(outOk){ track.classList.add('swipe-out'); label.textContent = 'برای ثبت خروج بکش ‹‹'; }
+    else { track.classList.add('swipe-disabled'); label.textContent = 'ابتدا موقعیت مکانی را بررسی کن'; }
+    reset();
+  };
+  init();
+})();
+
 
 // ---------- Submit entry ----------
 // ---------- Offline queue (used when the phone has no signal at the moment of check-in/out) ----------
@@ -2405,6 +2571,7 @@ async function submitEntry(type){
 
   document.getElementById('checkInBtn').disabled = true;
   document.getElementById('checkOutBtn').disabled = true;
+  if(window.refreshSwipeState) refreshSwipeState();
 
   if(!navigator.onLine){
     queueOfflineEntry(entry, chosenProject.id);
@@ -3059,6 +3226,8 @@ function init(){
       loadMyRequests();
       initLeaveDateSelects();
       loadMyLeaves();
+      initCheckinMap();
+      if(window.refreshSwipeState) refreshSwipeState();
       if(navigator.onLine) syncOfflineQueue();
     }catch(e){}
   }
