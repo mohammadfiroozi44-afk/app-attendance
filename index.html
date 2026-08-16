@@ -1251,11 +1251,8 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="icon-btn" title="بروزرسانی" onclick="event.stopPropagation(); loadMyLogs();">🔄</button>
       </div>
       <div id="todayPanelBody" style="display:none;">
-        <div class="date-row">
-          <select id="myLogFilterMonth" onchange="loadMyLogs()"><option value="">همه ماه‌ها</option></select>
-          <select id="myLogFilterYear" onchange="loadMyLogs()"><option value="">همه سال‌ها</option></select>
-        </div>
         <div id="myLogs"><div class="empty">هنوز ثبتی وجود ندارد</div></div>
+        <button type="button" class="btn btn-ghost btn-small" style="margin-top:8px;" onclick="showEmpSection('history')">📋 دیدن همه سوابق من</button>
       </div>
     </div>
     </div><!-- /empSec-checkin -->
@@ -1282,6 +1279,17 @@ function esh_set(sheet, rowNum, headerName, value){
     <div id="empUnifiedReqList" style="padding:0 14px 90px;"><div class="empty">در حال بارگذاری...</div></div>
     <div class="req-fab" onclick="openAddRequestSheet()">+</div>
     </div><!-- /empSec-request -->
+
+    <div class="emp-section" id="empSec-history" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">سوابق من</div>
+      <div class="date-row">
+        <select id="myHistFilterMonth" onchange="loadMyHistory()"><option value="">همه ماه‌ها</option></select>
+        <select id="myHistFilterYear" onchange="loadMyHistory()"><option value="">همه سال‌ها</option></select>
+      </div>
+      <div id="myHistoryList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    </div><!-- /empSec-history -->
 
     <div class="emp-section" id="empSec-daily" style="display:none; padding-bottom:70px;">
     <div class="req-hero">
@@ -1482,6 +1490,9 @@ function esh_set(sheet, rowNum, headerName, value){
       <div class="divider"></div>
       <div class="eyebrow">در انتظار تایید</div>
       <div id="dashPending" class="empty">در حال بارگذاری...</div>
+      <div class="divider"></div>
+      <div class="eyebrow">تردد های امروز</div>
+      <div id="dashTodayTraffic" class="empty">در حال بارگذاری...</div>
     </div>
     </div><!-- /admSec-dashboard -->
 
@@ -1789,6 +1800,7 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="drawer-header">👷 پنل کارمند</div>
     <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon">📍</span> ثبت تردد</div>
     <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon">📨</span> درخواست‌ها</div>
+    <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon">📋</span> سوابق من</div>
     <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
     <div class="drawer-item" onclick="employeeLogout()"><span class="dicon">🚪</span> خروج از حساب</div>
   </div>
@@ -2018,7 +2030,7 @@ async function checkPin(){
   }
 }
 function refreshCurrentEmpSection(){
-  var active = ['checkin','request'].find(function(s){
+  var active = ['checkin','request','history'].find(function(s){
     var sec = document.getElementById('empSec-'+s);
     return sec && sec.style.display !== 'none';
   }) || 'checkin';
@@ -2297,7 +2309,7 @@ async function submitLeaveFromSheet(){
 }
 
 function showEmpSection(name){
-  ['checkin','request'].forEach(function(s){
+  ['checkin','request','history'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -2305,6 +2317,7 @@ function showEmpSection(name){
   });
   if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
+  else if(name === 'history') loadMyHistory();
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
@@ -3347,10 +3360,8 @@ async function loadMyLogs(){
     return;
   }
 
-  populateMonthYearFilter('myLogFilterMonth','myLogFilterYear');
-  var monthFilter = document.getElementById('myLogFilterMonth').value;
-  var yearFilter = document.getElementById('myLogFilterYear').value;
-  var displayEntries = entries.filter(function(e){ return matchesMonthYear(e.jalaliDate, monthFilter, yearFilter); });
+  var todayStr = jalaliString(new Date());
+  var displayEntries = entries.filter(function(e){ return e.jalaliDate === todayStr; });
 
   var queuedHtml = queue.slice().reverse().map(function(q){
     return '<div class="list-item"><div>'+
@@ -3358,7 +3369,7 @@ async function loadMyLogs(){
       ' · <span style="color:#8a5a10;">⏳ در انتظار همگام‌سازی</span></div></div>';
   }).join('');
 
-  var serverHtml = pairLogEntriesForDisplay(displayEntries).slice(-8).map(function(p){
+  var serverHtml = pairLogEntriesForDisplay(displayEntries).map(function(p){
     var holBadge = isHolidayEntry(p.inE||p.outE) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
     var inNote = p.inE ? displayNote(p.inE.note) : '';
     var outNote = p.outE ? displayNote(p.outE.note) : '';
@@ -3373,6 +3384,29 @@ async function loadMyLogs(){
   document.getElementById('myLogs').innerHTML = (queuedHtml + serverHtml) || '<div class="empty">هنوز ثبتی وجود ندارد</div>';
 }
 function renderQueuedInMyLogs(){ loadMyLogs(); }
+async function loadMyHistory(){
+  if(!loggedInEmployee) return;
+  var box = document.getElementById('myHistoryList');
+  var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>'; return; }
+  populateMonthYearFilter('myHistFilterMonth','myHistFilterYear');
+  var monthFilter = document.getElementById('myHistFilterMonth').value;
+  var yearFilter = document.getElementById('myHistFilterYear').value;
+  var entries = (res.logs||[]).filter(function(e){ return matchesMonthYear(e.jalaliDate, monthFilter, yearFilter); });
+  var pairs = pairLogEntriesForDisplay(entries).slice().reverse(); // newest first for browsing history
+  if(pairs.length===0){ box.innerHTML = '<div class="empty">ثبتی یافت نشد</div>'; return; }
+  box.innerHTML = pairs.map(function(p){
+    var holBadge = isHolidayEntry(p.inE||p.outE) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
+    var inNote = p.inE ? displayNote(p.inE.note) : '';
+    var outNote = p.outE ? displayNote(p.outE.note) : '';
+    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
+    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
+    return '<div class="list-item"><div>'+
+      '<b>'+esc(p.project)+'</b>'+holBadge+
+      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi></div>'+
+      '<div class="meta">'+inHtml+'</div><div class="meta">'+outHtml+'</div></div></div>';
+  }).join('');
+}
 function updateTodayStatusHint(){
   var hint = todayLastType === 'ورود'
     ? '📍 آخرین ثبت شما ورود بوده — نوبت ثبت خروج است.'
@@ -3478,9 +3512,9 @@ async function loadDashboard(){
   var logs = logsRes.ok ? (logsRes.logs||[]) : [];
   var todayLogs = logs.filter(function(e){ return e.jalaliDate === todayStr; })
     .sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
-  var lastTypeByUser = {};
-  todayLogs.forEach(function(e){ lastTypeByUser[e.username] = e.type; });
-  var presentCount = Object.keys(lastTypeByUser).filter(function(u){ return lastTypeByUser[u]==='ورود'; }).length;
+  var presentUsersToday = {}; // anyone who checked in at least once today — stays "present" even after checking out
+  todayLogs.forEach(function(e){ if(e.type === 'ورود') presentUsersToday[e.username] = true; });
+  var presentCount = Object.keys(presentUsersToday).length;
 
   var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved'; }) : [];
   var todayKey = jalaliDateSortKeyClient(todayStr);
@@ -3504,6 +3538,19 @@ async function loadDashboard(){
   pendBox.innerHTML = pendingTotal === 0
     ? '<div class="empty">درخواست در انتظاری وجود ندارد</div>'
     : '<div class="hint" style="margin:0;">📨 '+pendingTotal+' درخواست در انتظار تایید — از تب «درخواست‌ها» بررسی کن</div>';
+
+  var trafficBox = document.getElementById('dashTodayTraffic');
+  if(todayLogs.length === 0){
+    trafficBox.innerHTML = '<div class="empty">هنوز تردی ثبت نشده</div>';
+  } else {
+    var todayPairs = pairLogEntriesForDisplay(todayLogs).slice().reverse();
+    trafficBox.innerHTML = todayPairs.map(function(p){
+      var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>') : '<span style="color:#b5ae98;">بدون ورود</span>';
+      var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>') : '<span style="color:#b5ae98;">هنوز حاضر</span>';
+      return '<div class="list-item"><div><b>'+esc(p.employee)+'</b> · '+esc(p.project)+
+        '<div class="meta">'+inHtml+' &nbsp; '+outHtml+'</div></div></div>';
+    }).join('');
+  }
 }
 async function loadHolidays(){
   initLeaveDateSelects();
