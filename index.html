@@ -499,8 +499,18 @@ function getEffectiveShift(username, jalaliDateStr, emp){
   var match = readRows(sash).filter(function(r){
     return r.username === username && jalaliDateSortKey(r.startDate) <= key && key <= jalaliDateSortKey(r.endDate);
   })[0];
-  if(match) return {shiftStart: match.shiftStart, shiftEnd: match.shiftEnd, shiftName: match.shiftName};
-  return {shiftStart: emp.shiftStart, shiftEnd: emp.shiftEnd, shiftName: ''};
+  if(match) return {type:'simple', shiftStart: match.shiftStart, shiftEnd: match.shiftEnd, shiftName: match.shiftName, requiredMinutes:'', lateTolerance:0, earlyTolerance:0};
+  if(emp.shiftId){
+    var shdefs = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
+    var shdef = readRows(shdefs).filter(function(r){ return r.id === emp.shiftId; })[0];
+    if(shdef){
+      return {
+        type: shdef.type || 'simple', shiftStart: shdef.shiftStart, shiftEnd: shdef.shiftEnd, shiftName: shdef.name,
+        requiredMinutes: shdef.requiredMinutes, lateTolerance: Number(shdef.lateTolerance)||0, earlyTolerance: Number(shdef.earlyTolerance)||0
+      };
+    }
+  }
+  return {type:'simple', shiftStart: emp.shiftStart, shiftEnd: emp.shiftEnd, shiftName: '', requiredMinutes:'', lateTolerance:0, earlyTolerance:0};
 }
 function getHolidayInfo(jalaliDateStr, dateObj){
   var isFriday = Utilities.formatDate(dateObj, TZ, 'u') === '5';
@@ -563,7 +573,7 @@ function doPost(e){
 
   // ---------------- login (device-locked) ----------------
   if(action === 'login'){
-    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var erows = readRows(esh);
     var match = erows.filter(function(r){
       return String(r.username).toLowerCase() === String(body.username).toLowerCase() &&
@@ -579,6 +589,15 @@ function doPost(e){
       return jsonOut({ok:false, error:'device_mismatch'});
     }
 
+    var effShiftLogin = {type:'simple', shiftStart: match.shiftStart||'', shiftEnd: match.shiftEnd||'', requiredMinutes:''};
+    if(match.shiftId){
+      var shdefsLogin = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
+      var shdefLogin = readRows(shdefsLogin).filter(function(r){ return r.id === match.shiftId; })[0];
+      if(shdefLogin){
+        effShiftLogin = {type: shdefLogin.type||'simple', shiftStart: shdefLogin.shiftStart||'', shiftEnd: shdefLogin.shiftEnd||'', requiredMinutes: shdefLogin.requiredMinutes||''};
+      }
+    }
+
     return jsonOut({
       ok:true,
       fullName: match.fullName,
@@ -586,7 +605,7 @@ function doPost(e){
       employeeCode: match.employeeCode || '',
       freeZone: !!match.freeZone,
       fingerprintRequired: !!match.fingerprintRequired,
-      jobTitle: match.jobTitle||'', shiftType: match.shiftType||'', shiftStart: match.shiftStart||'', shiftEnd: match.shiftEnd||'',
+      jobTitle: match.jobTitle||'', shiftType: effShiftLogin.type, shiftStart: effShiftLogin.shiftStart, shiftEnd: effShiftLogin.shiftEnd, shiftRequiredMinutes: effShiftLogin.requiredMinutes,
       allowedProjects: match.allowedProjects || ''  // '' or 'ALL' = unrestricted; else comma-separated project ids
     });
   }
@@ -599,7 +618,7 @@ function doPost(e){
 
   // ---------------- attendance logging (server time is authoritative) ----------------
   if(action === 'addLog'){
-    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var emp = readRows(esh2).filter(function(r){ return r.username === body.entry.username; })[0];
     if(!emp) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp.deviceId && String(emp.deviceId) !== String(body.deviceId||'')){
@@ -676,14 +695,24 @@ function doPost(e){
     }
 
     var effShift = getEffectiveShift(d.username, t.jalaliDate, emp);
-    if(effShift.shiftStart && wantIn){
-      var diffIn = timeToMinutes(t.time) - timeToMinutes(effShift.shiftStart);
-      if(diffIn > 0){ note = (note ? note + ' | ' : '') + '⏰ تاخیر ورود: ' + diffIn + ' دقیقه'; }
-    }
-    if(effShift.shiftEnd && !wantIn){
-      var diffOut = timeToMinutes(effShift.shiftEnd) - timeToMinutes(t.time);
-      if(diffOut > 0){ note = (note ? note + ' | ' : '') + '⏰ تعجیل خروج: ' + diffOut + ' دقیقه'; }
-      else if(diffOut < 0){ note = (note ? note + ' | ' : '') + '⏰ اضافه‌کاری: ' + (-diffOut) + ' دقیقه'; }
+    if(effShift.type === 'floating'){
+      if(!wantIn && effShift.requiredMinutes && lastEntry){
+        var workedMin = Math.round((new Date(t.isoTimestamp).getTime() - new Date(lastEntry.isoTimestamp).getTime()) / 60000);
+        var reqMin = Number(effShift.requiredMinutes) || 0;
+        var diffFloat = workedMin - reqMin;
+        if(diffFloat > 0){ note = (note ? note + ' | ' : '') + '⏰ اضافه‌کاری: ' + diffFloat + ' دقیقه (شناور — کارکرد ' + workedMin + ' از ' + reqMin + ' دقیقه موظف)'; }
+        else if(diffFloat < 0){ note = (note ? note + ' | ' : '') + '⏰ کسری کار: ' + (-diffFloat) + ' دقیقه (شناور — کارکرد ' + workedMin + ' از ' + reqMin + ' دقیقه موظف)'; }
+      }
+    } else {
+      if(effShift.shiftStart && wantIn){
+        var diffIn = timeToMinutes(t.time) - timeToMinutes(effShift.shiftStart) - (effShift.lateTolerance||0);
+        if(diffIn > 0){ note = (note ? note + ' | ' : '') + '⏰ تاخیر ورود: ' + diffIn + ' دقیقه'; }
+      }
+      if(effShift.shiftEnd && !wantIn){
+        var diffOut = timeToMinutes(effShift.shiftEnd) - timeToMinutes(t.time) - (effShift.earlyTolerance||0);
+        if(diffOut > 0){ note = (note ? note + ' | ' : '') + '⏰ تعجیل خروج: ' + diffOut + ' دقیقه'; }
+        else if(diffOut < 0){ note = (note ? note + ' | ' : '') + '⏰ اضافه‌کاری: ' + (-diffOut) + ' دقیقه'; }
+      }
     }
 
     var holInfo = getHolidayInfo(t.jalaliDate, new Date(t.isoTimestamp));
@@ -706,7 +735,7 @@ function doPost(e){
 
   // ---------------- manual entry requests ----------------
   if(action === 'createRequest'){
-    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var emp2 = readRows(esh3).filter(function(r){ return r.username === body.username; })[0];
     if(!emp2) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp2.deviceId && String(emp2.deviceId) !== String(body.deviceId||'')){
@@ -740,7 +769,7 @@ function doPost(e){
 
   // ---------------- leave requests ----------------
   if(action === 'createLeaveRequest'){
-    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var empL = readRows(eshL).filter(function(r){ return r.username === body.username; })[0];
     if(!empL) return jsonOut({ok:false, error:'unknown_employee'});
     if(empL.deviceId && String(empL.deviceId) !== String(body.deviceId||'')){
@@ -781,7 +810,7 @@ function doPost(e){
 
   // ---------------- employees ----------------
   if(action === 'getEmployees'){
-    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var rows5 = readRows(esh4).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, employees: rows5});
   }
@@ -789,13 +818,13 @@ function doPost(e){
     if(!body.employeeCode || !String(body.employeeCode).trim()){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
-    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var id2 = Utilities.getUuid();
     appendRowByHeader(esh5, {
       id:id2, fullName:body.fullName, username:body.username, password:body.password,
       deviceId:'', allowedProjects: body.allowedProjects || '', employeeCode: body.employeeCode || '',
       freeZone: body.freeZone ? 'yes' : '', fingerprintRequired: body.fingerprintRequired ? 'yes' : '',
-      jobTitle: body.jobTitle||'', shiftType: body.shiftType||'', shiftStart: body.shiftStart||'', shiftEnd: body.shiftEnd||'',
+      jobTitle: body.jobTitle||'', shiftType: body.shiftType||'', shiftStart: body.shiftStart||'', shiftEnd: body.shiftEnd||'', shiftId: body.shiftId||'',
       nationalId: body.nationalId||'', jobGroup: body.jobGroup||'', photoUrl: body.photoUrl||''
     });
     return jsonOut({ok:true, id:id2});
@@ -804,7 +833,7 @@ function doPost(e){
     if(!body.employeeCode || !String(body.employeeCode).trim()){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
-    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var row = readRows(esh6).filter(function(r){ return r.id === body.id; })[0];
     if(!row) return jsonOut({ok:false, error:'not found'});
     esh6.getRange(row._row, colIndex(esh6,'fullName')).setValue(body.fullName);
@@ -818,19 +847,20 @@ function doPost(e){
     esh6.getRange(row._row, colIndex(esh6,'shiftType')).setValue(body.shiftType||'');
     esh6.getRange(row._row, colIndex(esh6,'shiftStart')).setValue(body.shiftStart||'');
     esh6.getRange(row._row, colIndex(esh6,'shiftEnd')).setValue(body.shiftEnd||'');
+    esh6.getRange(row._row, colIndex(esh6,'shiftId')).setValue(body.shiftId||'');
     esh6.getRange(row._row, colIndex(esh6,'nationalId')).setValue(body.nationalId||'');
     esh6.getRange(row._row, colIndex(esh6,'jobGroup')).setValue(body.jobGroup||'');
     if(body.photoUrl) esh6.getRange(row._row, colIndex(esh6,'photoUrl')).setValue(body.photoUrl);
     return jsonOut({ok:true});
   }
   if(action === 'deleteEmployee'){
-    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var row2 = readRows(esh7).filter(function(r){ return r.id === body.id; })[0];
     if(row2) esh7.deleteRow(row2._row);
     return jsonOut({ok:true});
   }
   if(action === 'resetDevice'){
-    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var row3 = readRows(esh8).filter(function(r){ return r.id === body.id; })[0];
     if(!row3) return jsonOut({ok:false, error:'not found'});
     esh8.getRange(row3._row, colIndex(esh8,'deviceId')).setValue('');
@@ -875,6 +905,39 @@ function doPost(e){
     var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
     return jsonOut({ok:true, holidays: readRows(hsh).map(function(r){ delete r._row; return r; })});
   }
+  if(action === 'getShifts'){
+    var shf = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
+    return jsonOut({ok:true, shifts: readRows(shf).map(function(r){ delete r._row; return r; })});
+  }
+  if(action === 'addShift'){
+    var shf2 = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
+    var shid = Utilities.getUuid();
+    appendRowByHeader(shf2, {
+      id:shid, name: body.name||'', type: body.type||'simple',
+      shiftStart: body.shiftStart||'', shiftEnd: body.shiftEnd||'',
+      requiredMinutes: body.requiredMinutes||'', lateTolerance: body.lateTolerance||0, earlyTolerance: body.earlyTolerance||0
+    });
+    return jsonOut({ok:true});
+  }
+  if(action === 'updateShift'){
+    var shf3 = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
+    var shrow = readRows(shf3).filter(function(r){ return r.id === body.id; })[0];
+    if(!shrow) return jsonOut({ok:false, error:'not found'});
+    shf3.getRange(shrow._row, colIndex(shf3,'name')).setValue(body.name||'');
+    shf3.getRange(shrow._row, colIndex(shf3,'type')).setValue(body.type||'simple');
+    shf3.getRange(shrow._row, colIndex(shf3,'shiftStart')).setValue(body.shiftStart||'');
+    shf3.getRange(shrow._row, colIndex(shf3,'shiftEnd')).setValue(body.shiftEnd||'');
+    shf3.getRange(shrow._row, colIndex(shf3,'requiredMinutes')).setValue(body.requiredMinutes||'');
+    shf3.getRange(shrow._row, colIndex(shf3,'lateTolerance')).setValue(body.lateTolerance||0);
+    shf3.getRange(shrow._row, colIndex(shf3,'earlyTolerance')).setValue(body.earlyTolerance||0);
+    return jsonOut({ok:true});
+  }
+  if(action === 'deleteShift'){
+    var shf4 = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
+    var shrow2 = readRows(shf4).filter(function(r){ return r.id === body.id; })[0];
+    if(shrow2) shf4.deleteRow(shrow2._row);
+    return jsonOut({ok:true});
+  }
   if(action === 'getShiftAssignments'){
     var sash2 = getSheet('ShiftAssignments', ['id','username','startDate','endDate','shiftStart','shiftEnd','shiftName']);
     return jsonOut({ok:true, assignments: readRows(sash2).map(function(r){ delete r._row; return r; })});
@@ -916,7 +979,7 @@ function doPost(e){
     esh_set(lsh5, row6._row, 'employee', body.employee);
     esh_set(lsh5, row6._row, 'project', body.project);
     esh_set(lsh5, row6._row, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
-    var eshFind = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl']);
+    var eshFind = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var empMatch = readRows(eshFind).filter(function(r){ return r.fullName === body.employee; })[0];
     esh_set(lsh5, row6._row, 'employeeCode', empMatch ? (empMatch.employeeCode||'') : (row6.employeeCode||''));
     var hsh5 = getSheet('Holidays', ['id','jalaliDate','reason']);
@@ -1356,6 +1419,44 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
     </div><!-- /admSec-dashboard -->
 
+    <div class="admin-section" id="admSec-shifts" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">تعریف شیفت</div>
+      <div class="hint" style="margin-top:-4px;">شیفت رو یک‌بار اینجا بساز، بعد توی «پرسنل» به هرکی خواستی نسبتش بده.</div>
+      <label>نام شیفت</label>
+      <input type="text" id="shiftFormName" placeholder="مثلاً: شیفت روز، شیفت شب، شناور اداری">
+      <label>نوع شیفت</label>
+      <select id="shiftFormType" onchange="toggleShiftFormType()">
+        <option value="simple">ساده (ساعت شروع و پایان ثابت)</option>
+        <option value="floating">شناور (فقط مدت‌زمان موظف، ساعت شروع آزاد)</option>
+      </select>
+
+      <div id="shiftSimpleFields">
+        <label>ساعت شروع و پایان</label>
+        <div class="date-row">
+          <input type="time" id="shiftFormStart" style="flex:1;">
+          <input type="time" id="shiftFormEnd" style="flex:1;">
+        </div>
+        <label>تاخیر مجاز (دقیقه، اختیاری)</label>
+        <input type="number" id="shiftFormLateTol" min="0" placeholder="مثلاً: 10">
+        <label>تعجیل مجاز (دقیقه، اختیاری)</label>
+        <input type="number" id="shiftFormEarlyTol" min="0" placeholder="مثلاً: 10">
+      </div>
+      <div id="shiftFloatingFields" style="display:none;">
+        <label>مدت زمان موظف روزانه (ساعت:دقیقه)</label>
+        <input type="time" id="shiftFormRequired" value="07:20">
+        <div class="hint" style="margin-top:-8px;">مثال خودت: ۷ ساعت و ۲۰ دقیقه — هرکی بیشتر کار کنه اضافه‌کاری داره، کمتر باشه کسری کار داره؛ ساعت شروع برایش آزاده.</div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="shiftFormBtn" onclick="saveShift()">➕ افزودن شیفت</button>
+        <button type="button" class="btn btn-ghost" id="shiftFormCancel" style="display:none;" onclick="cancelShiftEdit()">لغو ویرایش</button>
+      </div>
+      <div class="divider"></div>
+      <div id="shiftsList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    </div><!-- /admSec-shifts -->
+
     <div class="admin-section" id="admSec-employees" style="display:none;">
     <div class="card">
       <div class="eyebrow">حساب‌های پرسنل</div>
@@ -1387,18 +1488,11 @@ function esh_set(sheet, rowNum, headerName, value){
         <img id="empFormPhotoPreview" style="width:56px; height:56px; border-radius:50%; object-fit:cover; background:#eee7d6; display:none;">
         <input type="file" id="empFormPhoto" accept="image/*" style="flex:1;" onchange="handlePhotoSelect(event)">
       </div>
-      <label>نوع شیفت</label>
-      <select id="empFormShiftType">
-        <option value="">تعریف نشده</option>
-        <option value="day">روزکار</option>
-        <option value="night">شب‌کار</option>
-        <option value="custom">سفارشی</option>
+      <label>شیفت این پرسنل</label>
+      <select id="empFormShiftId">
+        <option value="">بدون شیفت (تشخیص تاخیر/تعجیل غیرفعال)</option>
       </select>
-      <label>ساعت شروع و پایان شیفت (برای تشخیص تاخیر/تعجیل)</label>
-      <div class="date-row">
-        <input type="time" id="empFormShiftStart" style="flex:1;">
-        <input type="time" id="empFormShiftEnd" style="flex:1;">
-      </div>
+      <div class="hint" style="margin-top:-8px;">شیفت‌ها رو از تب «شیفت‌ها» بساز، اینجا فقط نسبت بده.</div>
       <label>پروژه‌های مجاز برای این پرسنل</label>
       <div class="chk-list" id="empProjChecks"></div>
       <div class="btn-row">
@@ -1600,6 +1694,7 @@ function esh_set(sheet, rowNum, headerName, value){
   <div class="side-drawer" id="admDrawer">
     <div class="drawer-header">⚙️ پنل مدیریت</div>
     <div class="drawer-item active" id="admMenu-dashboard" onclick="showAdminSection('dashboard')"><span class="dicon">🏠</span> داشبورد</div>
+    <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon">🕐</span> شیفت‌ها</div>
     <div class="drawer-item" id="admMenu-employees" onclick="showAdminSection('employees')"><span class="dicon">👥</span> پرسنل</div>
     <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon">📍</span> پروژه‌ها</div>
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon">📨</span> درخواست‌ها</div>
@@ -1796,7 +1891,7 @@ async function employeeLogin(){
     document.getElementById('empLoginHint').style.color = '#a32a2a';
     return;
   }
-  loggedInEmployee = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || ''};
+  loggedInEmployee = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || '', shiftType: res.shiftType||'', shiftStart: res.shiftStart||'', shiftEnd: res.shiftEnd||'', shiftRequiredMinutes: res.shiftRequiredMinutes||''};
   localStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
   document.getElementById('empUsername').value='';
   document.getElementById('empPassword').value='';
@@ -2079,14 +2174,14 @@ function showEmpSection(name){
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
-  var active = ['dashboard','employees','projects','requests','report','settings'].find(function(s){
+  var active = ['dashboard','shifts','employees','projects','requests','report','settings'].find(function(s){
     var sec = document.getElementById('admSec-'+s);
     return sec && sec.style.display !== 'none';
   }) || 'dashboard';
   refreshAdminSection(active);
 }
 function showAdminSection(name){
-  ['dashboard','employees','projects','requests','report','settings'].forEach(function(s){
+  ['dashboard','shifts','employees','projects','requests','report','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -2098,6 +2193,7 @@ function showAdminSection(name){
 }
 async function refreshAdminSection(name){
   if(name === 'dashboard') await loadDashboard();
+  else if(name === 'shifts') await loadShifts();
   else if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
   else if(name === 'requests'){ await loadAdminRequests(); await loadAdminLeaves(); }
@@ -2154,6 +2250,7 @@ function clearAdminNotice(){
 
 // ---------- Employees (admin) ----------
 async function loadEmployeesAdmin(){
+  await loadShifts();
   var res = await apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); });
   if(!res.ok){ showAdminNotice('دریافت لیست پرسنل ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
@@ -2162,6 +2259,98 @@ async function loadEmployeesAdmin(){
   var saSel = document.getElementById('shiftAssignEmp');
   if(saSel) saSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+'</option>'; }).join('');
   await loadShiftAssignments();
+}
+async function loadShifts(){
+  var res = await apiCall(function(){ return apiPost('getShifts', {pin:adminPin}); });
+  if(!res.ok) return;
+  window._shifts = res.shifts || [];
+  var sel = document.getElementById('empFormShiftId');
+  if(sel){
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">بدون شیفت (تشخیص تاخیر/تعجیل غیرفعال)</option>' +
+      window._shifts.map(function(s){ return '<option value="'+s.id+'">'+esc(s.name)+' ('+(s.type==='floating'?'شناور':'ساده')+')</option>'; }).join('');
+    sel.value = cur;
+  }
+  renderShiftsList();
+}
+function renderShiftsList(){
+  var box = document.getElementById('shiftsList');
+  if(!box) return;
+  var list = window._shifts || [];
+  if(list.length===0){ box.innerHTML = '<div class="empty">هنوز شیفتی تعریف نشده</div>'; return; }
+  box.innerHTML = list.map(function(s){
+    var detail = s.type === 'floating'
+      ? ('شناور — موظف: '+formatMinutesHHMM(Number(s.requiredMinutes)||0))
+      : ('ساده — '+(s.shiftStart||'?')+' تا '+(s.shiftEnd||'?')+(s.lateTolerance?(' · تاخیر مجاز '+s.lateTolerance+'د'):'')+(s.earlyTolerance?(' · تعجیل مجاز '+s.earlyTolerance+'د'):''));
+    return '<div class="list-item"><div><b>'+esc(s.name)+'</b><div class="meta">'+detail+'</div></div>'+
+      '<div class="actions">'+
+        '<button class="icon-btn edit" title="ویرایش" onclick="startEditShift(\''+s.id+'\')">✏️</button>'+
+        '<button class="icon-btn del" title="حذف" onclick="deleteShiftTemplate(\''+s.id+'\')">✕</button>'+
+      '</div></div>';
+  }).join('');
+}
+function toggleShiftFormType(){
+  var floating = document.getElementById('shiftFormType').value === 'floating';
+  document.getElementById('shiftSimpleFields').style.display = floating ? 'none' : 'block';
+  document.getElementById('shiftFloatingFields').style.display = floating ? 'block' : 'none';
+}
+var editingShiftId = null;
+function startEditShift(id){
+  var s = (window._shifts||[]).filter(function(x){ return x.id === id; })[0];
+  if(!s) return;
+  editingShiftId = id;
+  document.getElementById('shiftFormName').value = s.name || '';
+  document.getElementById('shiftFormType').value = s.type || 'simple';
+  document.getElementById('shiftFormStart').value = s.shiftStart || '';
+  document.getElementById('shiftFormEnd').value = s.shiftEnd || '';
+  document.getElementById('shiftFormLateTol').value = s.lateTolerance || '';
+  document.getElementById('shiftFormEarlyTol').value = s.earlyTolerance || '';
+  if(s.requiredMinutes) document.getElementById('shiftFormRequired').value = formatMinutesHHMM(Number(s.requiredMinutes));
+  toggleShiftFormType();
+  document.getElementById('shiftFormBtn').textContent = '💾 ذخیره تغییرات';
+  document.getElementById('shiftFormCancel').style.display = 'inline-block';
+}
+function cancelShiftEdit(){
+  editingShiftId = null;
+  document.getElementById('shiftFormName').value = '';
+  document.getElementById('shiftFormType').value = 'simple';
+  document.getElementById('shiftFormStart').value = '';
+  document.getElementById('shiftFormEnd').value = '';
+  document.getElementById('shiftFormLateTol').value = '';
+  document.getElementById('shiftFormEarlyTol').value = '';
+  document.getElementById('shiftFormRequired').value = '07:20';
+  toggleShiftFormType();
+  document.getElementById('shiftFormBtn').textContent = '➕ افزودن شیفت';
+  document.getElementById('shiftFormCancel').style.display = 'none';
+}
+async function saveShift(){
+  var name = document.getElementById('shiftFormName').value.trim();
+  if(!name){ alert('نام شیفت را وارد کن'); return; }
+  var type = document.getElementById('shiftFormType').value;
+  var payload = {pin:adminPin, name:name, type:type};
+  if(type === 'floating'){
+    var reqTime = document.getElementById('shiftFormRequired').value || '07:20';
+    payload.requiredMinutes = timeToMinutesClient(reqTime);
+  } else {
+    payload.shiftStart = document.getElementById('shiftFormStart').value;
+    payload.shiftEnd = document.getElementById('shiftFormEnd').value;
+    payload.lateTolerance = parseInt(document.getElementById('shiftFormLateTol').value,10) || 0;
+    payload.earlyTolerance = parseInt(document.getElementById('shiftFormEarlyTol').value,10) || 0;
+  }
+  var res;
+  if(editingShiftId){ payload.id = editingShiftId; res = await apiCall(function(){ return apiPost('updateShift', payload); }); }
+  else { res = await apiCall(function(){ return apiPost('addShift', payload); }); }
+  if(!res.ok){ showAdminNotice('ذخیره شیفت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  cancelShiftEdit();
+  await loadShifts();
+}
+async function deleteShiftTemplate(id){
+  if(!confirm('این شیفت حذف بشه؟ پرسنلی که بهش وصلن بدون شیفت می‌مونن.')) return;
+  var res = await apiCall(function(){ return apiPost('deleteShift', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadShifts();
 }
 async function loadShiftAssignments(){
   initLeaveDateSelects();
@@ -2249,8 +2438,8 @@ function renderEmpList(){
     var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
     var jobText = emp.jobTitle ? (' · '+esc(emp.jobTitle)) : '';
     var groupText = emp.jobGroup ? (' · '+esc(emp.jobGroup)) : '';
-    var shiftFa = {day:'روزکار', night:'شب‌کار', custom:'سفارشی'};
-    var shiftText = emp.shiftType ? (' · '+(shiftFa[emp.shiftType]||emp.shiftType)+(emp.shiftStart?(' '+emp.shiftStart+'-'+emp.shiftEnd):'')) : '';
+    var shiftDefMatch = (window._shifts||[]).filter(function(s){ return s.id === emp.shiftId; })[0];
+    var shiftText = shiftDefMatch ? (' · 🕐 '+esc(shiftDefMatch.name)) : '';
     var photoHtml = emp.photoUrl ? '<img src="'+emp.photoUrl+'" style="width:34px; height:34px; border-radius:50%; object-fit:cover; margin-inline-end:8px; vertical-align:middle;">' : '';
     return '<div class="list-item"><div style="display:flex; align-items:center;">'+photoHtml+'<div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+
       '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+jobText+groupText+shiftText+'</div></div></div>'+
@@ -2300,9 +2489,7 @@ function startEditEmp(id){
   var prevImg = document.getElementById('empFormPhotoPreview');
   if(emp.photoUrl){ prevImg.src = emp.photoUrl; prevImg.style.display = 'inline-block'; }
   else{ prevImg.style.display = 'none'; }
-  document.getElementById('empFormShiftType').value = emp.shiftType || '';
-  document.getElementById('empFormShiftStart').value = emp.shiftStart || '';
-  document.getElementById('empFormShiftEnd').value = emp.shiftEnd || '';
+  document.getElementById('empFormShiftId').value = emp.shiftId || '';
   var sel = emp.allowedProjects ? String(emp.allowedProjects).split(',').map(function(s){return s.trim();}) : [];
   renderEmpProjChecks(sel.length ? sel : ['ALL']);
   var btn = document.getElementById('empFormBtn');
@@ -2325,9 +2512,7 @@ function cancelEmpEdit(){
   document.getElementById('empFormPhoto').value = '';
   document.getElementById('empFormPhotoPreview').style.display = 'none';
   pendingPhotoDataUrl = null;
-  document.getElementById('empFormShiftType').value = '';
-  document.getElementById('empFormShiftStart').value = '';
-  document.getElementById('empFormShiftEnd').value = '';
+  document.getElementById('empFormShiftId').value = '';
   renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
@@ -2350,16 +2535,14 @@ async function saveEmployee(){
     var freeZone = document.getElementById('empFormFreeZone').checked;
     var fingerprintReq = document.getElementById('empFormFingerprint').checked;
     var jobTitle = document.getElementById('empFormJobTitle').value.trim();
-    var shiftType = document.getElementById('empFormShiftType').value;
-    var shiftStart = document.getElementById('empFormShiftStart').value;
-    var shiftEnd = document.getElementById('empFormShiftEnd').value;
+    var shiftId = document.getElementById('empFormShiftId').value;
     var jobGroup = document.getElementById('empFormJobGroup').value.trim();
     var nationalId = document.getElementById('empFormNationalId').value.trim();
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, shiftType:shiftType, shiftStart:shiftStart, shiftEnd:shiftEnd, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, shiftId:shiftId, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, shiftType:shiftType, shiftStart:shiftStart, shiftEnd:shiftEnd, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
+      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, shiftId:shiftId, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
     }
     btn.disabled = false;
     if(!res.ok){
@@ -3500,7 +3683,11 @@ function timeToMinutesClient(hhmm){
   return (parseInt(p[0],10)||0)*60 + (parseInt(p[1],10)||0);
 }
 function shiftDurationMinutes(){
-  if(!loggedInEmployee || !loggedInEmployee.shiftStart || !loggedInEmployee.shiftEnd) return 480;
+  if(!loggedInEmployee) return 480;
+  if(loggedInEmployee.shiftType === 'floating' && loggedInEmployee.shiftRequiredMinutes){
+    return Number(loggedInEmployee.shiftRequiredMinutes) || 480;
+  }
+  if(!loggedInEmployee.shiftStart || !loggedInEmployee.shiftEnd) return 480;
   var s = timeToMinutesClient(loggedInEmployee.shiftStart), e = timeToMinutesClient(loggedInEmployee.shiftEnd);
   var dur = e - s;
   if(dur <= 0) dur += 24*60;
