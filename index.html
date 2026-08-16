@@ -1060,58 +1060,6 @@ function doPost(e){
     var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
     return jsonOut({ok:true, holidays: readRows(hsh).map(function(r){ delete r._row; return r; })});
   }
-  if(action === 'getShifts'){
-    var shf = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
-    return jsonOut({ok:true, shifts: readRows(shf).map(function(r){ delete r._row; return r; })});
-  }
-  if(action === 'addShift'){
-    var shf2 = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
-    var shid = Utilities.getUuid();
-    appendRowByHeader(shf2, {
-      id:shid, name: body.name||'', type: body.type||'simple',
-      shiftStart: body.shiftStart||'', shiftEnd: body.shiftEnd||'',
-      requiredMinutes: body.requiredMinutes||'', lateTolerance: body.lateTolerance||0, earlyTolerance: body.earlyTolerance||0
-    });
-    return jsonOut({ok:true});
-  }
-  if(action === 'updateShift'){
-    var shf3 = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
-    var shrow = readRows(shf3).filter(function(r){ return r.id === body.id; })[0];
-    if(!shrow) return jsonOut({ok:false, error:'not found'});
-    shf3.getRange(shrow._row, colIndex(shf3,'name')).setValue(body.name||'');
-    shf3.getRange(shrow._row, colIndex(shf3,'type')).setValue(body.type||'simple');
-    shf3.getRange(shrow._row, colIndex(shf3,'shiftStart')).setValue(body.shiftStart||'');
-    shf3.getRange(shrow._row, colIndex(shf3,'shiftEnd')).setValue(body.shiftEnd||'');
-    shf3.getRange(shrow._row, colIndex(shf3,'requiredMinutes')).setValue(body.requiredMinutes||'');
-    shf3.getRange(shrow._row, colIndex(shf3,'lateTolerance')).setValue(body.lateTolerance||0);
-    shf3.getRange(shrow._row, colIndex(shf3,'earlyTolerance')).setValue(body.earlyTolerance||0);
-    return jsonOut({ok:true});
-  }
-  if(action === 'deleteShift'){
-    var shf4 = getSheet('Shifts', ['id','name','type','shiftStart','shiftEnd','requiredMinutes','lateTolerance','earlyTolerance']);
-    var shrow2 = readRows(shf4).filter(function(r){ return r.id === body.id; })[0];
-    if(shrow2) shf4.deleteRow(shrow2._row);
-    return jsonOut({ok:true});
-  }
-  if(action === 'getShiftAssignments'){
-    var sash2 = getSheet('ShiftAssignments', ['id','username','startDate','endDate','shiftStart','shiftEnd','shiftName']);
-    return jsonOut({ok:true, assignments: readRows(sash2).map(function(r){ delete r._row; return r; })});
-  }
-  if(action === 'addShiftAssignment'){
-    var sash3 = getSheet('ShiftAssignments', ['id','username','startDate','endDate','shiftStart','shiftEnd','shiftName']);
-    var said = Utilities.getUuid();
-    appendRowByHeader(sash3, {
-      id:said, username: body.username, startDate: body.startDate, endDate: body.endDate,
-      shiftStart: body.shiftStart||'', shiftEnd: body.shiftEnd||'', shiftName: body.shiftName||''
-    });
-    return jsonOut({ok:true});
-  }
-  if(action === 'deleteShiftAssignment'){
-    var sash4 = getSheet('ShiftAssignments', ['id','username','startDate','endDate','shiftStart','shiftEnd','shiftName']);
-    var sarow = readRows(sash4).filter(function(r){ return r.id === body.id; })[0];
-    if(sarow) sash4.deleteRow(sarow._row);
-    return jsonOut({ok:true});
-  }
   if(action === 'addHoliday'){
     var hsh2 = getSheet('Holidays', ['id','jalaliDate','reason']);
     var hid = Utilities.getUuid();
@@ -1323,6 +1271,10 @@ function esh_set(sheet, rowNum, headerName, value){
       <button type="button" class="btn btn-primary" id="locateBtn" onclick="locateAndCheck()">📍 روشن کردن موقعیت مکانی</button>
       <div class="hint" id="gpsHintText" style="display:none;"></div>
       <div id="locStatus" class="status idle" style="margin-top:12px;">موقعیت مکانی هنوز بررسی نشده است.</div>
+      <div id="offlineQueueBanner" style="display:none; background:#fff4e2; border-radius:10px; padding:10px 12px; margin-top:10px; font-size:13px;">
+        <span id="offlineQueueText"></span>
+        <button type="button" class="btn btn-ghost btn-small" style="margin-top:6px; width:100%;" onclick="manualSyncNow()">🔄 تلاش دوباره برای ارسال</button>
+      </div>
 
       <div class="btn-row" style="display:none;">
         <button type="button" class="btn btn-in" id="checkInBtn" disabled onclick="submitEntry('in')">✅ ثبت ورود</button>
@@ -1590,43 +1542,6 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
     </div><!-- /admSec-dashboard -->
 
-    <div class="admin-section" id="admSec-shifts" style="display:none;">
-    <div class="card">
-      <div class="eyebrow">تعریف شیفت</div>
-      <div class="hint" style="margin-top:-4px;">شیفت رو یک‌بار اینجا بساز، بعد توی «پرسنل» به هرکی خواستی نسبتش بده.</div>
-      <label>نام شیفت</label>
-      <input type="text" id="shiftFormName" placeholder="مثلاً: شیفت روز، شیفت شب، شناور اداری">
-      <label>نوع شیفت</label>
-      <select id="shiftFormType" onchange="toggleShiftFormType()">
-        <option value="simple">ساده (ساعت شروع و پایان ثابت)</option>
-        <option value="floating">شناور (فقط مدت‌زمان موظف، ساعت شروع آزاد)</option>
-      </select>
-
-      <div id="shiftSimpleFields">
-        <label>ساعت شروع و پایان</label>
-        <div class="date-row">
-          <input type="time" id="shiftFormStart" style="flex:1;">
-          <input type="time" id="shiftFormEnd" style="flex:1;">
-        </div>
-        <label>تاخیر مجاز (دقیقه، اختیاری)</label>
-        <input type="number" id="shiftFormLateTol" min="0" placeholder="مثلاً: 10">
-        <label>تعجیل مجاز (دقیقه، اختیاری)</label>
-        <input type="number" id="shiftFormEarlyTol" min="0" placeholder="مثلاً: 10">
-      </div>
-      <div id="shiftFloatingFields" style="display:none;">
-        <label>مدت زمان موظف روزانه (ساعت:دقیقه)</label>
-        <input type="time" id="shiftFormRequired" value="07:20">
-        <div class="hint" style="margin-top:-8px;">مثال خودت: ۷ ساعت و ۲۰ دقیقه — هرکی بیشتر کار کنه اضافه‌کاری داره، کمتر باشه کسری کار داره؛ ساعت شروع برایش آزاده.</div>
-      </div>
-
-      <div class="btn-row">
-        <button type="button" class="btn btn-primary" id="shiftFormBtn" onclick="saveShift()">➕ افزودن شیفت</button>
-        <button type="button" class="btn btn-ghost" id="shiftFormCancel" style="display:none;" onclick="cancelShiftEdit()">لغو ویرایش</button>
-      </div>
-      <div class="divider"></div>
-      <div id="shiftsList"><div class="empty">در حال بارگذاری...</div></div>
-    </div>
-    </div><!-- /admSec-shifts -->
 
     <div class="admin-section" id="admSec-employees" style="display:none;">
     <div class="card">
@@ -1659,46 +1574,12 @@ function esh_set(sheet, rowNum, headerName, value){
         <img id="empFormPhotoPreview" style="width:56px; height:56px; border-radius:50%; object-fit:cover; background:#eee7d6; display:none;">
         <input type="file" id="empFormPhoto" accept="image/*" style="flex:1;" onchange="handlePhotoSelect(event)">
       </div>
-      <label>شیفت این پرسنل</label>
-      <select id="empFormShiftId">
-        <option value="">بدون شیفت (تشخیص تاخیر/تعجیل غیرفعال)</option>
-      </select>
-      <div class="hint" style="margin-top:-8px;">شیفت‌ها رو از تب «شیفت‌ها» بساز، اینجا فقط نسبت بده.</div>
       <label>پروژه‌های مجاز برای این پرسنل</label>
       <div class="chk-list" id="empProjChecks"></div>
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="empFormBtn" onclick="saveEmployee()">➕ افزودن پرسنل</button>
         <button type="button" class="btn btn-ghost" id="empFormCancel" style="display:none;" onclick="cancelEmpEdit()">لغو ویرایش</button>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="eyebrow">تخصیص شیفت موقت به پرسنل</div>
-      <div class="hint" style="margin-top:-4px;">برای یک بازه تاریخ، شیفت متفاوتی به یک پرسنل بده (مثلاً یک هفته شیفت شب) — بدون تغییر شیفت پیش‌فرضش.</div>
-      <label>پرسنل</label>
-      <select id="shiftAssignEmp"></select>
-      <label>نام شیفت (اختیاری)</label>
-      <input type="text" id="shiftAssignName" placeholder="مثلاً: شیفت شب موقت">
-      <label>ساعت شروع و پایان</label>
-      <div class="date-row">
-        <input type="time" id="shiftAssignStart" style="flex:1;">
-        <input type="time" id="shiftAssignEnd" style="flex:1;">
-      </div>
-      <label>از تاریخ</label>
-      <div class="date-row">
-        <select id="shiftAssignStartDay"></select>
-        <select id="shiftAssignStartMonth"></select>
-        <select id="shiftAssignStartYear"></select>
-      </div>
-      <label>تا تاریخ</label>
-      <div class="date-row">
-        <select id="shiftAssignEndDay"></select>
-        <select id="shiftAssignEndMonth"></select>
-        <select id="shiftAssignEndYear"></select>
-      </div>
-      <button type="button" class="btn btn-ghost" onclick="addShiftAssignment()">➕ افزودن تخصیص</button>
-      <div class="divider"></div>
-      <div id="shiftAssignList"><div class="empty">تخصیصی ثبت نشده</div></div>
     </div>
     </div><!-- /admSec-employees -->
 
@@ -1887,7 +1768,6 @@ function esh_set(sheet, rowNum, headerName, value){
   <div class="side-drawer" id="admDrawer">
     <div class="drawer-header">⚙️ پنل مدیریت</div>
     <div class="drawer-item active" id="admMenu-dashboard" onclick="showAdminSection('dashboard')"><span class="dicon">🏠</span> داشبورد</div>
-    <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon">🕐</span> شیفت‌ها</div>
     <div class="drawer-item" id="admMenu-employees" onclick="showAdminSection('employees')"><span class="dicon">👥</span> پرسنل</div>
     <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon">📍</span> پروژه‌ها</div>
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon">📨</span> درخواست‌ها</div>
@@ -2482,14 +2362,14 @@ function showEmpSection(name){
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
-  var active = ['dashboard','shifts','employees','projects','requests','offline','report','settings'].find(function(s){
+  var active = ['dashboard','employees','projects','requests','offline','report','settings'].find(function(s){
     var sec = document.getElementById('admSec-'+s);
     return sec && sec.style.display !== 'none';
   }) || 'dashboard';
   refreshAdminSection(active);
 }
 function showAdminSection(name){
-  ['dashboard','shifts','employees','projects','requests','offline','report','settings'].forEach(function(s){
+  ['dashboard','employees','projects','requests','offline','report','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -2501,7 +2381,6 @@ function showAdminSection(name){
 }
 async function refreshAdminSection(name){
   if(name === 'dashboard') await loadDashboard();
-  else if(name === 'shifts') await loadShifts();
   else if(name === 'offline') await loadPendingOffline();
   else if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
@@ -2570,149 +2449,11 @@ function clearAdminNotice(){
 
 // ---------- Employees (admin) ----------
 async function loadEmployeesAdmin(){
-  await loadShifts();
   var res = await apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); });
   if(!res.ok){ showAdminNotice('دریافت لیست پرسنل ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   employees = res.employees || [];
   renderEmpList();
-  var saSel = document.getElementById('shiftAssignEmp');
-  if(saSel) saSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+'</option>'; }).join('');
-  await loadShiftAssignments();
-}
-async function loadShifts(){
-  var res = await apiCall(function(){ return apiPost('getShifts', {pin:adminPin}); });
-  if(!res.ok) return;
-  window._shifts = res.shifts || [];
-  var sel = document.getElementById('empFormShiftId');
-  if(sel){
-    var cur = sel.value;
-    sel.innerHTML = '<option value="">بدون شیفت (تشخیص تاخیر/تعجیل غیرفعال)</option>' +
-      window._shifts.map(function(s){ return '<option value="'+s.id+'">'+esc(s.name)+' ('+(s.type==='floating'?'شناور':'ساده')+')</option>'; }).join('');
-    sel.value = cur;
-  }
-  renderShiftsList();
-}
-function renderShiftsList(){
-  var box = document.getElementById('shiftsList');
-  if(!box) return;
-  var list = window._shifts || [];
-  if(list.length===0){ box.innerHTML = '<div class="empty">هنوز شیفتی تعریف نشده</div>'; return; }
-  box.innerHTML = list.map(function(s){
-    var detail = s.type === 'floating'
-      ? ('شناور — موظف: '+formatMinutesHHMM(Number(s.requiredMinutes)||0))
-      : ('ساده — '+(s.shiftStart||'?')+' تا '+(s.shiftEnd||'?')+(s.lateTolerance?(' · تاخیر مجاز '+s.lateTolerance+'د'):'')+(s.earlyTolerance?(' · تعجیل مجاز '+s.earlyTolerance+'د'):''));
-    return '<div class="list-item"><div><b>'+esc(s.name)+'</b><div class="meta">'+detail+'</div></div>'+
-      '<div class="actions">'+
-        '<button class="icon-btn edit" title="ویرایش" onclick="startEditShift(\''+s.id+'\')">✏️</button>'+
-        '<button class="icon-btn del" title="حذف" onclick="deleteShiftTemplate(\''+s.id+'\')">✕</button>'+
-      '</div></div>';
-  }).join('');
-}
-function toggleShiftFormType(){
-  var floating = document.getElementById('shiftFormType').value === 'floating';
-  document.getElementById('shiftSimpleFields').style.display = floating ? 'none' : 'block';
-  document.getElementById('shiftFloatingFields').style.display = floating ? 'block' : 'none';
-}
-var editingShiftId = null;
-function startEditShift(id){
-  var s = (window._shifts||[]).filter(function(x){ return x.id === id; })[0];
-  if(!s) return;
-  editingShiftId = id;
-  document.getElementById('shiftFormName').value = s.name || '';
-  document.getElementById('shiftFormType').value = s.type || 'simple';
-  document.getElementById('shiftFormStart').value = s.shiftStart || '';
-  document.getElementById('shiftFormEnd').value = s.shiftEnd || '';
-  document.getElementById('shiftFormLateTol').value = s.lateTolerance || '';
-  document.getElementById('shiftFormEarlyTol').value = s.earlyTolerance || '';
-  if(s.requiredMinutes) document.getElementById('shiftFormRequired').value = formatMinutesHHMM(Number(s.requiredMinutes));
-  toggleShiftFormType();
-  document.getElementById('shiftFormBtn').textContent = '💾 ذخیره تغییرات';
-  document.getElementById('shiftFormCancel').style.display = 'inline-block';
-}
-function cancelShiftEdit(){
-  editingShiftId = null;
-  document.getElementById('shiftFormName').value = '';
-  document.getElementById('shiftFormType').value = 'simple';
-  document.getElementById('shiftFormStart').value = '';
-  document.getElementById('shiftFormEnd').value = '';
-  document.getElementById('shiftFormLateTol').value = '';
-  document.getElementById('shiftFormEarlyTol').value = '';
-  document.getElementById('shiftFormRequired').value = '07:20';
-  toggleShiftFormType();
-  document.getElementById('shiftFormBtn').textContent = '➕ افزودن شیفت';
-  document.getElementById('shiftFormCancel').style.display = 'none';
-}
-async function saveShift(){
-  var name = document.getElementById('shiftFormName').value.trim();
-  if(!name){ alert('نام شیفت را وارد کن'); return; }
-  var type = document.getElementById('shiftFormType').value;
-  var payload = {pin:adminPin, name:name, type:type};
-  if(type === 'floating'){
-    var reqTime = document.getElementById('shiftFormRequired').value || '07:20';
-    payload.requiredMinutes = timeToMinutesClient(reqTime);
-  } else {
-    payload.shiftStart = document.getElementById('shiftFormStart').value;
-    payload.shiftEnd = document.getElementById('shiftFormEnd').value;
-    payload.lateTolerance = parseInt(document.getElementById('shiftFormLateTol').value,10) || 0;
-    payload.earlyTolerance = parseInt(document.getElementById('shiftFormEarlyTol').value,10) || 0;
-  }
-  var res;
-  if(editingShiftId){ payload.id = editingShiftId; res = await apiCall(function(){ return apiPost('updateShift', payload); }); }
-  else { res = await apiCall(function(){ return apiPost('addShift', payload); }); }
-  if(!res.ok){ showAdminNotice('ذخیره شیفت ناموفق بود: ' + (res.error||'')); return; }
-  clearAdminNotice();
-  cancelShiftEdit();
-  await loadShifts();
-}
-async function deleteShiftTemplate(id){
-  if(!confirm('این شیفت حذف بشه؟ پرسنلی که بهش وصلن بدون شیفت می‌مونن.')) return;
-  var res = await apiCall(function(){ return apiPost('deleteShift', {pin:adminPin, id:id}); });
-  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
-  clearAdminNotice();
-  await loadShifts();
-}
-async function loadShiftAssignments(){
-  initLeaveDateSelects();
-  var res = await apiCall(function(){ return apiPost('getShiftAssignments', {pin:adminPin}); });
-  var box = document.getElementById('shiftAssignList');
-  if(!box) return;
-  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت تخصیص‌ها ناموفق بود</div>'; return; }
-  var list = res.assignments || [];
-  if(list.length===0){ box.innerHTML = '<div class="empty">تخصیصی ثبت نشده</div>'; return; }
-  var byUser = {}; employees.forEach(function(e){ byUser[e.username] = e.fullName; });
-  box.innerHTML = list.map(function(a){
-    return '<div class="list-item"><div><b>'+esc(byUser[a.username]||a.username)+'</b>'+(a.shiftName?' · '+esc(a.shiftName):'')+
-      '<div class="meta">'+a.startDate+' تا '+a.endDate+' · '+a.shiftStart+'-'+a.shiftEnd+'</div></div>'+
-      '<button class="icon-btn del" title="حذف" onclick="deleteShiftAssignment(\''+a.id+'\')">✕</button></div>';
-  }).join('');
-}
-async function addShiftAssignment(){
-  var username = document.getElementById('shiftAssignEmp').value;
-  if(!username){ alert('یک پرسنل انتخاب کنید'); return; }
-  var shiftStart = document.getElementById('shiftAssignStart').value;
-  var shiftEnd = document.getElementById('shiftAssignEnd').value;
-  if(!shiftStart || !shiftEnd){ alert('ساعت شروع و پایان شیفت را وارد کنید'); return; }
-  var payload = {
-    pin: adminPin, username: username,
-    startDate: readDateSelect('shiftAssignStart'), endDate: readDateSelect('shiftAssignEnd'),
-    shiftStart: shiftStart, shiftEnd: shiftEnd,
-    shiftName: document.getElementById('shiftAssignName').value.trim()
-  };
-  var res = await apiCall(function(){ return apiPost('addShiftAssignment', payload); });
-  if(!res.ok){ showAdminNotice('افزودن تخصیص شیفت ناموفق بود: ' + (res.error||'')); return; }
-  clearAdminNotice();
-  document.getElementById('shiftAssignName').value = '';
-  document.getElementById('shiftAssignStart').value = '';
-  document.getElementById('shiftAssignEnd').value = '';
-  await loadShiftAssignments();
-}
-async function deleteShiftAssignment(id){
-  if(!confirm('این تخصیص شیفت حذف شود؟')) return;
-  var res = await apiCall(function(){ return apiPost('deleteShiftAssignment', {pin:adminPin, id:id}); });
-  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
-  clearAdminNotice();
-  await loadShiftAssignments();
 }
 var pendingPhotoDataUrl = null;
 function handlePhotoSelect(event){
@@ -2758,11 +2499,9 @@ function renderEmpList(){
     var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
     var jobText = emp.jobTitle ? (' · '+esc(emp.jobTitle)) : '';
     var groupText = emp.jobGroup ? (' · '+esc(emp.jobGroup)) : '';
-    var shiftDefMatch = (window._shifts||[]).filter(function(s){ return s.id === emp.shiftId; })[0];
-    var shiftText = shiftDefMatch ? (' · 🕐 '+esc(shiftDefMatch.name)) : '';
     var photoHtml = emp.photoUrl ? '<img src="'+emp.photoUrl+'" style="width:34px; height:34px; border-radius:50%; object-fit:cover; margin-inline-end:8px; vertical-align:middle;">' : '';
     return '<div class="list-item"><div style="display:flex; align-items:center;">'+photoHtml+'<div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+
-      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+jobText+groupText+shiftText+'</div></div></div>'+
+      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+jobText+groupText+'</div></div></div>'+
       '<div class="actions">'+
         (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditEmp(\''+emp.id+'\')">✏️</button>'+
@@ -2809,7 +2548,6 @@ function startEditEmp(id){
   var prevImg = document.getElementById('empFormPhotoPreview');
   if(emp.photoUrl){ prevImg.src = emp.photoUrl; prevImg.style.display = 'inline-block'; }
   else{ prevImg.style.display = 'none'; }
-  document.getElementById('empFormShiftId').value = emp.shiftId || '';
   var sel = emp.allowedProjects ? String(emp.allowedProjects).split(',').map(function(s){return s.trim();}) : [];
   renderEmpProjChecks(sel.length ? sel : ['ALL']);
   var btn = document.getElementById('empFormBtn');
@@ -2832,7 +2570,6 @@ function cancelEmpEdit(){
   document.getElementById('empFormPhoto').value = '';
   document.getElementById('empFormPhotoPreview').style.display = 'none';
   pendingPhotoDataUrl = null;
-  document.getElementById('empFormShiftId').value = '';
   renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
@@ -2855,14 +2592,13 @@ async function saveEmployee(){
     var freeZone = document.getElementById('empFormFreeZone').checked;
     var fingerprintReq = document.getElementById('empFormFingerprint').checked;
     var jobTitle = document.getElementById('empFormJobTitle').value.trim();
-    var shiftId = document.getElementById('empFormShiftId').value;
     var jobGroup = document.getElementById('empFormJobGroup').value.trim();
     var nationalId = document.getElementById('empFormNationalId').value.trim();
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, shiftId:shiftId, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, shiftId:shiftId, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
+      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
     }
     btn.disabled = false;
     if(!res.ok){
@@ -3489,22 +3225,45 @@ function queueOfflineEntry(entry, projectId){
   q.push({entry: entry, deviceId: DEVICE_ID, project_id: projectId, queuedAt: new Date().toISOString()});
   setOfflineQueue(q);
 }
+function updateOfflineQueueBanner(){
+  var banner = document.getElementById('offlineQueueBanner');
+  var text = document.getElementById('offlineQueueText');
+  if(!banner || !text) return;
+  var q = getOfflineQueue();
+  if(q.length === 0){ banner.style.display = 'none'; return; }
+  banner.style.display = 'block';
+  text.textContent = '📦 '+q.length+' ثبت هنوز روی گوشی ذخیره‌ست و ارسال نشده. اگه اینترنت وصله ولی ارسال نمی‌شه، این دکمه رو بزن:';
+}
+async function manualSyncNow(){
+  await syncOfflineQueue();
+  updateOfflineQueueBanner();
+}
 async function syncOfflineQueue(){
   var q = getOfflineQueue();
   if(q.length === 0) return;
   var remaining = [];
-  var syncedAny = false;
+  var submittedCount = 0;
+  var failMessages = [];
   for(var i=0;i<q.length;i++){
     var item = q[i];
     var res = await apiCall(function(){ return apiPost('submitOfflineLog', {entry:item.entry, deviceId:item.deviceId, project_id:item.project_id}); });
     if(!res.ok && res.networkError){
       remaining.push(item); // still offline — try again next time
+    } else if(!res.ok){
+      // real server-side rejection (e.g. device_mismatch, unknown_employee) — don't silently lose it, tell the user
+      failMessages.push((res.error||'خطای نامشخص') + ' — ثبت ' + (item.entry.type==='in'?'ورود':'خروج') + ' حذف شد، دوباره امتحان کن.');
     } else {
-      syncedAny = true; // sent for admin review, or the server rejected it for a real reason — either way, drop from local queue
+      submittedCount++;
     }
   }
   setOfflineQueue(remaining);
-  if(syncedAny && loggedInEmployee){ loadMyLogs(); }
+  if(submittedCount > 0){
+    setStatus('✅ '+submittedCount+' ثبت آفلاین برای بررسی مدیر ارسال شد.', 'ok');
+  }
+  if(failMessages.length > 0){
+    setStatus('⛔ '+failMessages.join('<br>'), 'err');
+  }
+  if((submittedCount > 0 || failMessages.length > 0) && loggedInEmployee){ loadMyLogs(); }
 }
 window.addEventListener('online', syncOfflineQueue);
 
@@ -3592,6 +3351,7 @@ async function submitEntry(type){
 // ---------- My logs (employee view) ----------
 async function loadMyLogs(){
   if(!loggedInEmployee) return;
+  updateOfflineQueueBanner();
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
   var entries = res.ok ? (res.logs || []) : [];
   entries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); }); // ascending: oldest first
@@ -3613,7 +3373,10 @@ async function loadMyLogs(){
   }
 
   var todayStr = jalaliString(new Date());
-  var displayEntries = entries.filter(function(e){ return e.jalaliDate === todayStr; });
+  var allPairs = pairLogEntriesForDisplay(entries);
+  var todayPairs = allPairs.filter(function(p){
+    return (p.inE && p.inE.jalaliDate === todayStr) || (p.outE && p.outE.jalaliDate === todayStr);
+  });
 
   var queuedHtml = queue.slice().reverse().map(function(q){
     return '<div class="list-item"><div>'+
@@ -3621,15 +3384,14 @@ async function loadMyLogs(){
       ' · <span style="color:#8a5a10;">⏳ در انتظار همگام‌سازی</span></div></div>';
   }).join('');
 
-  var serverHtml = pairLogEntriesForDisplay(displayEntries).map(function(p){
+  var serverHtml = todayPairs.map(function(p){
     var holBadge = isHolidayEntry(p.inE||p.outE) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
     var inNote = p.inE ? displayNote(p.inE.note) : '';
     var outNote = p.outE ? displayNote(p.outE.note) : '';
-    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
-    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
+    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#7a7360;">('+p.inE.jalaliDate+')</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
+    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#7a7360;">('+p.outE.jalaliDate+')</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
     return '<div class="list-item"><div>'+
       '<b>'+esc(p.project)+'</b>'+holBadge+
-      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi></div>'+
       '<div class="meta">'+inHtml+'</div><div class="meta">'+outHtml+'</div></div></div>';
   }).join('');
 
@@ -3753,7 +3515,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday','shiftAssignStart','shiftAssignEnd','reqDate2','leaveStart2','leaveEnd2','adminLog'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
@@ -3967,15 +3729,15 @@ async function loadFullLog(){
   renderLogTable();
 }
 function pairLogEntriesForDisplay(entries){
-  var byKey = {};
+  var byUser = {};
   entries.forEach(function(e){
-    var k = (e.username||e.employee) + '|' + e.jalaliDate;
-    byKey[k] = byKey[k] || [];
-    byKey[k].push(e);
+    var k = e.username || e.employee;
+    byUser[k] = byUser[k] || [];
+    byUser[k].push(e);
   });
   var pairs = [];
-  Object.keys(byKey).forEach(function(k){
-    var list = byKey[k].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+  Object.keys(byUser).forEach(function(k){
+    var list = byUser[k].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
     var i = 0;
     while(i < list.length){
       if(list[i].type === 'ورود'){
