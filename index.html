@@ -782,11 +782,23 @@ function doPost(e){
     }
     var rsh = getSheet('Requests', ['id','username','employee','employeeCode','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
     var t2 = serverNow();
+    var normalizedReqTime = normalizeTimeInput(body.requestedTime);
+    if(body.requestedDate && normalizedReqTime){
+      var reqIso = jalaliDateTimeToIso(body.requestedDate, normalizedReqTime);
+      if(reqIso){
+        var lshChk = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+        var empRowsChk = readRows(lshChk).filter(function(r){ return r.username === body.username; });
+        var lastChk = empRowsChk.length ? empRowsChk.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsChk.length-1] : null;
+        if(lastChk && String(reqIso) <= String(lastChk.isoTimestamp)){
+          return jsonOut({ok:false, error:'must_be_after_last_entry'});
+        }
+      }
+    }
     var rid = Utilities.getUuid();
     appendRowByHeader(rsh, {
       id:rid, username:body.username, employee:emp2.fullName, employeeCode: emp2.employeeCode||'', project:body.project, type:body.type,
       reason: body.reason||'', status:'pending', createdAt:t2.jalaliDate, createdTime:t2.time,
-      requestedDate: body.requestedDate||'', requestedTime: normalizeTimeInput(body.requestedTime)
+      requestedDate: body.requestedDate||'', requestedTime: normalizedReqTime
     });
     notifyAdmin(
       'درخواست ثبت دستی جدید — ' + emp2.fullName,
@@ -1116,9 +1128,15 @@ function doPost(e){
       var useDate = rrow.requestedDate || t3.jalaliDate;
       var useTime = rrow.requestedTime || t3.time;
       var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+      var iso3 = rrow.requestedDate ? (jalaliDateTimeToIso(useDate, useTime) || t3.isoTimestamp) : t3.isoTimestamp;
+      var empRowsChk2 = readRows(lsh7).filter(function(r){ return r.username === rrow.username; });
+      var lastChk2 = empRowsChk2.length ? empRowsChk2.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsChk2.length-1] : null;
+      if(lastChk2 && String(iso3) <= String(lastChk2.isoTimestamp)){
+        esh_set(rsh4, rrow._row, 'status', 'pending'); // revert — do not silently approve an invalid entry
+        return jsonOut({ok:false, error:'must_be_after_last_entry'});
+      }
       var lid = Utilities.getUuid();
       var holInfo3 = getHolidayInfo(useDate);
-      var iso3 = rrow.requestedDate ? (jalaliDateTimeToIso(useDate, useTime) || t3.isoTimestamp) : t3.isoTimestamp;
       appendRowByHeader(lsh7, {
         id:lid, jalaliDate:useDate, time:useTime, employee:rrow.employee, username:rrow.username, project:rrow.project,
         type: rrow.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:iso3,
@@ -1246,6 +1264,10 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="btn btn-in" id="checkInBtn" disabled onclick="submitEntry('in')">✅ ثبت ورود</button>
         <button type="button" class="btn btn-out" id="checkOutBtn" disabled onclick="submitEntry('out')">🚪 ثبت خروج</button>
       </div>
+
+      <label class="chk-item" id="nightShiftConfirmRow" style="display:none; width:100%; box-sizing:border-box; background:#fff4e2; border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+        <input type="checkbox" id="nightShiftConfirmChk"> 🌙 مدت زیادی از ورودم گذشته و این خروج مربوط به شیفت طولانی/شب‌کاری واقعیه
+      </label>
 
       <div class="swipe-track swipe-disabled" id="swipeTrack">
         <span class="swipe-label" id="swipeLabel">ابتدا موقعیت مکانی را بررسی کن</span>
@@ -1940,6 +1962,7 @@ var loggedInEmployee = null;
 var adminPin = null;
 var adminUsername = null;
 var todayLastType = null; // 'ورود' | 'خروج' | null — from server data, used to only enable the valid next action
+var lastOpenCheckinIso = null; // timestamp of the current open check-in (if any), used for the long-shift confirmation
 var editingEmpId = null;
 var editingProjId = null;
 var editingPairIds = null; // {inId, outId} when editing a paired row
@@ -2804,7 +2827,13 @@ async function deleteSelectedRequests(){
 }
 async function decideRequest(id, approve){
   var res = await apiCall(function(){ return apiPost(approve ? 'approveRequest' : 'rejectRequest', {pin:adminPin, id:id}); });
-  if(!res.ok){ showAdminNotice('ثبت تصمیم ناموفق بود: ' + (res.error||'')); return; }
+  if(!res.ok){
+    var msg = res.error === 'must_be_after_last_entry'
+      ? 'این زمان درخواستی زودتر از آخرین ثبت تردد این پرسنله — قابل تایید نیست. اگه لازمه، از «ثبت تردد» یا ویرایش مستقیم گزارش استفاده کن.'
+      : (res.error || '');
+    showAdminNotice('ثبت تصمیم ناموفق بود: ' + msg);
+    return;
+  }
   clearAdminNotice();
   await loadAdminRequests();
   await loadFullLog();
@@ -3283,6 +3312,13 @@ window.addEventListener('online', syncOfflineQueue);
 async function submitEntry(type){
   if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
   if(!currentPos || !chosenProject){ alert('ابتدا موقعیت مکانی را بررسی کنید'); return; }
+  if(type === 'out' && nightShiftConfirmRequired()){
+    var chk = document.getElementById('nightShiftConfirmChk');
+    if(!chk || !chk.checked){
+      setStatus('🌙 مدت زیادی از ورودتان گذشته — لطفاً تیک تایید شیفت طولانی/شب‌کاری رو بزنید تا بتونید خروج بزنید.', 'err');
+      return;
+    }
+  }
 
   var fingerprintVerified = false;
   if(loggedInEmployee.fingerprintRequired && deviceHasFingerprint){
@@ -3364,10 +3400,13 @@ async function loadMyLogs(){
   var queue = getOfflineQueue().filter(function(q){ return q.entry.username === loggedInEmployee.username; });
 
   // entries now sorted ascending (oldest first) — the last item is the most recent (matches server logic)
-  var lastServerType = entries.length ? entries[entries.length-1].type : null;
+  var lastServerEntry = entries.length ? entries[entries.length-1] : null;
+  var lastServerType = lastServerEntry ? lastServerEntry.type : null;
   var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
   todayLastType = lastQueuedType || lastServerType; // a still-pending queued entry takes priority over server state
+  lastOpenCheckinIso = (todayLastType === 'ورود' && !lastQueuedType && lastServerEntry) ? lastServerEntry.isoTimestamp : null;
   updateTodayStatusHint();
+  updateNightShiftCheckbox();
 
   if(!res.ok && queue.length === 0){
     document.getElementById('myLogs').innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>';
@@ -3428,6 +3467,31 @@ function updateTodayStatusHint(){
   var el = document.getElementById('todayStatusHint');
   if(el) el.textContent = hint;
 }
+function isNightOrientedShift(){
+  if(!loggedInEmployee) return false;
+  if(loggedInEmployee.shiftType === 'floating') return true;
+  if(loggedInEmployee.shiftType === 'simple' && loggedInEmployee.shiftStart && loggedInEmployee.shiftEnd){
+    return timeToMinutesClient(loggedInEmployee.shiftStart) > timeToMinutesClient(loggedInEmployee.shiftEnd);
+  }
+  return false;
+}
+function nightShiftConfirmRequired(){
+  if(todayLastType !== 'ورود' || !lastOpenCheckinIso) return false;
+  if(isNightOrientedShift()) return false; // already expected to work long/overnight hours
+  var elapsedHours = (new Date() - new Date(lastOpenCheckinIso)) / 3600000;
+  return elapsedHours > 10;
+}
+function updateNightShiftCheckbox(){
+  var row = document.getElementById('nightShiftConfirmRow');
+  var chk = document.getElementById('nightShiftConfirmChk');
+  if(!row || !chk) return;
+  if(nightShiftConfirmRequired()){
+    row.style.display = 'flex';
+  } else {
+    row.style.display = 'none';
+    chk.checked = false;
+  }
+}
 
 // ---------- Manual entry requests (employee) ----------
 async function submitRequest(){
@@ -3448,7 +3512,9 @@ async function submitRequest(){
     requestedDate: requestedDate, requestedTime: requestedTime
   }); });
   if(!res.ok){
-    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.' : (res.error || 'خطای شبکه');
+    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.'
+      : res.error === 'must_be_after_last_entry' ? 'زمانی که وارد کردی زودتر از آخرین ثبت تردد شماست — همچین زمانی قابل ثبت نیست.'
+      : (res.error || 'خطای شبکه');
     alert('ارسال درخواست ناموفق بود: ' + msg);
     return false;
   }
