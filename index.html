@@ -152,6 +152,16 @@
   .cal-day.in-range{ background:#fdeee6; }
   .cal-day.range-edge{ background:var(--orange); color:#fff; font-weight:700; }
 
+  .day-nav{
+    position:fixed; bottom:0; left:0; right:0; background:var(--cyan); color:#0b3b3f;
+    display:flex; align-items:center; justify-content:space-between; padding:14px 18px; font-weight:800; font-size:13.5px; z-index:50;
+  }
+  .day-nav button{ background:none; border:none; color:#0b3b3f; font-weight:800; font-size:13px; cursor:pointer; }
+  @media print{
+    #adminGate, #empLoginGate, .hamburger-btn, .cal-icon-btn, .req-fab, .side-drawer, .drawer-overlay,
+    #tabEmpBtn, #tabAdminBtn, .req-tabs, .day-nav { display:none !important; }
+  }
+
   .hamburger-btn{
     background:var(--navy); border:1px solid var(--navy); border-radius:9px; width:38px; height:38px;
     font-size:18px; color:#fff; cursor:pointer; flex-shrink:0;
@@ -526,6 +536,10 @@ function doGet(e){
   if(action === 'projects'){
     var sh = getSheet('Projects', ['id','name','lat','lng','radius']);
     return jsonOut({ok:true, projects: readRows(sh)});
+  }
+  if(action === 'holidaysPublic'){
+    var hshp = getSheet('Holidays', ['id','jalaliDate','reason']);
+    return jsonOut({ok:true, holidays: readRows(hshp).map(function(r){ delete r._row; return r; })});
   }
 
   if(action === 'logs'){
@@ -1068,10 +1082,6 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="hamburger-btn" onclick="toggleDrawer('emp')">☰</button>
         <span>خوش آمدید، <b id="empWelcomeName"></b></span>
       </div>
-      <div class="btn-row" style="width:auto; margin:0;">
-        <button type="button" class="btn btn-ghost btn-small" onclick="refreshCurrentEmpSection()">🔄</button>
-        <button type="button" class="btn btn-ghost btn-small" onclick="employeeLogout()">خروج از حساب</button>
-      </div>
     </div>
 
     <div class="emp-section" id="empSec-checkin">
@@ -1141,6 +1151,45 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="req-fab" onclick="openAddRequestSheet()">+</div>
     </div><!-- /empSec-request -->
 
+    <div class="emp-section" id="empSec-daily" style="display:none; padding-bottom:70px;">
+    <div class="req-hero">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <button type="button" class="cal-icon-btn" onclick="openCalPicker('daily')">📅</button>
+        <div style="font-weight:800; font-size:15px;">عملکرد روزانه</div>
+        <div style="width:34px;"></div>
+      </div>
+    </div>
+    <div class="card" style="border-radius:0 0 14px 14px; margin-top:-1px;">
+      <div id="dailyStatsCards"><div class="empty">در حال بارگذاری...</div></div>
+      <div class="divider"></div>
+      <div class="eyebrow">تردد ها</div>
+      <div id="dailyTraffic" class="list-item"><div class="meta">--:-- تا --:--</div></div>
+    </div>
+    <div class="day-nav">
+      <button type="button" onclick="navDailyDay(1)">‹ روز بعد</button>
+      <div id="dailyDateLabel">—</div>
+      <button type="button" onclick="navDailyDay(-1)">روز قبل ›</button>
+    </div>
+    </div><!-- /empSec-daily -->
+
+    <div class="emp-section" id="empSec-perf" style="display:none;">
+    <div class="req-hero">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <button type="button" class="cal-icon-btn" onclick="openCalPicker('perf')">📅</button>
+        <div style="text-align:center;">
+          <div style="font-weight:800; font-size:15px;">کارکرد</div>
+          <div class="req-hero-range" id="perfRangeLabel">—</div>
+        </div>
+        <button type="button" class="cal-icon-btn" onclick="printMyPerf()" title="چاپ / ذخیره PDF">🖨️</button>
+      </div>
+    </div>
+    <div class="card" style="border-radius:0 0 14px 14px; margin-top:-1px;">
+      <div id="perfStatsCards"><div class="empty">در حال بارگذاری...</div></div>
+      <div class="divider"></div>
+      <div class="list-item"><div><b>روز کارکرد (روز)</b></div><span class="mono" id="perfWorkDays">۰</span></div>
+    </div>
+    </div><!-- /empSec-perf -->
+
     <div class="emp-section" id="empSec-leave" style="display:none;"></div>
     <div style="display:none;">
       <select id="reqType"><option value="in">ورود</option><option value="out">خروج</option></select>
@@ -1199,6 +1248,14 @@ function esh_set(sheet, rowNum, headerName, value){
             <option value="استحقاقی">استحقاقی</option>
             <option value="استعلاجی">استعلاجی</option>
             <option value="بدون‌حقوق">بدون‌حقوق</option>
+          </select>
+        </div>
+        <div id="otherCategoryBlock2" style="display:none;">
+          <label>انتخاب زیر دسته</label>
+          <select id="otherSubCategory2">
+            <option value="جابجایی شیفت">جابجایی شیفت</option>
+            <option value="تهاتر">تهاتر</option>
+            <option value="روز تعطیل">روز تعطیل</option>
           </select>
         </div>
         <label>نوع بازه</label>
@@ -1554,6 +1611,10 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="drawer-header">👷 پنل کارمند</div>
     <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon">📍</span> ثبت تردد</div>
     <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon">📨</span> درخواست‌ها</div>
+    <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon">📆</span> عملکرد روزانه</div>
+    <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon">📈</span> کارکرد</div>
+    <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
+    <div class="drawer-item" onclick="employeeLogout()"><span class="dicon">🚪</span> خروج از حساب</div>
   </div>
 
   </div><!-- /mainApp -->
@@ -1780,7 +1841,7 @@ async function checkPin(){
   }
 }
 function refreshCurrentEmpSection(){
-  var active = ['checkin','request'].find(function(s){
+  var active = ['checkin','request','daily','perf'].find(function(s){
     var sec = document.getElementById('empSec-'+s);
     return sec && sec.style.display !== 'none';
   }) || 'checkin';
@@ -1915,12 +1976,24 @@ function keyToLabel(key){
 }
 function confirmCalPicker(){
   var scope = calState.scope;
-  if(calState.rangeStart){
-    reqState[scope].dateStart = calState.rangeStart;
-    reqState[scope].dateEnd = calState.rangeEnd || calState.rangeStart;
-    var label = document.getElementById(scope+'ReqRangeLabel');
-    if(label) label.textContent = keyToLabel(calState.rangeStart) + ' تا ' + keyToLabel(calState.rangeEnd || calState.rangeStart);
+  var start = calState.rangeStart, end = calState.rangeEnd || calState.rangeStart;
+  if(!start){ closeCalPicker(); return; }
+  if(scope === 'daily'){
+    dailyViewKey = start;
+    closeCalPicker();
+    loadDailyPerf();
+    return;
   }
+  if(scope === 'perf'){
+    perfRangeStart = start; perfRangeEnd = end;
+    closeCalPicker();
+    loadMyPerf();
+    return;
+  }
+  reqState[scope].dateStart = start;
+  reqState[scope].dateEnd = end;
+  var label = document.getElementById(scope+'ReqRangeLabel');
+  if(label) label.textContent = keyToLabel(start) + ' تا ' + keyToLabel(end);
   closeCalPicker();
   renderUnifiedRequests(scope);
 }
@@ -1950,6 +2023,7 @@ function onReqCategoryChange(){
   document.getElementById('attendanceFormBlock').style.display = isAttendance ? 'block' : 'none';
   document.getElementById('leaveStyleFormBlock').style.display = isAttendance ? 'none' : 'block';
   document.getElementById('leaveCategoryBlock2').style.display = (cat === 'leave') ? 'block' : 'none';
+  document.getElementById('otherCategoryBlock2').style.display = (cat === 'other') ? 'block' : 'none';
 }
 async function submitAttendanceFromSheet(){
   document.getElementById('reqType').value = document.getElementById('reqType2').value;
@@ -1970,7 +2044,9 @@ async function submitAttendanceFromSheet(){
 async function submitLeaveFromSheet(){
   var cat = document.getElementById('newReqCategory').value; // leave|mission|overtime|other
   document.getElementById('leaveRequestType').value = cat;
-  document.getElementById('leaveCategory').value = document.getElementById('leaveCategory2').value;
+  document.getElementById('leaveCategory').value = (cat === 'other')
+    ? document.getElementById('otherSubCategory2').value
+    : document.getElementById('leaveCategory2').value;
   document.getElementById('leaveType').value = document.getElementById('leaveType2').value;
   document.getElementById('leaveStartDay').value = document.getElementById('leaveStart2Day').value;
   document.getElementById('leaveStartMonth').value = document.getElementById('leaveStart2Month').value;
@@ -1990,7 +2066,7 @@ async function submitLeaveFromSheet(){
 }
 
 function showEmpSection(name){
-  ['checkin','request'].forEach(function(s){
+  ['checkin','request','daily','perf'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -1998,6 +2074,8 @@ function showEmpSection(name){
   });
   if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); }
   else if(name === 'request') loadUnifiedRequests('emp');
+  else if(name === 'daily') loadDailyPerf();
+  else if(name === 'perf') loadMyPerf();
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
@@ -3395,12 +3473,172 @@ function exportCSV(){
 }
 
 function formatLeaveRange(r){
-  var typeLabel = r.requestType === 'mission' ? '🧳 ماموریت' : ('🏖 مرخصی'+(r.leaveCategory?(' '+r.leaveCategory):''));
+  var typeLabel;
+  if(r.requestType === 'mission') typeLabel = '🧳 ماموریت';
+  else if(r.requestType === 'overtime') typeLabel = '⏱ اضافه‌کار';
+  else if(r.requestType === 'other') typeLabel = '📋 '+(r.leaveCategory || 'سایر');
+  else typeLabel = '🏖 مرخصی'+(r.leaveCategory?(' '+r.leaveCategory):'');
   var range = (r.leaveType === 'hourly')
     ? (r.startDate + ' ساعت ' + (r.startTime||'') + ' تا ' + (r.endTime||''))
     : (r.startDate + ' تا ' + r.endDate);
   return typeLabel + ' — ' + range;
 }
+function iterateJalaliDays(startKey, endKey, callback){
+  if(!startKey || !endKey || startKey > endKey) return;
+  var y = Math.floor(startKey/10000), m = Math.floor((startKey%10000)/100), d = startKey%100;
+  var guard = 0;
+  while(guard++ < 3700){
+    var key = y*10000+m*100+d;
+    if(key > endKey) break;
+    callback(y,m,d,key);
+    d++;
+    if(d > jalaliMonthLength(m,y)){ d=1; m++; if(m>12){m=1;y++;} }
+  }
+}
+function timeToMinutesClient(hhmm){
+  var p = String(hhmm||'0:0').split(':');
+  return (parseInt(p[0],10)||0)*60 + (parseInt(p[1],10)||0);
+}
+function shiftDurationMinutes(){
+  if(!loggedInEmployee || !loggedInEmployee.shiftStart || !loggedInEmployee.shiftEnd) return 480;
+  var s = timeToMinutesClient(loggedInEmployee.shiftStart), e = timeToMinutesClient(loggedInEmployee.shiftEnd);
+  var dur = e - s;
+  if(dur <= 0) dur += 24*60;
+  return dur || 480;
+}
+function formatMinutesHHMM(mins){
+  mins = Math.round(mins||0);
+  var h = Math.floor(mins/60), m = mins%60;
+  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+}
+async function computeMyStats(startKey, endKey){
+  var logsRes = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
+  var leavesRes = await apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}); });
+  var holRes = await apiCall(function(){ return apiGet('holidaysPublic'); });
+  var logs = logsRes.ok ? (logsRes.logs||[]) : [];
+  var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved'; }) : [];
+  var holidaySet = {};
+  if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate]=true; });
+
+  var shiftDur = shiftDurationMinutes();
+  var stats = { overtimeMin:0, missionMin:0, entitledMin:0, sickMin:0, unpaidMin:0, presentDays:0, absentDays:0, workDays:0, checkinTime:'', checkoutTime:'' };
+
+  var presentDaySet = {}; var dayEntries = {};
+  logs.forEach(function(e){
+    var key = jalaliDateSortKeyClient(e.jalaliDate);
+    if(key < startKey || key > endKey) return;
+    dayEntries[key] = dayEntries[key] || [];
+    dayEntries[key].push(e);
+    if(e.type === 'ورود') presentDaySet[key] = true;
+    if(e.note){
+      var m = e.note.match(/اضافه‌کاری: (\d+)/);
+      if(m) stats.overtimeMin += parseInt(m[1],10);
+    }
+  });
+  if(startKey === endKey && dayEntries[startKey]){
+    var sorted = dayEntries[startKey].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    var firstIn = sorted.filter(function(e){ return e.type==='ورود'; })[0];
+    var outs = sorted.filter(function(e){ return e.type==='خروج'; });
+    var lastOut = outs.length ? outs[outs.length-1] : null;
+    stats.checkinTime = firstIn ? firstIn.time : '';
+    stats.checkoutTime = lastOut ? lastOut.time : '';
+  }
+  stats.presentDays = Object.keys(presentDaySet).length;
+
+  var excusedSet = {};
+  function creditDay(key, mins, requestType, leaveCategory){
+    excusedSet[key] = true;
+    if(requestType === 'mission') stats.missionMin += mins;
+    else if(leaveCategory === 'استعلاجی') stats.sickMin += mins;
+    else if(leaveCategory === 'بدون‌حقوق') stats.unpaidMin += mins;
+    else stats.entitledMin += mins;
+  }
+  leaves.forEach(function(l){
+    if(l.requestType === 'overtime' || l.requestType === 'other') return;
+    if(l.leaveType === 'hourly'){
+      var key = jalaliDateSortKeyClient(l.startDate);
+      if(key < startKey || key > endKey) return;
+      creditDay(key, Math.max(timeToMinutesClient(l.endTime) - timeToMinutesClient(l.startTime), 0), l.requestType, l.leaveCategory);
+      return;
+    }
+    var sKey = jalaliDateSortKeyClient(l.startDate), eKey = jalaliDateSortKeyClient(l.endDate);
+    iterateJalaliDays(Math.max(sKey,startKey), Math.min(eKey,endKey), function(y,m,d,key){
+      creditDay(key, shiftDur, l.requestType, l.leaveCategory);
+    });
+  });
+
+  var workDays = 0;
+  iterateJalaliDays(startKey, endKey, function(y,m,d,key){
+    var dateStr = d+' '+jMonths[m-1]+' '+y;
+    var isHoliday = holidaySet[dateStr] || isFridayJalali(y,m,d);
+    if(isHoliday) return;
+    workDays++;
+    if(!presentDaySet[key] && !excusedSet[key]) stats.absentDays++;
+  });
+
+  stats.presentMin = stats.presentDays * shiftDur;
+  stats.absentMin = stats.absentDays * shiftDur;
+  stats.workDays = workDays;
+  stats.excessMin = stats.overtimeMin; // simplification: we don't distinguish requested vs auto-detected overtime
+  return stats;
+}
+function renderStatsCards(containerId, stats){
+  var cards = [
+    {label:'حضور در شیفت', val: formatMinutesHHMM(stats.presentMin), color:'#e8e3f5'},
+    {label:'جمع غیبت و کسری کار', val: formatMinutesHHMM(stats.absentMin), color:'#e3f0e8'},
+    {label:'اضافه‌کاری', val: formatMinutesHHMM(stats.overtimeMin), color:'#f0ecd8'},
+    {label:'ماموریت', val: formatMinutesHHMM(stats.missionMin), color:'#f2e3f0'},
+    {label:'مرخصی استحقاقی', val: formatMinutesHHMM(stats.entitledMin), color:'#dbe8f2'},
+    {label:'مرخصی استعلاجی', val: formatMinutesHHMM(stats.sickMin), color:'#e2f0e5'},
+    {label:'مرخصی بدون‌حقوق', val: formatMinutesHHMM(stats.unpaidMin), color:'#f2e0dc'},
+    {label:'مازاد حضور', val: formatMinutesHHMM(stats.excessMin), color:'#e6e0f2'}
+  ];
+  document.getElementById(containerId).innerHTML = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">' +
+    cards.map(function(c){
+      return '<div style="background:'+c.color+'; border-radius:11px; padding:12px;">'+
+        '<div class="mono" style="font-weight:800; font-size:15px; color:var(--navy);">'+c.val+'</div>'+
+        '<div style="font-size:11.5px; color:#7a7360; margin-top:2px;">'+c.label+'</div></div>';
+    }).join('') + '</div>';
+}
+
+// ---------- عملکرد روزانه (daily) ----------
+var dailyViewKey = null;
+async function loadDailyPerf(){
+  if(dailyViewKey === null){
+    var today = new Date();
+    var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+    dailyViewKey = tj[0]*10000+tj[1]*100+tj[2];
+  }
+  document.getElementById('dailyDateLabel').textContent = keyToLabel(dailyViewKey);
+  var stats = await computeMyStats(dailyViewKey, dailyViewKey);
+  renderStatsCards('dailyStatsCards', stats);
+  document.getElementById('dailyTraffic').innerHTML = '<div class="meta">ورود: '+(stats.checkinTime||'--:--')+' &nbsp;|&nbsp; خروج: '+(stats.checkoutTime||'--:--')+'</div>';
+}
+function navDailyDay(dir){
+  var y=Math.floor(dailyViewKey/10000), m=Math.floor((dailyViewKey%10000)/100), d=dailyViewKey%100;
+  d += dir;
+  if(d < 1){ m--; if(m<1){m=12;y--;} d=jalaliMonthLength(m,y); }
+  else if(d > jalaliMonthLength(m,y)){ d=1; m++; if(m>12){m=1;y++;} }
+  dailyViewKey = y*10000+m*100+d;
+  loadDailyPerf();
+}
+
+// ---------- کارکرد (range) ----------
+var perfRangeStart = null, perfRangeEnd = null;
+async function loadMyPerf(){
+  if(perfRangeStart === null){
+    var today = new Date();
+    var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+    perfRangeStart = tj[0]*10000+tj[1]*100+1;
+    perfRangeEnd = tj[0]*10000+tj[1]*100+tj[2];
+  }
+  document.getElementById('perfRangeLabel').textContent = keyToLabel(perfRangeStart) + ' تا ' + keyToLabel(perfRangeEnd);
+  var stats = await computeMyStats(perfRangeStart, perfRangeEnd);
+  renderStatsCards('perfStatsCards', stats);
+  document.getElementById('perfWorkDays').textContent = stats.presentDays;
+}
+function printMyPerf(){ window.print(); }
+
 function jalaliIsLeap(jy){
   var r = jy % 33;
   return [1,5,9,13,17,22,26,30].indexOf(r) !== -1;
