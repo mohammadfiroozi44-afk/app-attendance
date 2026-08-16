@@ -1212,7 +1212,7 @@ function esh_set(sheet, rowNum, headerName, value){
       <select id="empProject" onchange="onProjectPicked()"><option value="">در حال بارگذاری...</option></select>
       <div class="hint" id="todayStatusHint" style="margin-top:-8px;">📍 در حال بررسی وضعیت امروز...</div>
       <button type="button" class="btn btn-primary" id="locateBtn" onclick="locateAndCheck()">📍 روشن کردن موقعیت مکانی</button>
-      <div class="hint" id="gpsHintText">برای ثبت تردد باید GPS/لوکیشن گوشی روشن باشد و اجازه دسترسی داده شود.</div>
+      <div class="hint" id="gpsHintText" style="display:none;"></div>
       <div id="locStatus" class="status idle" style="margin-top:12px;">موقعیت مکانی هنوز بررسی نشده است.</div>
 
       <div class="btn-row" style="display:none;">
@@ -1682,24 +1682,6 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="admin-section" id="admSec-report" style="display:none;">
 
     <div class="card">
-      <div class="eyebrow">خلاصه ماهانه عملکرد پرسنل</div>
-      <div class="hint" style="margin-top:-4px;">روز کارکرد، غیبت، مرخصی به‌تفکیک نوع، ماموریت، و اضافه‌کاری هر پرسنل در یک ماه مشخص.</div>
-      <div class="date-row">
-        <select id="summaryMonth"><option value="">ماه</option></select>
-        <select id="summaryYear"><option value="">سال</option></select>
-      </div>
-      <button type="button" class="btn btn-primary" onclick="computeMonthlySummary()">📊 نمایش خلاصه ماهانه</button>
-      <div style="overflow-x:auto; margin-top:12px;">
-        <table id="summaryTable" style="display:none;">
-          <thead><tr><th>پرسنل</th><th>حضور</th><th>غیبت</th><th>استحقاقی</th><th>استعلاجی</th><th>بدون‌حقوق</th><th>ماموریت</th><th>اضافه‌کاری</th></tr></thead>
-          <tbody id="summaryTableBody"></tbody>
-        </table>
-        <div id="summaryEmpty" class="empty">ماه و سال را انتخاب و «نمایش» را بزن</div>
-      </div>
-      <button type="button" class="btn btn-ghost" style="margin-top:10px; display:none;" id="summaryExportBtn" onclick="exportSummaryCSV()">⬇️ خروجی CSV</button>
-    </div>
-
-    <div class="card">
       <div class="eyebrow">روزهای تعطیل</div>
       <div class="hint" style="margin-top:-4px;">جمعه‌ها خودکار تشخیص داده می‌شوند. برای تعطیلات دیگر (رسمی یا موردی)، اینجا اضافه کن.</div>
       <div class="date-row">
@@ -1782,8 +1764,6 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="drawer-header">👷 پنل کارمند</div>
     <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon">📍</span> ثبت تردد</div>
     <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon">📨</span> درخواست‌ها</div>
-    <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon">📆</span> عملکرد روزانه</div>
-    <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon">📈</span> کارکرد</div>
     <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
     <div class="drawer-item" onclick="employeeLogout()"><span class="dicon">🚪</span> خروج از حساب</div>
   </div>
@@ -2013,7 +1993,7 @@ async function checkPin(){
   }
 }
 function refreshCurrentEmpSection(){
-  var active = ['checkin','request','daily','perf'].find(function(s){
+  var active = ['checkin','request'].find(function(s){
     var sec = document.getElementById('empSec-'+s);
     return sec && sec.style.display !== 'none';
   }) || 'checkin';
@@ -2292,7 +2272,7 @@ async function submitLeaveFromSheet(){
 }
 
 function showEmpSection(name){
-  ['checkin','request','daily','perf'].forEach(function(s){
+  ['checkin','request'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -2300,8 +2280,6 @@ function showEmpSection(name){
   });
   if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
-  else if(name === 'daily') loadDailyPerf();
-  else if(name === 'perf') loadMyPerf();
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
@@ -3034,11 +3012,11 @@ function applyGpsPermissionState(state){
   var hintEl = document.getElementById('gpsHintText');
   if(!hintEl) return;
   if(state === 'denied'){
-    hintEl.innerHTML = '⛔ دسترسی موقعیت مکانی برای این سایت مسدود شده. روی آیکون قفل/ⓘ کنار آدرس سایت بزن → Location → Allow کن، یا از تنظیمات گوشی → برنامه‌ها/سایت‌ها، دسترسی لوکیشن رو فعال کن.';
+    hintEl.innerHTML = '⛔ دسترسی موقعیت مکانی برای این اپ مسدود شده. از تنظیمات گوشی → برنامه‌ها → این اپ (یا مرورگر) → مجوزها → Location رو فعال کن.';
     hintEl.style.color = '#a32a2a'; hintEl.style.fontWeight = '700';
+    hintEl.style.display = 'block';
   } else {
-    hintEl.textContent = 'برای ثبت تردد باید GPS/لوکیشن گوشی روشن باشد و اجازه دسترسی داده شود.';
-    hintEl.style.color = ''; hintEl.style.fontWeight = '';
+    hintEl.style.display = 'none';
   }
 }
 function locateAndCheck(){
@@ -3089,7 +3067,7 @@ function locateAndCheck(){
   }, function(err){
     var suggestedType = (todayLastType === 'ورود') ? 'out' : 'in';
     var specificMsg;
-    if(err.code === 1) specificMsg = '⛔ دسترسی موقعیت مکانی رد شده. روی آیکون قفل/ⓘ کنار آدرس سایت بزن و Location رو Allow کن، یا از تنظیمات گوشی دسترسی لوکیشن این سایت رو فعال کن.';
+    if(err.code === 1) specificMsg = '⛔ دسترسی موقعیت مکانی رد شده. از تنظیمات گوشی → برنامه‌ها → این اپ (یا مرورگر) → مجوزها، دسترسی Location رو فعال کن.';
     else if(err.code === 2) specificMsg = '⛔ GPS گوشی خاموش است یا سیگنال ندارد. لطفاً GPS رو از نوار بالای گوشی روشن کن و دوباره تلاش کن.';
     else if(err.code === 3) specificMsg = '⛔ دریافت موقعیت مکانی خیلی طول کشید (زمان تمام شد). مطمئن شو GPS روشنه و دوباره تلاش کن.';
     else specificMsg = '⛔ دریافت موقعیت ناموفق بود: '+err.message;
@@ -3346,9 +3324,10 @@ async function loadMyLogs(){
 
   var serverHtml = displayEntries.slice(-8).map(function(e){
     var holBadge = isHolidayEntry(e) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(e))+'</span>' : '';
+    var noteDisp = displayNote(e.note);
     return '<div class="list-item"><div>'+
       '<span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span> · '+esc(e.project)+
-      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+e.jalaliDate+' — '+e.time+'</bdi>'+(e.note?(' · '+esc(e.note)):'')+holBadge+'</div></div></div>';
+      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+e.jalaliDate+' — '+e.time+'</bdi>'+(noteDisp?(' · '+esc(noteDisp)):'')+holBadge+'</div></div></div>';
   }).join('');
 
   document.getElementById('myLogs').innerHTML = (queuedHtml + serverHtml) || '<div class="empty">هنوز ثبتی وجود ندارد</div>';
@@ -3608,85 +3587,6 @@ async function loadMyLeaves(){
 }
 
 // ---------- Admin: log table ----------
-async function computeMonthlySummary(){
-  populateMonthYearFilter('summaryMonth','summaryYear');
-  var monthName = document.getElementById('summaryMonth').value;
-  var year = document.getElementById('summaryYear').value;
-  if(!monthName || !year){ alert('ماه و سال را انتخاب کنید'); return; }
-  var monthIdx = jMonths.indexOf(monthName) + 1;
-  var yearNum = parseInt(year, 10);
-  var daysInMonth = jalaliMonthLength(monthIdx, yearNum);
-  var startKey = yearNum*10000 + monthIdx*100 + 1;
-  var endKey = yearNum*10000 + monthIdx*100 + daysInMonth;
-
-  await loadShifts();
-  var empRes = await apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); });
-  var logsRes = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
-  var leavesRes = await apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); });
-  var holRes = await apiCall(function(){ return apiPost('getHolidays', {pin:adminPin}); });
-  if(!empRes.ok || !logsRes.ok){ alert('دریافت اطلاعات ناموفق بود'); return; }
-
-  var emps = empRes.employees || [];
-  var allLogs = logsRes.logs || [];
-  var allLeaves = (leavesRes.ok ? leavesRes.leaves : []).filter(function(l){ return l.status === 'approved'; });
-  var holidaySet = {};
-  if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate] = true; });
-
-  function resolveShiftDur(emp){
-    var def = (window._shifts||[]).filter(function(s){ return s.id === emp.shiftId; })[0];
-    if(def){
-      if(def.type === 'floating') return Number(def.requiredMinutes) || 480;
-      var s1 = timeToMinutesClient(def.shiftStart||''), e1 = timeToMinutesClient(def.shiftEnd||'');
-      var dur1 = e1 - s1; if(dur1 <= 0) dur1 += 1440;
-      return dur1 || 480;
-    }
-    if(emp.shiftStart && emp.shiftEnd){
-      var s2 = timeToMinutesClient(emp.shiftStart), e2 = timeToMinutesClient(emp.shiftEnd);
-      var dur2 = e2 - s2; if(dur2 <= 0) dur2 += 1440;
-      return dur2 || 480;
-    }
-    return 480;
-  }
-
-  var results = emps.map(function(emp){
-    var empLogs = allLogs.filter(function(l){ return l.username === emp.username; });
-    var empLeaves = allLeaves.filter(function(l){ return l.username === emp.username; });
-    var shiftDur = resolveShiftDur(emp);
-    var s = computeStatsGeneric(empLogs, empLeaves, holidaySet, shiftDur, startKey, endKey);
-    return {
-      fullName: emp.fullName, employeeCode: emp.employeeCode||'',
-      present: s.presentDays, absent: Math.round(s.absentMin / shiftDur),
-      entitled: Math.round(s.entitledMin / shiftDur), sick: Math.round(s.sickMin / shiftDur),
-      unpaid: Math.round(s.unpaidMin / shiftDur), mission: Math.round(s.missionMin / shiftDur),
-      overtimeMin: s.overtimeMin
-    };
-  });
-
-  window._summaryResults = results;
-  document.getElementById('summaryTable').style.display = 'table';
-  document.getElementById('summaryEmpty').style.display = 'none';
-  document.getElementById('summaryExportBtn').style.display = 'block';
-  document.getElementById('summaryTableBody').innerHTML = results.map(function(r){
-    var ot = r.overtimeMin > 0 ? (Math.floor(r.overtimeMin/60)+'س '+(r.overtimeMin%60)+'د') : '-';
-    return '<tr><td>'+esc(r.fullName)+(r.employeeCode?' ('+esc(r.employeeCode)+')':'')+'</td>'+
-      '<td>'+r.present+'</td><td>'+r.absent+'</td><td>'+r.entitled+'</td><td>'+r.sick+'</td>'+
-      '<td>'+r.unpaid+'</td><td>'+r.mission+'</td><td class="mono">'+ot+'</td></tr>';
-  }).join('');
-}
-function exportSummaryCSV(){
-  var results = window._summaryResults || [];
-  if(results.length===0){ alert('داده‌ای برای خروجی وجود ندارد'); return; }
-  var rows = [['پرسنل','کد پرسنلی','حضور','غیبت','استحقاقی','استعلاجی','بدون‌حقوق','ماموریت','اضافه‌کاری (دقیقه)']];
-  results.forEach(function(r){
-    rows.push([r.fullName, r.employeeCode, r.present, r.absent, r.entitled, r.sick, r.unpaid, r.mission, r.overtimeMin]);
-  });
-  var csv = rows.map(function(row){ return row.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
-  var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'monthly-summary.csv';
-  a.click();
-}
 async function loadFullLog(){
   var res = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
   var tbody = document.getElementById('logTableBody');
@@ -3774,7 +3674,8 @@ function renderLogTable(){
     var holHtml = isHolidayEntry(p.inE||p.outE) ? '<br><span style="color:#1f7a4d; font-size:10px;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
     function cellFor(e){
       if(!e) return '<span style="color:#b5ae98;">—</span>';
-      var noteHtml = e.note ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(e.note)+'</span>' : '';
+      var noteDisp2 = displayNote(e.note);
+      var noteHtml = noteDisp2 ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(noteDisp2)+'</span>' : '';
       var acts = e.id ? ('<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>') : '';
       return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi>'+noteHtml+'<div style="white-space:nowrap;">'+acts+'</div>';
     }
@@ -4091,6 +3992,15 @@ function populateMonthYearFilter(monthId, yearId){
   var curJY = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate())[0];
   var topYear = Math.max(1425, curJY+1);
   for(var y=topYear; y>=curJY-5; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+}
+function displayNote(rawNote){
+  if(!rawNote) return '';
+  var parts = String(rawNote).split(' | ');
+  var filtered = parts.filter(function(p){
+    var t = p.trim();
+    return t.indexOf('ویرایش‌شده توسط مدیر') !== 0 && t.indexOf('ثبت دستی (تاییدشده)') !== 0;
+  });
+  return filtered.join(' | ');
 }
 function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g, function(c){
