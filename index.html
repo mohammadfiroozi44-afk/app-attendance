@@ -974,6 +974,69 @@ function doPost(e){
     });
     return jsonOut({ok:true});
   }
+  if(action === 'submitOfflineLog'){
+    var d2 = body.entry;
+    var eshO = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var empO = readRows(eshO).filter(function(r){ return r.username === d2.username; })[0];
+    if(!empO) return jsonOut({ok:false, error:'unknown_employee'});
+    if(empO.deviceId && String(empO.deviceId) !== String(body.deviceId||'')){
+      return jsonOut({ok:false, error:'device_mismatch'});
+    }
+    var posh = getSheet('PendingOfflineLogs', ['id','username','employee','employeeCode','project','type','jalaliDate','time','clientIso','lat','lng','accuracy','reason','status','createdAt']);
+    var clientDate = new Date(d2.clientIso);
+    var pgy = clientDate.getFullYear(), pgm = clientDate.getMonth()+1, pgd = clientDate.getDate();
+    var pj = toJalaali(pgy, pgm, pgd);
+    var pjalaliDate = pj[2] + ' ' + J_MONTHS[pj[1]-1] + ' ' + pj[0];
+    var ptime = pad2(clientDate.getHours())+':'+pad2(clientDate.getMinutes())+':'+pad2(clientDate.getSeconds());
+    var poid = Utilities.getUuid();
+    var t4 = serverNow();
+    appendRowByHeader(posh, {
+      id:poid, username:d2.username, employee:empO.fullName, employeeCode: empO.employeeCode||'',
+      project:d2.project, type:d2.type, jalaliDate:pjalaliDate, time:ptime, clientIso:d2.clientIso,
+      lat:d2.lat||'', lng:d2.lng||'', accuracy:d2.accuracy||'', reason:'', status:'pending', createdAt:t4.jalaliDate
+    });
+    notifyAdmin(
+      'ثبت آفلاین جدید در انتظار بررسی — ' + empO.fullName,
+      empO.fullName + ' یک ' + (d2.type==='in'?'ورود':'خروج') + ' آفلاین (بر اساس ساعت گوشی: ' + pjalaliDate + ' ' + ptime + ') ثبت کرد که نیاز به بررسی و تایید شما داره.\n\nبرای بررسی، وارد پنل مدیریت → «تردد ناقص» شوید.'
+    );
+    return jsonOut({ok:true});
+  }
+  if(action === 'getPendingOfflineLogs'){
+    var poshG = getSheet('PendingOfflineLogs', ['id','username','employee','employeeCode','project','type','jalaliDate','time','clientIso','lat','lng','accuracy','reason','status','createdAt']);
+    var rowsG = readRows(poshG).filter(function(r){ return r.status === 'pending'; }).map(function(r){ delete r._row; return r; });
+    return jsonOut({ok:true, pending: rowsG});
+  }
+  if(action === 'approveOfflineLog'){
+    var poshA = getSheet('PendingOfflineLogs', ['id','username','employee','employeeCode','project','type','jalaliDate','time','clientIso','lat','lng','accuracy','reason','status','createdAt']);
+    var prowA = readRows(poshA).filter(function(r){ return r.id === body.id; })[0];
+    if(!prowA) return jsonOut({ok:false, error:'not found'});
+    var useDateO = body.jalaliDate || prowA.jalaliDate;
+    var useTimeO = body.time || prowA.time;
+    var isoO = jalaliDateTimeToIso(useDateO, useTimeO) || serverNow().isoTimestamp;
+    var lshO = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var empRowsO = readRows(lshO).filter(function(r){ return r.username === prowA.username; });
+    var lastO = empRowsO.length ? empRowsO.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsO.length-1] : null;
+    if(lastO && String(isoO) <= String(lastO.isoTimestamp)){
+      return jsonOut({ok:false, error:'must_be_after_last_entry'});
+    }
+    var holInfoO = getHolidayInfo(useDateO);
+    var lidO = Utilities.getUuid();
+    appendRowByHeader(lshO, {
+      id:lidO, jalaliDate:useDateO, time:useTimeO, employee:prowA.employee, username:prowA.username, project:prowA.project,
+      type: prowA.type === 'in' ? 'ورود' : 'خروج', lat:prowA.lat||'', lng:prowA.lng||'', accuracy:prowA.accuracy||'',
+      isoTimestamp:isoO, note: '⚠ ثبت آفلاین (تاییدشده توسط مدیر)', employeeCode: prowA.employeeCode || '',
+      isHoliday: holInfoO.isHoliday ? 'تعطیل' : '', holidayReason: holInfoO.reason
+    });
+    esh_set(poshA, prowA._row, 'status', 'approved');
+    return jsonOut({ok:true});
+  }
+  if(action === 'rejectOfflineLog'){
+    var poshR = getSheet('PendingOfflineLogs', ['id','username','employee','employeeCode','project','type','jalaliDate','time','clientIso','lat','lng','accuracy','reason','status','createdAt']);
+    var prowR = readRows(poshR).filter(function(r){ return r.id === body.id; })[0];
+    if(!prowR) return jsonOut({ok:false, error:'not found'});
+    esh_set(poshR, prowR._row, 'status', 'rejected');
+    return jsonOut({ok:true});
+  }
   if(action === 'recalcAllLogTimestamps'){
     var lshR = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var rowsR = readRows(lshR);
@@ -1229,6 +1292,7 @@ function esh_set(sheet, rowNum, headerName, value){
       <label>رمز عبور</label>
       <input type="password" id="empPassword" placeholder="رمز عبور">
       <button type="button" class="btn btn-primary" id="empLoginBtn" onclick="employeeLogin()">ورود</button>
+      <button type="button" class="btn btn-ghost" id="fpQuickLoginBtn" style="display:none; margin-top:8px;" onclick="tryFingerprintQuickLogin()">👆 ورود سریع با اثر انگشت</button>
       <div class="hint" id="empLoginHint" style="margin-top:10px;"></div>
     </div>
   </div>
@@ -1745,6 +1809,14 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
     </div><!-- /admSec-requests -->
 
+    <div class="admin-section" id="admSec-offline" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">تردد ناقص (آفلاین — در انتظار بررسی)</div>
+      <div class="hint" style="margin-top:-4px;">این ثبت‌ها وقتی گوشی پرسنل آفلاین بوده، بر اساس ساعت خودِ گوشی (نه سرور) ذخیره شدن. ساعت رو بررسی/اصلاح کن، بعد تایید یا رد کن.</div>
+      <div id="pendingOfflineList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    </div><!-- /admSec-offline -->
+
     <div class="admin-section" id="admSec-report" style="display:none;">
 
     <div class="card">
@@ -1819,6 +1891,7 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="drawer-item" id="admMenu-employees" onclick="showAdminSection('employees')"><span class="dicon">👥</span> پرسنل</div>
     <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon">📍</span> پروژه‌ها</div>
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon">📨</span> درخواست‌ها</div>
+    <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon">📴</span> تردد ناقص</div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon">📊</span> گزارش</div>
     <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon">⚙️</span> تنظیمات</div>
     <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon">🕐</span> ثبت تردد</div>
@@ -1870,6 +1943,26 @@ async function detectFingerprintSupport(){
     if(!window.PublicKeyCredential || !PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
     return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
   }catch(e){ return false; }
+}
+async function hashCreds(str){
+  var enc = new TextEncoder().encode(str);
+  var buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+async function cacheEmployeeCreds(username, password, empData){
+  try{
+    var hash = await hashCreds(username.toLowerCase()+':'+password);
+    localStorage.setItem('cachedEmpAuth', JSON.stringify({username:username, hash:hash, empData:empData}));
+  }catch(e){}
+}
+function getCachedEmpAuth(){
+  try{ return JSON.parse(localStorage.getItem('cachedEmpAuth')||'null'); }catch(e){ return null; }
+}
+async function tryOfflineEmployeeLogin(username, password){
+  var cached = getCachedEmpAuth();
+  if(!cached || cached.username.toLowerCase() !== username.toLowerCase()) return null;
+  var hash = await hashCreds(username.toLowerCase()+':'+password);
+  return (hash === cached.hash) ? cached.empData : null;
 }
 async function verifyFingerprint(){
   // Triggers a real OS-level biometric/PIN prompt via WebAuthn. We don't need to keep the
@@ -1999,27 +2092,12 @@ function switchTab(which){
 }
 
 // ---------- Employee login ----------
-async function employeeLogin(){
-  var username = document.getElementById('empUsername').value.trim();
-  var password = document.getElementById('empPassword').value.trim();
-  if(!username || !password) return;
-  var btn = document.getElementById('empLoginBtn');
-  btn.disabled = true; btn.textContent = 'در حال ورود...';
-  var res = await apiCall(function(){ return apiPost('login', {username:username, password:password, deviceId: DEVICE_ID}); });
-  btn.disabled = false; btn.textContent = 'ورود';
-  if(!res.ok){
-    var msg = 'نام کاربری یا رمز عبور اشتباه است.';
-    if(res.error === 'device_mismatch') msg = '⛔ این حساب قبلاً روی یک گوشی دیگر فعال شده. برای تغییر گوشی، از مدیر بخواهید دستگاه این حساب را ریست کند.';
-    else if(res.error && res.error !== 'invalid_credentials') msg = 'خطا: ' + res.error;
-    document.getElementById('empLoginHint').textContent = msg;
-    document.getElementById('empLoginHint').style.color = '#a32a2a';
-    return;
-  }
-  loggedInEmployee = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || '', shiftType: res.shiftType||'', shiftStart: res.shiftStart||'', shiftEnd: res.shiftEnd||'', shiftRequiredMinutes: res.shiftRequiredMinutes||''};
+function enterEmployeeSession(empData){
+  loggedInEmployee = empData;
   localStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
   document.getElementById('empUsername').value='';
   document.getElementById('empPassword').value='';
-  document.getElementById('empWelcomeName').textContent = res.fullName + (res.employeeCode ? ' (کد '+res.employeeCode+')' : '');
+  document.getElementById('empWelcomeName').textContent = empData.fullName + (empData.employeeCode ? ' (کد '+empData.employeeCode+')' : '');
   document.getElementById('empLoginGate').style.display='none';
   document.getElementById('empView').style.display='block';
   loadProjectsPublic();
@@ -2031,11 +2109,57 @@ async function employeeLogin(){
   if(window.refreshSwipeState) refreshSwipeState();
   checkGpsPermissionHint();
 }
+async function employeeLogin(){
+  var username = document.getElementById('empUsername').value.trim();
+  var password = document.getElementById('empPassword').value.trim();
+  if(!username || !password) return;
+  var btn = document.getElementById('empLoginBtn');
+  btn.disabled = true; btn.textContent = 'در حال ورود...';
+  var res = await apiCall(function(){ return apiPost('login', {username:username, password:password, deviceId: DEVICE_ID}); });
+  btn.disabled = false; btn.textContent = 'ورود';
+
+  if(!res.ok && res.networkError){
+    // offline — try cached credentials from a previous successful online login
+    var cachedData = await tryOfflineEmployeeLogin(username, password);
+    if(cachedData){
+      enterEmployeeSession(cachedData);
+      return;
+    }
+    document.getElementById('empLoginHint').textContent = '⛔ اینترنت وصل نیست و اطلاعات ورود محلی یافت نشد (یا اشتباه است). یک‌بار باید آنلاین وارد شوید.';
+    document.getElementById('empLoginHint').style.color = '#a32a2a';
+    return;
+  }
+  if(!res.ok){
+    var msg = 'نام کاربری یا رمز عبور اشتباه است.';
+    if(res.error === 'device_mismatch') msg = '⛔ این حساب قبلاً روی یک گوشی دیگر فعال شده. برای تغییر گوشی، از مدیر بخواهید دستگاه این حساب را ریست کند.';
+    else if(res.error && res.error !== 'invalid_credentials') msg = 'خطا: ' + res.error;
+    document.getElementById('empLoginHint').textContent = msg;
+    document.getElementById('empLoginHint').style.color = '#a32a2a';
+    return;
+  }
+  var empData = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || '', shiftType: res.shiftType||'', shiftStart: res.shiftStart||'', shiftEnd: res.shiftEnd||'', shiftRequiredMinutes: res.shiftRequiredMinutes||''};
+  await cacheEmployeeCreds(username, password, empData);
+  enterEmployeeSession(empData);
+}
+async function tryFingerprintQuickLogin(){
+  var cached = getCachedEmpAuth();
+  if(!cached){ alert('هنوز هیچ ورود قبلی روی این گوشی ذخیره نشده. یک‌بار باید با نام کاربری/رمز آنلاین وارد شوی.'); return; }
+  var ok = await verifyFingerprint();
+  if(!ok){ document.getElementById('empLoginHint').textContent = 'تایید اثر انگشت ناموفق بود یا لغو شد.'; document.getElementById('empLoginHint').style.color = '#a32a2a'; return; }
+  enterEmployeeSession(cached.empData);
+}
+function updateFpQuickLoginVisibility(){
+  var btn = document.getElementById('fpQuickLoginBtn');
+  if(!btn) return;
+  var cached = getCachedEmpAuth();
+  btn.style.display = (cached && deviceHasFingerprint) ? 'block' : 'none';
+}
 function employeeLogout(){
   loggedInEmployee = null;
   localStorage.removeItem('loggedInEmployee');
   document.getElementById('empLoginGate').style.display='block';
   document.getElementById('empView').style.display='none';
+  updateFpQuickLoginVisibility();
 }
 
 // ---------- Admin PIN ----------
@@ -2358,14 +2482,14 @@ function showEmpSection(name){
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
-  var active = ['dashboard','shifts','employees','projects','requests','report','settings'].find(function(s){
+  var active = ['dashboard','shifts','employees','projects','requests','offline','report','settings'].find(function(s){
     var sec = document.getElementById('admSec-'+s);
     return sec && sec.style.display !== 'none';
   }) || 'dashboard';
   refreshAdminSection(active);
 }
 function showAdminSection(name){
-  ['dashboard','shifts','employees','projects','requests','report','settings'].forEach(function(s){
+  ['dashboard','shifts','employees','projects','requests','offline','report','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -2378,6 +2502,7 @@ function showAdminSection(name){
 async function refreshAdminSection(name){
   if(name === 'dashboard') await loadDashboard();
   else if(name === 'shifts') await loadShifts();
+  else if(name === 'offline') await loadPendingOffline();
   else if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
   else if(name === 'requests'){ await loadAdminRequests(); await loadAdminLeaves(); }
@@ -2771,6 +2896,80 @@ async function resetDevice(id){
 }
 
 // ---------- Manual entry requests (admin review) ----------
+var editingOfflineId = null;
+async function loadPendingOffline(){
+  var box = document.getElementById('pendingOfflineList');
+  var res = await apiCall(function(){ return apiPost('getPendingOfflineLogs', {pin:adminPin}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت ناموفق بود</div>'; return; }
+  window._pendingOffline = res.pending || [];
+  renderPendingOffline();
+}
+function renderPendingOffline(){
+  var box = document.getElementById('pendingOfflineList');
+  var list = window._pendingOffline || [];
+  if(list.length === 0){ box.innerHTML = '<div class="empty">موردی در انتظار بررسی نیست</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    if(r.id === editingOfflineId){
+      var edp = parseJalaliDateStr(r.jalaliDate);
+      var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
+      var dayOpts = ''; for(var dd=1; dd<=31; dd++){ dayOpts += '<option value="'+dd+'"'+(edp && String(dd)===edp.day?' selected':'')+'>'+dd+'</option>'; }
+      var monthOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(edp && m===edp.month?' selected':'')+'>'+m+'</option>'; }).join('');
+      var yearOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
+      return '<div class="list-item"><div style="width:100%;">'+
+        '<b>'+esc(r.employee)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+        '<div class="hint" style="margin:4px 0;">ادعای گوشی: '+r.jalaliDate+' — '+r.time+'</div>'+
+        '<div style="display:flex; gap:6px; flex-wrap:wrap; margin:6px 0;">'+
+          '<select id="offEditDay-'+r.id+'" style="width:64px;">'+dayOpts+'</select>'+
+          '<select id="offEditMonth-'+r.id+'" style="width:100px;">'+monthOpts+'</select>'+
+          '<select id="offEditYear-'+r.id+'" style="width:80px;">'+yearOpts+'</select>'+
+          '<input type="time" id="offEditTime-'+r.id+'" step="1" value="'+esc(r.time)+'" class="field-mono" style="width:110px;">'+
+        '</div>'+
+        '<div class="btn-row">'+
+          '<button type="button" class="btn btn-in btn-small" onclick="decideOfflineLog(\''+r.id+'\',true)">✅ تایید با این ساعت</button>'+
+          '<button type="button" class="btn btn-ghost btn-small" onclick="editingOfflineId=null; renderPendingOffline();">لغو</button>'+
+        '</div></div></div>';
+    }
+    return '<div class="list-item"><div>'+
+      '<b>'+esc(r.employee)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+      '<div class="meta">ادعای گوشی: '+r.jalaliDate+' — '+r.time+'</div></div>'+
+      '<div class="btn-row" style="width:auto;">'+
+        '<button type="button" class="btn btn-in btn-small" onclick="editingOfflineId=\''+r.id+'\'; renderPendingOffline();">✏️ بررسی</button>'+
+        '<button type="button" class="btn btn-ghost btn-small" onclick="decideOfflineLog(\''+r.id+'\',false)">رد</button>'+
+      '</div></div>';
+  }).join('');
+}
+async function decideOfflineLog(id, approve){
+  if(!approve){
+    if(!confirm('این ثبت آفلاین رد بشه؟')) return;
+    var res0 = await apiCall(function(){ return apiPost('rejectOfflineLog', {pin:adminPin, id:id}); });
+    if(!res0.ok){ showAdminNotice('عملیات ناموفق بود: ' + (res0.error||'')); return; }
+    clearAdminNotice();
+    editingOfflineId = null;
+    await loadPendingOffline();
+    return;
+  }
+  var payload = {pin:adminPin, id:id};
+  var daySel = document.getElementById('offEditDay-'+id);
+  if(daySel){
+    var monthIdx = parseInt(document.getElementById('offEditMonth-'+id).value, 10);
+    payload.jalaliDate = daySel.value + ' ' + jMonths[monthIdx-1] + ' ' + document.getElementById('offEditYear-'+id).value;
+    var tp = document.getElementById('offEditTime-'+id).value.split(':');
+    var hh = tp[0]||'00'; if(hh.length<2) hh='0'+hh;
+    var mm = tp[1]||'00'; if(mm.length<2) mm='0'+mm;
+    var ss = tp[2]||'00'; if(ss.length<2) ss='0'+ss;
+    payload.time = hh+':'+mm+':'+ss;
+  }
+  var res = await apiCall(function(){ return apiPost('approveOfflineLog', payload); });
+  if(!res.ok){
+    var msg = res.error === 'must_be_after_last_entry' ? 'این ساعت زودتر از آخرین ثبت موجود این پرسنله — ساعت رو اصلاح کن.' : (res.error||'');
+    showAdminNotice('تایید ناموفق بود: ' + msg);
+    return;
+  }
+  clearAdminNotice();
+  editingOfflineId = null;
+  await loadPendingOffline();
+  await loadFullLog();
+}
 async function loadAdminRequests(){
   var res = await apiCall(function(){ return apiPost('getRequests', {pin:adminPin}); });
   if(!res.ok){
@@ -3297,11 +3496,11 @@ async function syncOfflineQueue(){
   var syncedAny = false;
   for(var i=0;i<q.length;i++){
     var item = q[i];
-    var res = await apiCall(function(){ return apiPost('addLog', {entry:item.entry, deviceId:item.deviceId, project_id:item.project_id, offline:true}); });
+    var res = await apiCall(function(){ return apiPost('submitOfflineLog', {entry:item.entry, deviceId:item.deviceId, project_id:item.project_id}); });
     if(!res.ok && res.networkError){
       remaining.push(item); // still offline — try again next time
     } else {
-      syncedAny = true; // either synced ok, or the server rejected it for a real reason (e.g. stale toggle state) — either way, drop from queue
+      syncedAny = true; // sent for admin review, or the server rejected it for a real reason — either way, drop from local queue
     }
   }
   setOfflineQueue(remaining);
@@ -3596,7 +3795,7 @@ async function loadDashboard(){
   todayLogs.forEach(function(e){ if(e.type === 'ورود') presentUsersToday[e.username] = true; });
   var presentCount = Object.keys(presentUsersToday).length;
 
-  var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved'; }) : [];
+  var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved' && (l.requestType==='leave' || l.requestType==='mission' || !l.requestType); }) : [];
   var todayKey = jalaliDateSortKeyClient(todayStr);
   var onLeaveUsers = {};
   leaves.forEach(function(l){
@@ -3842,6 +4041,8 @@ function renderLogTable(){
         '</div></td></tr>';
     }
     var holHtml = isHolidayEntry(p.inE||p.outE) ? '<br><span style="color:#1f7a4d; font-size:10px;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
+    var isOvernight = p.inE && p.outE && timeToMinutesClient(p.outE.time) < timeToMinutesClient(p.inE.time);
+    var nightHtml = isOvernight ? '<br><span style="color:#3b4a8f; font-size:10px;">🌙 شیفت شبانه</span>' : '';
     function cellFor(e){
       if(!e) return '<span style="color:#b5ae98;">—</span>';
       var noteDisp2 = displayNote(e.note);
@@ -3850,7 +4051,7 @@ function renderLogTable(){
     }
     var pairActions = '<button class="icon-btn edit" title="ویرایش" onclick="startEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✏️</button>'+
       '<button class="icon-btn del" title="حذف" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
-    return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+'</td>'+
+    return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+nightHtml+'</td>'+
       '<td>'+esc(p.employee)+'</td><td>'+esc(p.project)+'</td>'+
       '<td>'+cellFor(p.inE)+'</td><td>'+cellFor(p.outE)+'</td>'+
       '<td style="white-space:nowrap;">'+pairActions+'</td></tr>';
@@ -4217,7 +4418,7 @@ function init(){
     document.getElementById('mainApp').style.display='none';
     return;
   }
-  detectFingerprintSupport().then(function(v){ deviceHasFingerprint = v; });
+  detectFingerprintSupport().then(function(v){ deviceHasFingerprint = v; updateFpQuickLoginVisibility(); });
   document.getElementById('setupScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
 
