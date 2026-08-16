@@ -688,8 +688,11 @@ function doPost(e){
       if(!lastEntry || lastEntry.type === 'خروج'){
         return jsonOut({ok:false, error:'not_checked_in'});
       }
-      var hoursSinceIn = (new Date(t.isoTimestamp).getTime() - new Date(lastEntry.isoTimestamp).getTime()) / 3600000;
-      if(hoursSinceIn > 24){
+      var minutesSinceIn = (new Date(t.isoTimestamp).getTime() - new Date(lastEntry.isoTimestamp).getTime()) / 60000;
+      if(minutesSinceIn < 5){
+        return jsonOut({ok:false, error:'checkout_too_soon'});
+      }
+      if(minutesSinceIn > 12*60){
         return jsonOut({ok:false, error:'checkout_expired'});
       }
     }
@@ -1162,7 +1165,7 @@ function esh_set(sheet, rowNum, headerName, value){
       <select id="empProject" onchange="onProjectPicked()"><option value="">در حال بارگذاری...</option></select>
       <div class="hint" id="todayStatusHint" style="margin-top:-8px;">📍 در حال بررسی وضعیت امروز...</div>
       <button type="button" class="btn btn-primary" id="locateBtn" onclick="locateAndCheck()">📍 روشن کردن موقعیت مکانی</button>
-      <div class="hint">برای ثبت تردد باید GPS/لوکیشن گوشی روشن باشد و اجازه دسترسی داده شود.</div>
+      <div class="hint" id="gpsHintText">برای ثبت تردد باید GPS/لوکیشن گوشی روشن باشد و اجازه دسترسی داده شود.</div>
       <div id="locStatus" class="status idle" style="margin-top:12px;">موقعیت مکانی هنوز بررسی نشده است.</div>
 
       <div class="btn-row" style="display:none;">
@@ -1360,6 +1363,7 @@ function esh_set(sheet, rowNum, headerName, value){
         <span>ش</span><span>ی</span><span>د</span><span>س</span><span>چ</span><span>پ</span><span>ج</span>
       </div>
       <div class="cal-days" id="calDaysGrid"></div>
+      <div id="calStatusLine" class="hint" style="margin:6px 14px 0; text-align:center; font-weight:700;">روز شروع بازه رو انتخاب کن</div>
       <div class="hint" style="margin:8px 14px 0;">یک روز برای انتخاب تکی، یا دو روز برای بازه بزن.</div>
       <button type="button" class="btn btn-primary" style="margin:10px 14px 14px; width:calc(100% - 28px);" onclick="confirmCalPicker()">تایید</button>
     </div>
@@ -1905,6 +1909,7 @@ async function employeeLogin(){
   loadMyLeaves();
   initCheckinMap();
   if(window.refreshSwipeState) refreshSwipeState();
+  checkGpsPermissionHint();
 }
 function employeeLogout(){
   loggedInEmployee = null;
@@ -2022,6 +2027,7 @@ function openCalPicker(scope){
   calState.viewYear = tj[0]; calState.viewMonth = tj[1];
   calState.rangeStart = null; calState.rangeEnd = null;
   renderCalGrid();
+  updateCalStatusLine();
   document.getElementById('calOverlay').classList.add('open');
   document.getElementById('calModal').classList.add('open');
 }
@@ -2060,10 +2066,26 @@ function renderCalGrid(){
 }
 function calDayClick(d){
   var key = calState.viewYear*10000 + calState.viewMonth*100 + d;
-  if(!calState.rangeStart || calState.rangeEnd){ calState.rangeStart = key; calState.rangeEnd = null; }
-  else if(key < calState.rangeStart){ calState.rangeEnd = calState.rangeStart; calState.rangeStart = key; }
-  else { calState.rangeEnd = key; }
+  if(calState.rangeStart === null){
+    calState.rangeStart = key;
+    calState.rangeEnd = null;
+  } else if(calState.rangeEnd === null){
+    if(key < calState.rangeStart){ calState.rangeEnd = calState.rangeStart; calState.rangeStart = key; }
+    else { calState.rangeEnd = key; }
+  } else {
+    // a full range was already picked — tapping again starts a fresh selection
+    calState.rangeStart = key;
+    calState.rangeEnd = null;
+  }
   renderCalGrid();
+  updateCalStatusLine();
+}
+function updateCalStatusLine(){
+  var el = document.getElementById('calStatusLine');
+  if(!el) return;
+  if(calState.rangeStart === null) el.textContent = 'روز شروع بازه رو انتخاب کن';
+  else if(calState.rangeEnd === null) el.textContent = 'شروع: '+keyToLabel(calState.rangeStart)+' — حالا روز پایان رو بزن (برای تک‌روز، دوباره همون روز رو بزن)';
+  else el.textContent = 'بازه: '+keyToLabel(calState.rangeStart)+' تا '+keyToLabel(calState.rangeEnd);
 }
 function keyToLabel(key){
   var y = Math.floor(key/10000), m = Math.floor((key%10000)/100), d = key%100;
@@ -2167,7 +2189,7 @@ function showEmpSection(name){
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
     if(btn) btn.classList.toggle('active', s===name);
   });
-  if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); }
+  if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
   else if(name === 'daily') loadDailyPerf();
   else if(name === 'perf') loadMyPerf();
@@ -2883,6 +2905,33 @@ function goToManualRequest(type){
   if(typeSel) typeSel.value = type;
   document.getElementById('reqReason') && document.getElementById('reqReason').focus();
 }
+async function checkGpsPermissionHint(){
+  var hintEl = document.getElementById('gpsHintText');
+  if(!hintEl) return;
+  if(!navigator.geolocation){
+    hintEl.innerHTML = '⛔ مرورگر شما از موقعیت مکانی پشتیبانی نمی‌کند.';
+    hintEl.style.color = '#a32a2a'; hintEl.style.fontWeight = '700';
+    return;
+  }
+  if(navigator.permissions && navigator.permissions.query){
+    try{
+      var status = await navigator.permissions.query({name:'geolocation'});
+      applyGpsPermissionState(status.state);
+      status.onchange = function(){ applyGpsPermissionState(status.state); };
+    }catch(e){}
+  }
+}
+function applyGpsPermissionState(state){
+  var hintEl = document.getElementById('gpsHintText');
+  if(!hintEl) return;
+  if(state === 'denied'){
+    hintEl.innerHTML = '⛔ دسترسی موقعیت مکانی برای این سایت مسدود شده. روی آیکون قفل/ⓘ کنار آدرس سایت بزن → Location → Allow کن، یا از تنظیمات گوشی → برنامه‌ها/سایت‌ها، دسترسی لوکیشن رو فعال کن.';
+    hintEl.style.color = '#a32a2a'; hintEl.style.fontWeight = '700';
+  } else {
+    hintEl.textContent = 'برای ثبت تردد باید GPS/لوکیشن گوشی روشن باشد و اجازه دسترسی داده شود.';
+    hintEl.style.color = ''; hintEl.style.fontWeight = '';
+  }
+}
 function locateAndCheck(){
   var selIdx = document.getElementById('empProject').value;
   if(selIdx === '' || !projects[selIdx]){
@@ -2930,7 +2979,12 @@ function locateAndCheck(){
     if(window.refreshSwipeState) refreshSwipeState();
   }, function(err){
     var suggestedType = (todayLastType === 'ورود') ? 'out' : 'in';
-    setStatus('⛔ دریافت موقعیت ناموفق بود: '+err.message+'<br>لطفاً GPS را روشن و دسترسی مرورگر را تایید کنید.<br><br>'+
+    var specificMsg;
+    if(err.code === 1) specificMsg = '⛔ دسترسی موقعیت مکانی رد شده. روی آیکون قفل/ⓘ کنار آدرس سایت بزن و Location رو Allow کن، یا از تنظیمات گوشی دسترسی لوکیشن این سایت رو فعال کن.';
+    else if(err.code === 2) specificMsg = '⛔ GPS گوشی خاموش است یا سیگنال ندارد. لطفاً GPS رو از نوار بالای گوشی روشن کن و دوباره تلاش کن.';
+    else if(err.code === 3) specificMsg = '⛔ دریافت موقعیت مکانی خیلی طول کشید (زمان تمام شد). مطمئن شو GPS روشنه و دوباره تلاش کن.';
+    else specificMsg = '⛔ دریافت موقعیت ناموفق بود: '+err.message;
+    setStatus(specificMsg+'<br><br>'+
       '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\''+suggestedType+'\')">📨 به‌جاش درخواست ثبت دستی بفرست</button>', 'err');
     if(locBadge) locBadge.textContent = '⛔ دریافت موقعیت ناموفق بود';
     if(window.refreshSwipeState) refreshSwipeState();
@@ -3133,8 +3187,12 @@ async function submitEntry(type){
     if(res.error === 'fingerprint_required') msg = 'تایید اثر انگشت لازم است. دوباره تلاش کنید.';
     if(res.error === 'already_checked_in') msg = 'شما قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
     if(res.error === 'not_checked_in') msg = 'شما هنوز ورود نزده‌اید — ابتدا ورود بزنید.';
+    if(res.error === 'checkout_too_soon'){
+      setStatus('⛔ حداقل باید ۵ دقیقه از ثبت ورودتان بگذرد تا بتوانید خروج بزنید.', 'err');
+      return;
+    }
     if(res.error === 'checkout_expired'){
-      setStatus('⛔ بیش از ۲۴ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید.<br><br>'+
+      setStatus('⛔ بیش از ۱۲ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید و باید تایم را دستی ثبت کنید.<br><br>'+
         '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\'out\')">📨 درخواست ثبت دستی خروج بفرست</button>', 'err');
       return;
     }
@@ -3708,20 +3766,33 @@ async function computeMyStats(startKey, endKey){
   if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate]=true; });
 
   var shiftDur = shiftDurationMinutes();
-  var stats = { overtimeMin:0, missionMin:0, entitledMin:0, sickMin:0, unpaidMin:0, presentDays:0, absentDays:0, workDays:0, checkinTime:'', checkoutTime:'' };
+  var stats = { overtimeMin:0, missionMin:0, entitledMin:0, sickMin:0, unpaidMin:0, presentDays:0, absentMin:0, presentMin:0, workDays:0, checkinTime:'', checkoutTime:'' };
 
-  var presentDaySet = {}; var dayEntries = {};
+  var dayEntries = {};
   logs.forEach(function(e){
     var key = jalaliDateSortKeyClient(e.jalaliDate);
     if(key < startKey || key > endKey) return;
     dayEntries[key] = dayEntries[key] || [];
     dayEntries[key].push(e);
-    if(e.type === 'ورود') presentDaySet[key] = true;
     if(e.note){
       var m = e.note.match(/اضافه‌کاری: (\d+)/);
       if(m) stats.overtimeMin += parseInt(m[1],10);
     }
   });
+
+  // precise worked-minutes for a given day by pairing consecutive ورود->خروج entries
+  var todayKeyNow = (function(){ var n=new Date(); var tj=toJalaali(n.getFullYear(),n.getMonth()+1,n.getDate()); return tj[0]*10000+tj[1]*100+tj[2]; })();
+  function workedMinutesForDay(key){
+    var entries = (dayEntries[key]||[]).slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    var total = 0, openIn = null;
+    entries.forEach(function(e){
+      if(e.type === 'ورود'){ openIn = e.isoTimestamp; }
+      else if(e.type === 'خروج' && openIn){ total += (new Date(e.isoTimestamp) - new Date(openIn)) / 60000; openIn = null; }
+    });
+    if(openIn && key === todayKeyNow){ total += (new Date() - new Date(openIn)) / 60000; } // still checked in today
+    return Math.max(total, 0);
+  }
+
   if(startKey === endKey && dayEntries[startKey]){
     var sorted = dayEntries[startKey].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
     var firstIn = sorted.filter(function(e){ return e.type==='ورود'; })[0];
@@ -3730,11 +3801,10 @@ async function computeMyStats(startKey, endKey){
     stats.checkinTime = firstIn ? firstIn.time : '';
     stats.checkoutTime = lastOut ? lastOut.time : '';
   }
-  stats.presentDays = Object.keys(presentDaySet).length;
 
-  var excusedSet = {};
+  var excusedMinByDay = {};
   function creditDay(key, mins, requestType, leaveCategory){
-    excusedSet[key] = true;
+    excusedMinByDay[key] = (excusedMinByDay[key]||0) + mins;
     if(requestType === 'mission') stats.missionMin += mins;
     else if(leaveCategory === 'استعلاجی') stats.sickMin += mins;
     else if(leaveCategory === 'بدون‌حقوق') stats.unpaidMin += mins;
@@ -3756,17 +3826,20 @@ async function computeMyStats(startKey, endKey){
 
   var workDays = 0;
   iterateJalaliDays(startKey, endKey, function(y,m,d,key){
+    var workedMin = workedMinutesForDay(key);
+    stats.presentMin += workedMin;
+    if(workedMin > 0) stats.presentDays++;
     var dateStr = d+' '+jMonths[m-1]+' '+y;
     var isHoliday = holidaySet[dateStr] || isFridayJalali(y,m,d);
     if(isHoliday) return;
     workDays++;
-    if(!presentDaySet[key] && !excusedSet[key]) stats.absentDays++;
+    var excused = excusedMinByDay[key] || 0;
+    var credited = workedMin + excused;
+    if(credited < shiftDur){ stats.absentMin += (shiftDur - credited); }
   });
 
-  stats.presentMin = stats.presentDays * shiftDur;
-  stats.absentMin = stats.absentDays * shiftDur;
   stats.workDays = workDays;
-  stats.excessMin = stats.overtimeMin; // simplification: we don't distinguish requested vs auto-detected overtime
+  stats.excessMin = stats.overtimeMin;
   return stats;
 }
 function renderStatsCards(containerId, stats){
@@ -3933,6 +4006,7 @@ function init(){
       loadMyLeaves();
       initCheckinMap();
       if(window.refreshSwipeState) refreshSwipeState();
+      checkGpsPermissionHint();
       if(navigator.onLine) syncOfflineQueue();
     }catch(e){}
   }
