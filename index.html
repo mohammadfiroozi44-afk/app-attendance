@@ -957,6 +957,25 @@ function doPost(e){
     });
     return jsonOut({ok:true});
   }
+  if(action === 'recalcAllLogTimestamps'){
+    var lshR = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var rowsR = readRows(lshR);
+    var fixedCount = 0;
+    rowsR.forEach(function(r){
+      var newIsoR = jalaliDateTimeToIso(r.jalaliDate, r.time);
+      var holInfoR = getHolidayInfo(r.jalaliDate);
+      if(newIsoR && newIsoR !== r.isoTimestamp){
+        lshR.getRange(r._row, colIndex(lshR,'isoTimestamp')).setValue(newIsoR);
+        fixedCount++;
+      }
+      var wantHoliday = holInfoR.isHoliday ? 'تعطیل' : '';
+      if(String(r.isHoliday||'') !== wantHoliday || String(r.holidayReason||'') !== holInfoR.reason){
+        lshR.getRange(r._row, colIndex(lshR,'isHoliday')).setValue(wantHoliday);
+        lshR.getRange(r._row, colIndex(lshR,'holidayReason')).setValue(holInfoR.reason);
+      }
+    });
+    return jsonOut({ok:true, total: rowsR.length, fixed: fixedCount});
+  }
   if(action === 'getHolidays'){
     var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
     return jsonOut({ok:true, holidays: readRows(hsh).map(function(r){ delete r._row; return r; })});
@@ -1634,6 +1653,12 @@ function esh_set(sheet, rowNum, headerName, value){
           Allow رو بزن. اگه ایمیل تستی رسید یعنی درست شده.
         </p>
       </details>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">تعمیر داده‌های قدیمی</div>
+      <div class="hint" style="margin-top:-4px;">ثبت‌هایی که قبل از آخرین آپدیت‌ها ویرایش یا تایید شدن، ممکنه ترتیب یا علامت تعطیلشون درست نباشه. این دکمه همه‌ی ثبت‌های گزارش رو یک‌بار بازمحاسبه می‌کنه (بر اساس تاریخ/ساعت فعلیشون) — بدون تغییر تاریخ/ساعت/پرسنل هیچ‌کدوم.</div>
+      <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
     </div>
     </div><!-- /admSec-settings -->
 
@@ -2341,6 +2366,17 @@ async function setPin(){
   sessionStorage.setItem('adminUsername', adminUsername);
   document.getElementById('curPin').value=''; document.getElementById('newPin').value=''; document.getElementById('newAdminUsername').value='';
   alert('تغییرات ذخیره شد.');
+}
+async function recalcAllTimestamps(){
+  if(!confirm('این کار ممکنه چند ثانیه طول بکشه (بسته به تعداد ثبت‌ها). ادامه بدم؟')) return;
+  var btn = event.target;
+  btn.disabled = true; btn.textContent = 'در حال بازمحاسبه...';
+  var res = await apiCall(function(){ return apiPost('recalcAllLogTimestamps', {pin:adminPin}); });
+  btn.disabled = false; btn.textContent = '🔧 بازمحاسبه همه ثبت‌های گزارش';
+  if(!res.ok){ showAdminNotice('بازمحاسبه ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  alert('انجام شد. از '+res.total+' ثبت، '+res.fixed+' مورد اصلاح شد.');
+  refreshCurrentAdminSection();
 }
 async function saveNotifyEmail(){
   var email = document.getElementById('notifyEmail').value.trim();
@@ -3322,12 +3358,16 @@ async function loadMyLogs(){
       ' · <span style="color:#8a5a10;">⏳ در انتظار همگام‌سازی</span></div></div>';
   }).join('');
 
-  var serverHtml = displayEntries.slice(-8).map(function(e){
-    var holBadge = isHolidayEntry(e) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(e))+'</span>' : '';
-    var noteDisp = displayNote(e.note);
+  var serverHtml = pairLogEntriesForDisplay(displayEntries).slice(-8).map(function(p){
+    var holBadge = isHolidayEntry(p.inE||p.outE) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
+    var inNote = p.inE ? displayNote(p.inE.note) : '';
+    var outNote = p.outE ? displayNote(p.outE.note) : '';
+    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
+    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
     return '<div class="list-item"><div>'+
-      '<span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span> · '+esc(e.project)+
-      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+e.jalaliDate+' — '+e.time+'</bdi>'+(noteDisp?(' · '+esc(noteDisp)):'')+holBadge+'</div></div></div>';
+      '<b>'+esc(p.project)+'</b>'+holBadge+
+      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi></div>'+
+      '<div class="meta">'+inHtml+'</div><div class="meta">'+outHtml+'</div></div></div>';
   }).join('');
 
   document.getElementById('myLogs').innerHTML = (queuedHtml + serverHtml) || '<div class="empty">هنوز ثبتی وجود ندارد</div>';
