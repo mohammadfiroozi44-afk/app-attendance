@@ -512,9 +512,45 @@ function getEffectiveShift(username, jalaliDateStr, emp){
   }
   return {type:'simple', shiftStart: emp.shiftStart, shiftEnd: emp.shiftEnd, shiftName: '', requiredMinutes:'', lateTolerance:0, earlyTolerance:0};
 }
-function getHolidayInfo(jalaliDateStr, dateObj){
-  var isFriday = Utilities.formatDate(dateObj, TZ, 'u') === '5';
-  if(isFriday) return {isHoliday:true, reason:'جمعه'};
+function jalaliToGregorianServer(jy, jm, jd){
+  var gy = (jy <= 979) ? 621 : 1600;
+  jy -= (jy <= 979) ? 0 : 979;
+  var days = (jy*365) + (Math.floor(jy/33)*8) + Math.floor(((jy%33)+3)/4) + 78 + jd + ((jm<7) ? (jm-1)*31 : ((jm-7)*30)+186);
+  gy += 400*Math.floor(days/146097); days %= 146097;
+  if(days > 36524){ gy += 100*Math.floor(--days/36524); days %= 36524; if(days>=365) days++; }
+  gy += 4*Math.floor(days/1461); days %= 1461;
+  if(days > 365){ gy += Math.floor((days-1)/365); days=(days-1)%365; }
+  var gd = days+1;
+  var sal_a=[0,31,((gy%4===0&&gy%100!==0)||(gy%400===0))?29:28,31,30,31,30,31,31,30,31,30,31];
+  var gm; for(gm=0; gm<13; gm++){ var v=sal_a[gm]; if(gd<=v) break; gd-=v; }
+  return [gy, gm, gd];
+}
+function jalaliDateTimeToIso(jalaliDateStr, timeStr){
+  var p = String(jalaliDateStr||'').trim().split(' ');
+  if(p.length < 3) return null;
+  var day = parseInt(p[0],10);
+  var monthIdx = J_MONTHS.indexOf(p[1]) + 1;
+  var year = parseInt(p[p.length-1],10);
+  if(!day || !monthIdx || !year) return null;
+  var g = jalaliToGregorianServer(year, monthIdx, day);
+  var tParts = String(timeStr||'00:00:00').split(':');
+  var hh = parseInt(tParts[0],10)||0, mm = parseInt(tParts[1],10)||0, ss = parseInt(tParts[2],10)||0;
+  var dateStr = g[0]+'-'+pad2(g[1])+'-'+pad2(g[2])+' '+pad2(hh)+':'+pad2(mm)+':'+pad2(ss);
+  var d = Utilities.parseDate(dateStr, TZ, 'yyyy-MM-dd HH:mm:ss');
+  return d.toISOString();
+}
+function isFridayFromJalaliDateStr(jalaliDateStr){
+  var p = String(jalaliDateStr||'').trim().split(' ');
+  if(p.length < 3) return false;
+  var day = parseInt(p[0],10);
+  var monthIdx = J_MONTHS.indexOf(p[1]) + 1;
+  var year = parseInt(p[p.length-1],10);
+  if(!day || !monthIdx || !year) return false;
+  var g = jalaliToGregorianServer(year, monthIdx, day);
+  return new Date(g[0], g[1]-1, g[2]).getDay() === 5;
+}
+function getHolidayInfo(jalaliDateStr){
+  if(isFridayFromJalaliDateStr(jalaliDateStr)) return {isHoliday:true, reason:'جمعه'};
   var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
   var match = readRows(hsh).filter(function(r){ return r.jalaliDate === jalaliDateStr; })[0];
   if(match) return {isHoliday:true, reason: match.reason || 'تعطیل رسمی'};
@@ -718,13 +754,13 @@ function doPost(e){
       }
     }
 
-    var holInfo = getHolidayInfo(t.jalaliDate, new Date(t.isoTimestamp));
+    var holInfo = getHolidayInfo(t.jalaliDate);
     var id = Utilities.getUuid();
     appendRowByHeader(lsh2, {
       id:id, jalaliDate:t.jalaliDate, time:t.time, employee:d.employee, username:d.username, project:d.project,
       type: d.type === 'in' ? 'ورود' : 'خروج', lat:d.lat, lng:d.lng, accuracy:d.accuracy,
       isoTimestamp:t.isoTimestamp, note:note, employeeCode: emp.employeeCode || '',
-      isHoliday: holInfo.isHoliday ? 'yes' : '', holidayReason: holInfo.reason
+      isHoliday: holInfo.isHoliday ? 'تعطیل' : '', holidayReason: holInfo.reason
     });
     return jsonOut({ok:true, jalaliDate:t.jalaliDate, time:t.time});
   }
@@ -904,6 +940,23 @@ function doPost(e){
     var rows6 = ensureIds(lsh4, readRows(lsh4)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6});
   }
+  if(action === 'adminAddLog'){
+    var eshA = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var empA = readRows(eshA).filter(function(r){ return r.username === body.username; })[0];
+    if(!empA) return jsonOut({ok:false, error:'unknown_employee'});
+    var lshA = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var isoA = jalaliDateTimeToIso(body.jalaliDate, body.time) || serverNow().isoTimestamp;
+    var holInfoA = getHolidayInfo(body.jalaliDate);
+    var lidA = Utilities.getUuid();
+    appendRowByHeader(lshA, {
+      id:lidA, jalaliDate:body.jalaliDate, time:body.time, employee:empA.fullName, username:empA.username, project:body.project||'',
+      type: body.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:isoA,
+      note: 'ثبت مستقیم توسط مدیر' + (body.reason ? (' — ' + body.reason) : ''),
+      employeeCode: empA.employeeCode || '',
+      isHoliday: holInfoA.isHoliday ? 'تعطیل' : '', holidayReason: holInfoA.reason
+    });
+    return jsonOut({ok:true});
+  }
   if(action === 'getHolidays'){
     var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
     return jsonOut({ok:true, holidays: readRows(hsh).map(function(r){ delete r._row; return r; })});
@@ -982,13 +1035,14 @@ function doPost(e){
     esh_set(lsh5, row6._row, 'employee', body.employee);
     esh_set(lsh5, row6._row, 'project', body.project);
     esh_set(lsh5, row6._row, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
+    var newIso = jalaliDateTimeToIso(body.jalaliDate, body.time);
+    if(newIso) esh_set(lsh5, row6._row, 'isoTimestamp', newIso);
     var eshFind = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var empMatch = readRows(eshFind).filter(function(r){ return r.fullName === body.employee; })[0];
     esh_set(lsh5, row6._row, 'employeeCode', empMatch ? (empMatch.employeeCode||'') : (row6.employeeCode||''));
-    var hsh5 = getSheet('Holidays', ['id','jalaliDate','reason']);
-    var hMatch2 = readRows(hsh5).filter(function(r){ return r.jalaliDate === body.jalaliDate; })[0];
-    esh_set(lsh5, row6._row, 'isHoliday', hMatch2 ? 'yes' : '');
-    esh_set(lsh5, row6._row, 'holidayReason', hMatch2 ? (hMatch2.reason||'تعطیل رسمی') : '');
+    var holInfo4 = getHolidayInfo(body.jalaliDate);
+    esh_set(lsh5, row6._row, 'isHoliday', holInfo4.isHoliday ? 'تعطیل' : '');
+    esh_set(lsh5, row6._row, 'holidayReason', holInfo4.reason);
     var noteStr = String(row6.note || '');
     var editMatch = noteStr.match(/ویرایش‌شده توسط مدیر \((\d+)\)/);
     if(editMatch){
@@ -1036,21 +1090,14 @@ function doPost(e){
       var useTime = rrow.requestedTime || t3.time;
       var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
       var lid = Utilities.getUuid();
-      var holInfo3;
-      if(rrow.requestedDate){
-        // custom backdated date — only check the manual holidays list (Friday auto-check needs a reliable Gregorian date we don't have here)
-        var hsh4 = getSheet('Holidays', ['id','jalaliDate','reason']);
-        var hMatch = readRows(hsh4).filter(function(r){ return r.jalaliDate === useDate; })[0];
-        holInfo3 = hMatch ? {isHoliday:true, reason: hMatch.reason||'تعطیل رسمی'} : {isHoliday:false, reason:''};
-      } else {
-        holInfo3 = getHolidayInfo(useDate, new Date(t3.isoTimestamp));
-      }
+      var holInfo3 = getHolidayInfo(useDate);
+      var iso3 = rrow.requestedDate ? (jalaliDateTimeToIso(useDate, useTime) || t3.isoTimestamp) : t3.isoTimestamp;
       appendRowByHeader(lsh7, {
         id:lid, jalaliDate:useDate, time:useTime, employee:rrow.employee, username:rrow.username, project:rrow.project,
-        type: rrow.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:t3.isoTimestamp,
+        type: rrow.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:iso3,
         note: 'ثبت دستی (تاییدشده) — دلیل: ' + (rrow.reason || '-') + (rrow.requestedDate ? ' — زمان درخواستی توسط پرسنل' : ''),
         employeeCode: rrow.employeeCode || '',
-        isHoliday: holInfo3.isHoliday ? 'yes' : '', holidayReason: holInfo3.reason
+        isHoliday: holInfo3.isHoliday ? 'تعطیل' : '', holidayReason: holInfo3.reason
       });
     }
     return jsonOut({ok:true});
@@ -1388,10 +1435,6 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="hamburger-btn" onclick="toggleDrawer('admin')">☰</button>
         <span>⚙️ پنل مدیریت</span>
       </div>
-      <div class="btn-row" style="width:auto; margin:0;">
-        <button type="button" class="btn btn-ghost btn-small" onclick="refreshCurrentAdminSection()">🔄</button>
-        <button type="button" class="btn btn-ghost btn-small" onclick="adminLogout()">خروج از مدیریت</button>
-      </div>
     </div>
 
     <div id="adminNotice" class="status err" style="display:none; margin-bottom:14px;"></div>
@@ -1683,7 +1726,7 @@ function esh_set(sheet, rowNum, headerName, value){
       </div>
       <div style="overflow-x:auto;">
         <table id="logTable">
-          <thead><tr><th>تاریخ</th><th>ساعت</th><th>پرسنل</th><th>پروژه</th><th>نوع</th><th>عملیات</th></tr></thead>
+          <thead><tr><th>تاریخ</th><th>پرسنل</th><th>پروژه</th><th>ورود</th><th>خروج</th><th>عملیات</th></tr></thead>
           <tbody id="logTableBody"><tr><td colspan="6" class="empty">در حال بارگذاری...</td></tr></tbody>
         </table>
       </div>
@@ -1695,6 +1738,32 @@ function esh_set(sheet, rowNum, headerName, value){
 
   <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
 
+  <div class="sheet-overlay" id="adminLogOverlay" onclick="closeAdminLogSheet()"></div>
+  <div class="bottom-sheet-modal" id="adminLogSheet">
+    <div class="sheet-handle"></div>
+    <div class="eyebrow">ثبت مستقیم تردد (بدون درخواست)</div>
+    <div class="hint" style="margin-top:-4px;">مستقیماً برای یک پرسنل، ورود یا خروج با ساعت دلخواه ثبت می‌کنه — نیاز به تایید درخواست نداره.</div>
+    <label>پرسنل</label>
+    <select id="adminLogEmp"></select>
+    <label>پروژه</label>
+    <select id="adminLogProj"></select>
+    <label>نوع</label>
+    <select id="adminLogType">
+      <option value="in">ورود</option>
+      <option value="out">خروج</option>
+    </select>
+    <label>تاریخ</label>
+    <div class="date-row">
+      <select id="adminLogDay"></select><select id="adminLogMonth"></select><select id="adminLogYear"></select>
+    </div>
+    <label>ساعت</label>
+    <input type="time" id="adminLogTime" step="1">
+    <label>یادداشت (اختیاری)</label>
+    <input type="text" id="adminLogReason" placeholder="مثلاً: طبق هماهنگی تلفنی">
+    <button type="button" class="btn btn-primary" onclick="submitAdminLog()">💾 ثبت</button>
+    <button type="button" class="btn btn-ghost" style="margin-top:8px;" onclick="closeAdminLogSheet()">انصراف</button>
+  </div>
+
   <div class="side-drawer" id="admDrawer">
     <div class="drawer-header">⚙️ پنل مدیریت</div>
     <div class="drawer-item active" id="admMenu-dashboard" onclick="showAdminSection('dashboard')"><span class="dicon">🏠</span> داشبورد</div>
@@ -1704,6 +1773,9 @@ function esh_set(sheet, rowNum, headerName, value){
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon">📨</span> درخواست‌ها</div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon">📊</span> گزارش</div>
     <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon">⚙️</span> تنظیمات</div>
+    <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon">🕐</span> ثبت تردد</div>
+    <div class="drawer-item" onclick="refreshCurrentAdminSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
+    <div class="drawer-item" onclick="adminLogout()"><span class="dicon">🚪</span> خروج از مدیریت</div>
   </div>
 
   <div class="side-drawer" id="empDrawer">
@@ -2122,6 +2194,43 @@ function clearReqDateFilter(scope){
 }
 
 // ---------- Add-request bottom sheet ----------
+function openAdminLogSheet(){
+  initLeaveDateSelects();
+  var empSel = document.getElementById('adminLogEmp');
+  empSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+(e.employeeCode?(' (کد '+esc(e.employeeCode)+')'):'')+'</option>'; }).join('');
+  var projSel = document.getElementById('adminLogProj');
+  projSel.innerHTML = projects.map(function(p){ return '<option>'+esc(p.name)+'</option>'; }).join('');
+  document.getElementById('adminLogTime').value = '';
+  document.getElementById('adminLogReason').value = '';
+  document.getElementById('adminLogOverlay').classList.add('open');
+  document.getElementById('adminLogSheet').classList.add('open');
+}
+function closeAdminLogSheet(){
+  document.getElementById('adminLogOverlay').classList.remove('open');
+  document.getElementById('adminLogSheet').classList.remove('open');
+}
+async function submitAdminLog(){
+  var username = document.getElementById('adminLogEmp').value;
+  var project = document.getElementById('adminLogProj').value;
+  var type = document.getElementById('adminLogType').value;
+  var jalaliDate = readDateSelect('adminLog');
+  var timeVal = document.getElementById('adminLogTime').value;
+  if(!username){ alert('یک پرسنل انتخاب کن'); return; }
+  if(!timeVal){ alert('ساعت را وارد کن'); return; }
+  var timeParts = timeVal.split(':');
+  var hh = timeParts[0]||'00'; if(hh.length<2) hh='0'+hh;
+  var mm = timeParts[1]||'00'; if(mm.length<2) mm='0'+mm;
+  var ss = timeParts[2]||'00'; if(ss.length<2) ss='0'+ss;
+  var res = await apiCall(function(){ return apiPost('adminAddLog', {
+    pin: adminPin, username: username, project: project, type: type,
+    jalaliDate: jalaliDate, time: hh+':'+mm+':'+ss, reason: document.getElementById('adminLogReason').value.trim()
+  }); });
+  if(!res.ok){ showAdminNotice('ثبت تردد ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  closeAdminLogSheet();
+  alert('ثبت شد.');
+  refreshCurrentAdminSection();
+}
 function openAddRequestSheet(){
   document.getElementById('addReqOverlay').classList.add('open');
   document.getElementById('addReqSheet').classList.add('open');
@@ -3209,12 +3318,12 @@ async function loadMyLogs(){
   if(!loggedInEmployee) return;
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
   var entries = res.ok ? (res.logs || []) : [];
-  entries.sort(function(a,b){ return String(b.isoTimestamp).localeCompare(String(a.isoTimestamp)); });
+  entries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); }); // ascending: oldest first
 
   var queue = getOfflineQueue().filter(function(q){ return q.entry.username === loggedInEmployee.username; });
 
-  // entries already sorted desc by isoTimestamp — entries[0] is the absolute last entry (matches server logic)
-  var lastServerType = entries.length ? entries[0].type : null;
+  // entries now sorted ascending (oldest first) — the last item is the most recent (matches server logic)
+  var lastServerType = entries.length ? entries[entries.length-1].type : null;
   var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
   todayLastType = lastQueuedType || lastServerType; // a still-pending queued entry takes priority over server state
   updateTodayStatusHint();
@@ -3235,10 +3344,11 @@ async function loadMyLogs(){
       ' · <span style="color:#8a5a10;">⏳ در انتظار همگام‌سازی</span></div></div>';
   }).join('');
 
-  var serverHtml = displayEntries.slice(0,8).map(function(e){
+  var serverHtml = displayEntries.slice(-8).map(function(e){
+    var holBadge = isHolidayEntry(e) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(e))+'</span>' : '';
     return '<div class="list-item"><div>'+
       '<span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span> · '+esc(e.project)+
-      '<div class="meta">'+e.jalaliDate+' — '+e.time+(e.note?(' · '+esc(e.note)):'')+'</div></div></div>';
+      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+e.jalaliDate+' — '+e.time+'</bdi>'+(e.note?(' · '+esc(e.note)):'')+holBadge+'</div></div></div>';
   }).join('');
 
   document.getElementById('myLogs').innerHTML = (queuedHtml + serverHtml) || '<div class="empty">هنوز ثبتی وجود ندارد</div>';
@@ -3311,7 +3421,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday','shiftAssignStart','shiftAssignEnd','reqDate2','leaveStart2','leaveEnd2'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','shiftAssignStart','shiftAssignEnd','reqDate2','leaveStart2','leaveEnd2','adminLog'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
@@ -3415,7 +3525,7 @@ async function deleteHoliday(id){
   await loadHolidays();
 }
 function isHolidayEntry(e){
-  if(e.isHoliday === 'yes') return true;
+  if(e.isHoliday === 'تعطیل') return true;
   if(e.hasOwnProperty('isHoliday')) return false; // server already decided (new-format row), trust it
   // fallback for entries recorded before this column existed
   if(e.isoTimestamp){
@@ -3506,7 +3616,10 @@ async function computeMonthlySummary(){
   var monthIdx = jMonths.indexOf(monthName) + 1;
   var yearNum = parseInt(year, 10);
   var daysInMonth = jalaliMonthLength(monthIdx, yearNum);
+  var startKey = yearNum*10000 + monthIdx*100 + 1;
+  var endKey = yearNum*10000 + monthIdx*100 + daysInMonth;
 
+  await loadShifts();
   var empRes = await apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); });
   var logsRes = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
   var leavesRes = await apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); });
@@ -3514,60 +3627,40 @@ async function computeMonthlySummary(){
   if(!empRes.ok || !logsRes.ok){ alert('دریافت اطلاعات ناموفق بود'); return; }
 
   var emps = empRes.employees || [];
-  var logs = logsRes.logs || [];
-  var leaves = (leavesRes.ok ? leavesRes.leaves : []).filter(function(l){ return l.status === 'approved'; });
+  var allLogs = logsRes.logs || [];
+  var allLeaves = (leavesRes.ok ? leavesRes.leaves : []).filter(function(l){ return l.status === 'approved'; });
   var holidaySet = {};
   if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate] = true; });
 
-  var results = emps.map(function(emp){
-    return { username: emp.username, fullName: emp.fullName, employeeCode: emp.employeeCode||'',
-      present:0, absent:0, entitled:0, sick:0, unpaid:0, mission:0, overtimeMin:0 };
-  });
-  var byUser = {}; results.forEach(function(r){ byUser[r.username] = r; });
-
-  var presentSet = {};
-  logs.forEach(function(e){
-    var p = parseJalaliDateStr(e.jalaliDate);
-    if(!p || p.month !== monthName || p.year !== String(year)) return;
-    if(e.type === 'ورود'){
-      presentSet[e.username] = presentSet[e.username] || {};
-      presentSet[e.username][p.day] = true;
+  function resolveShiftDur(emp){
+    var def = (window._shifts||[]).filter(function(s){ return s.id === emp.shiftId; })[0];
+    if(def){
+      if(def.type === 'floating') return Number(def.requiredMinutes) || 480;
+      var s1 = timeToMinutesClient(def.shiftStart||''), e1 = timeToMinutesClient(def.shiftEnd||'');
+      var dur1 = e1 - s1; if(dur1 <= 0) dur1 += 1440;
+      return dur1 || 480;
     }
-    if(e.note && byUser[e.username]){
-      var m = e.note.match(/اضافه‌کاری: (\d+)/);
-      if(m) byUser[e.username].overtimeMin += parseInt(m[1],10);
+    if(emp.shiftStart && emp.shiftEnd){
+      var s2 = timeToMinutesClient(emp.shiftStart), e2 = timeToMinutesClient(emp.shiftEnd);
+      var dur2 = e2 - s2; if(dur2 <= 0) dur2 += 1440;
+      return dur2 || 480;
     }
-  });
-
-  var excusedSet = {};
-  leaves.forEach(function(l){
-    var r = byUser[l.username];
-    if(!r || l.leaveType === 'hourly') return;
-    var sKey = jalaliDateSortKeyClient(l.startDate), eKey = jalaliDateSortKeyClient(l.endDate);
-    for(var d=1; d<=daysInMonth; d++){
-      var curKey = yearNum*10000 + monthIdx*100 + d;
-      if(curKey < sKey || curKey > eKey) continue;
-      excusedSet[l.username] = excusedSet[l.username] || {};
-      if(excusedSet[l.username][d]) continue; // don't double count if overlapping requests
-      excusedSet[l.username][d] = true;
-      if(l.requestType === 'mission') r.mission++;
-      else if(l.leaveCategory === 'استعلاجی') r.sick++;
-      else if(l.leaveCategory === 'بدون‌حقوق') r.unpaid++;
-      else r.entitled++;
-    }
-  });
-
-  for(var d=1; d<=daysInMonth; d++){
-    var dateStr = d + ' ' + monthName + ' ' + year;
-    var isHoliday = holidaySet[dateStr] || isFridayJalali(yearNum, monthIdx, d);
-    if(isHoliday) continue;
-    results.forEach(function(r){
-      var present = presentSet[r.username] && presentSet[r.username][d];
-      var excused = excusedSet[r.username] && excusedSet[r.username][d];
-      if(present) r.present++;
-      else if(!excused) r.absent++;
-    });
+    return 480;
   }
+
+  var results = emps.map(function(emp){
+    var empLogs = allLogs.filter(function(l){ return l.username === emp.username; });
+    var empLeaves = allLeaves.filter(function(l){ return l.username === emp.username; });
+    var shiftDur = resolveShiftDur(emp);
+    var s = computeStatsGeneric(empLogs, empLeaves, holidaySet, shiftDur, startKey, endKey);
+    return {
+      fullName: emp.fullName, employeeCode: emp.employeeCode||'',
+      present: s.presentDays, absent: Math.round(s.absentMin / shiftDur),
+      entitled: Math.round(s.entitledMin / shiftDur), sick: Math.round(s.sickMin / shiftDur),
+      unpaid: Math.round(s.unpaidMin / shiftDur), mission: Math.round(s.missionMin / shiftDur),
+      overtimeMin: s.overtimeMin
+    };
+  });
 
   window._summaryResults = results;
   document.getElementById('summaryTable').style.display = 'table';
@@ -3603,9 +3696,35 @@ async function loadFullLog(){
     return;
   }
   var entries = res.logs || [];
-  entries.sort(function(a,b){ return String(b.isoTimestamp).localeCompare(String(a.isoTimestamp)); });
+  entries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); }); // ascending: oldest first
   window._allEntries = entries;
   renderLogTable();
+}
+function pairLogEntriesForDisplay(entries){
+  var byKey = {};
+  entries.forEach(function(e){
+    var k = (e.username||e.employee) + '|' + e.jalaliDate;
+    byKey[k] = byKey[k] || [];
+    byKey[k].push(e);
+  });
+  var pairs = [];
+  Object.keys(byKey).forEach(function(k){
+    var list = byKey[k].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    var i = 0;
+    while(i < list.length){
+      if(list[i].type === 'ورود'){
+        var inE = list[i];
+        var outE = (list[i+1] && list[i+1].type === 'خروج') ? list[i+1] : null;
+        pairs.push({inE:inE, outE:outE, jalaliDate:inE.jalaliDate, employee:inE.employee, project:inE.project, sortKey:inE.isoTimestamp});
+        i += outE ? 2 : 1;
+      } else {
+        pairs.push({inE:null, outE:list[i], jalaliDate:list[i].jalaliDate, employee:list[i].employee, project:list[i].project, sortKey:list[i].isoTimestamp});
+        i += 1;
+      }
+    }
+  });
+  pairs.sort(function(a,b){ return String(a.sortKey).localeCompare(String(b.sortKey)); });
+  return pairs;
 }
 function renderLogTable(){
   var tbody = document.getElementById('logTableBody');
@@ -3624,16 +3743,20 @@ function renderLogTable(){
     return;
   }
 
-  tbody.innerHTML = entries.map(function(e){
-    if(e.id && e.id === editingLogId){
+  var pairs = pairLogEntriesForDisplay(entries);
+  tbody.innerHTML = pairs.map(function(p){
+    var editTarget = (p.inE && p.inE.id === editingLogId) ? p.inE : ((p.outE && p.outE.id === editingLogId) ? p.outE : null);
+    if(editTarget){
+      var e = editTarget;
       var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===e.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
-      var prOpts = projects.map(function(p){ return '<option'+(p.name===e.project?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('');
+      var prOpts = projects.map(function(pr){ return '<option'+(pr.name===e.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
       var edp = parseJalaliDateStr(e.jalaliDate);
       var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
       var dayOpts = ''; for(var dd=1; dd<=31; dd++){ dayOpts += '<option value="'+dd+'"'+(edp && String(dd)===edp.day?' selected':'')+'>'+dd+'</option>'; }
       var monthOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(edp && m===edp.month?' selected':'')+'>'+m+'</option>'; }).join('');
       var yearOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
       return '<tr class="edit-row"><td colspan="6">'+
+        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش '+(e.type==='ورود'?'ورود':'خروج')+' — '+esc(e.employee)+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
           '<select id="logEditDay" style="width:64px;">'+dayOpts+'</select>'+
           '<select id="logEditMonth" style="width:100px;">'+monthOpts+'</select>'+
@@ -3648,14 +3771,16 @@ function renderLogTable(){
           '<button type="button" class="btn btn-ghost btn-small" onclick="cancelEditLog()">لغو</button>'+
         '</div></td></tr>';
     }
-    var actions = e.id
-      ? '<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>'
-      : '';
-    var noteHtml = e.note ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(e.note)+'</span>' : '';
-    var holidayHtml = isHolidayEntry(e) ? '<br><span style="color:#1f7a4d; font-size:10px;">🎌 '+esc(holidayReasonOf(e))+'</span>' : '';
-    return '<tr><td>'+e.jalaliDate+holidayHtml+'</td><td class="mono">'+e.time+noteHtml+'</td><td>'+esc(e.employee)+'</td><td>'+esc(e.project)+'</td>'+
-      '<td><span class="'+(e.type==='ورود'?'in-tag':'out-tag')+'">'+e.type+'</span></td>'+
-      '<td style="white-space:nowrap;">'+actions+'</td></tr>';
+    var holHtml = isHolidayEntry(p.inE||p.outE) ? '<br><span style="color:#1f7a4d; font-size:10px;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
+    function cellFor(e){
+      if(!e) return '<span style="color:#b5ae98;">—</span>';
+      var noteHtml = e.note ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(e.note)+'</span>' : '';
+      var acts = e.id ? ('<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>') : '';
+      return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi>'+noteHtml+'<div style="white-space:nowrap;">'+acts+'</div>';
+    }
+    return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+'</td>'+
+      '<td>'+esc(p.employee)+'</td><td>'+esc(p.project)+'</td>'+
+      '<td>'+cellFor(p.inE)+'</td><td>'+cellFor(p.outE)+'</td><td></td></tr>';
   }).join('');
 }
 function startEditLog(id){ editingLogId = id; renderLogTable(); }
@@ -3756,50 +3881,54 @@ function formatMinutesHHMM(mins){
   var h = Math.floor(mins/60), m = mins%60;
   return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
 }
-async function computeMyStats(startKey, endKey){
-  var logsRes = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
-  var leavesRes = await apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}); });
-  var holRes = await apiCall(function(){ return apiGet('holidaysPublic'); });
-  var logs = logsRes.ok ? (logsRes.logs||[]) : [];
-  var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved'; }) : [];
-  var holidaySet = {};
-  if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate]=true; });
-
-  var shiftDur = shiftDurationMinutes();
+function pairSessions(logs){
+  var sorted = logs.slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+  var sessions = [];
+  var openIn = null;
+  sorted.forEach(function(e){
+    if(e.type === 'ورود'){ openIn = e; }
+    else if(e.type === 'خروج' && openIn){
+      sessions.push({ inE: openIn, outE: e, minutes: Math.max((new Date(e.isoTimestamp) - new Date(openIn.isoTimestamp)) / 60000, 0) });
+      openIn = null;
+    }
+  });
+  if(openIn){
+    // still checked in (forgot to check out, or genuinely mid-shift right now) — count up to this moment
+    sessions.push({ inE: openIn, outE: null, minutes: Math.max((new Date() - new Date(openIn.isoTimestamp)) / 60000, 0), open:true });
+  }
+  return sessions; // session duration is attributed to the check-in's calendar day — correctly spans midnight for night shifts
+}
+function computeStatsGeneric(logs, leaves, holidaySet, shiftDur, startKey, endKey){
   var stats = { overtimeMin:0, missionMin:0, entitledMin:0, sickMin:0, unpaidMin:0, presentDays:0, absentMin:0, presentMin:0, workDays:0, checkinTime:'', checkoutTime:'' };
+  var sessions = pairSessions(logs);
 
-  var dayEntries = {};
+  var minutesByDay = {};
+  var presentDaySet = {};
+  sessions.forEach(function(s){
+    var key = jalaliDateSortKeyClient(s.inE.jalaliDate);
+    if(key < startKey || key > endKey) return;
+    minutesByDay[key] = (minutesByDay[key]||0) + s.minutes;
+    presentDaySet[key] = true;
+  });
+  stats.presentDays = Object.keys(presentDaySet).length;
+  Object.keys(minutesByDay).forEach(function(k){ stats.presentMin += minutesByDay[k]; });
+
   logs.forEach(function(e){
     var key = jalaliDateSortKeyClient(e.jalaliDate);
     if(key < startKey || key > endKey) return;
-    dayEntries[key] = dayEntries[key] || [];
-    dayEntries[key].push(e);
     if(e.note){
       var m = e.note.match(/اضافه‌کاری: (\d+)/);
       if(m) stats.overtimeMin += parseInt(m[1],10);
     }
   });
 
-  // precise worked-minutes for a given day by pairing consecutive ورود->خروج entries
-  var todayKeyNow = (function(){ var n=new Date(); var tj=toJalaali(n.getFullYear(),n.getMonth()+1,n.getDate()); return tj[0]*10000+tj[1]*100+tj[2]; })();
-  function workedMinutesForDay(key){
-    var entries = (dayEntries[key]||[]).slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
-    var total = 0, openIn = null;
-    entries.forEach(function(e){
-      if(e.type === 'ورود'){ openIn = e.isoTimestamp; }
-      else if(e.type === 'خروج' && openIn){ total += (new Date(e.isoTimestamp) - new Date(openIn)) / 60000; openIn = null; }
-    });
-    if(openIn && key === todayKeyNow){ total += (new Date() - new Date(openIn)) / 60000; } // still checked in today
-    return Math.max(total, 0);
-  }
-
-  if(startKey === endKey && dayEntries[startKey]){
-    var sorted = dayEntries[startKey].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
-    var firstIn = sorted.filter(function(e){ return e.type==='ورود'; })[0];
-    var outs = sorted.filter(function(e){ return e.type==='خروج'; });
-    var lastOut = outs.length ? outs[outs.length-1] : null;
-    stats.checkinTime = firstIn ? firstIn.time : '';
-    stats.checkoutTime = lastOut ? lastOut.time : '';
+  if(startKey === endKey){
+    var todaysSessions = sessions.filter(function(s){ return jalaliDateSortKeyClient(s.inE.jalaliDate) === startKey; });
+    if(todaysSessions.length){
+      stats.checkinTime = todaysSessions[0].inE.time;
+      var lastSession = todaysSessions[todaysSessions.length-1];
+      stats.checkoutTime = lastSession.outE ? lastSession.outE.time : '';
+    }
   }
 
   var excusedMinByDay = {};
@@ -3826,9 +3955,7 @@ async function computeMyStats(startKey, endKey){
 
   var workDays = 0;
   iterateJalaliDays(startKey, endKey, function(y,m,d,key){
-    var workedMin = workedMinutesForDay(key);
-    stats.presentMin += workedMin;
-    if(workedMin > 0) stats.presentDays++;
+    var workedMin = minutesByDay[key] || 0;
     var dateStr = d+' '+jMonths[m-1]+' '+y;
     var isHoliday = holidaySet[dateStr] || isFridayJalali(y,m,d);
     if(isHoliday) return;
@@ -3841,6 +3968,16 @@ async function computeMyStats(startKey, endKey){
   stats.workDays = workDays;
   stats.excessMin = stats.overtimeMin;
   return stats;
+}
+async function computeMyStats(startKey, endKey){
+  var logsRes = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
+  var leavesRes = await apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}); });
+  var holRes = await apiCall(function(){ return apiGet('holidaysPublic'); });
+  var logs = logsRes.ok ? (logsRes.logs||[]) : [];
+  var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved'; }) : [];
+  var holidaySet = {};
+  if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate]=true; });
+  return computeStatsGeneric(logs, leaves, holidaySet, shiftDurationMinutes(), startKey, endKey);
 }
 function renderStatsCards(containerId, stats){
   var cards = [
