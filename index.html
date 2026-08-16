@@ -853,6 +853,33 @@ function doPost(e){
       .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
     return jsonOut({ok:true, leaves: lrows});
   }
+  if(action === 'submitOfflineLog'){
+    var d2 = body.entry;
+    var eshO = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var empO = readRows(eshO).filter(function(r){ return r.username === d2.username; })[0];
+    if(!empO) return jsonOut({ok:false, error:'unknown_employee'});
+    if(empO.deviceId && String(empO.deviceId) !== String(body.deviceId||'')){
+      return jsonOut({ok:false, error:'device_mismatch'});
+    }
+    var posh = getSheet('PendingOfflineLogs', ['id','username','employee','employeeCode','project','type','jalaliDate','time','clientIso','lat','lng','accuracy','reason','status','createdAt']);
+    var clientDate = new Date(d2.clientIso);
+    var pgy = clientDate.getFullYear(), pgm = clientDate.getMonth()+1, pgd = clientDate.getDate();
+    var pj = toJalaali(pgy, pgm, pgd);
+    var pjalaliDate = pj[2] + ' ' + J_MONTHS[pj[1]-1] + ' ' + pj[0];
+    var ptime = pad2(clientDate.getHours())+':'+pad2(clientDate.getMinutes())+':'+pad2(clientDate.getSeconds());
+    var poid = Utilities.getUuid();
+    var t4 = serverNow();
+    appendRowByHeader(posh, {
+      id:poid, username:d2.username, employee:empO.fullName, employeeCode: empO.employeeCode||'',
+      project:d2.project, type:d2.type, jalaliDate:pjalaliDate, time:ptime, clientIso:d2.clientIso,
+      lat:d2.lat||'', lng:d2.lng||'', accuracy:d2.accuracy||'', reason:'', status:'pending', createdAt:t4.jalaliDate
+    });
+    notifyAdmin(
+      'ثبت آفلاین جدید در انتظار بررسی — ' + empO.fullName,
+      empO.fullName + ' یک ' + (d2.type==='in'?'ورود':'خروج') + ' آفلاین (بر اساس ساعت گوشی: ' + pjalaliDate + ' ' + ptime + ') ثبت کرد که نیاز به بررسی و تایید شما داره.\n\nبرای بررسی، وارد پنل مدیریت → «تردد ناقص» شوید.'
+    );
+    return jsonOut({ok:true});
+  }
 
   // ==================== everything below requires the admin PIN ====================
   if(String(body.pin) !== getAdminPin()){
@@ -972,33 +999,6 @@ function doPost(e){
       employeeCode: empA.employeeCode || '',
       isHoliday: holInfoA.isHoliday ? 'تعطیل' : '', holidayReason: holInfoA.reason
     });
-    return jsonOut({ok:true});
-  }
-  if(action === 'submitOfflineLog'){
-    var d2 = body.entry;
-    var eshO = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
-    var empO = readRows(eshO).filter(function(r){ return r.username === d2.username; })[0];
-    if(!empO) return jsonOut({ok:false, error:'unknown_employee'});
-    if(empO.deviceId && String(empO.deviceId) !== String(body.deviceId||'')){
-      return jsonOut({ok:false, error:'device_mismatch'});
-    }
-    var posh = getSheet('PendingOfflineLogs', ['id','username','employee','employeeCode','project','type','jalaliDate','time','clientIso','lat','lng','accuracy','reason','status','createdAt']);
-    var clientDate = new Date(d2.clientIso);
-    var pgy = clientDate.getFullYear(), pgm = clientDate.getMonth()+1, pgd = clientDate.getDate();
-    var pj = toJalaali(pgy, pgm, pgd);
-    var pjalaliDate = pj[2] + ' ' + J_MONTHS[pj[1]-1] + ' ' + pj[0];
-    var ptime = pad2(clientDate.getHours())+':'+pad2(clientDate.getMinutes())+':'+pad2(clientDate.getSeconds());
-    var poid = Utilities.getUuid();
-    var t4 = serverNow();
-    appendRowByHeader(posh, {
-      id:poid, username:d2.username, employee:empO.fullName, employeeCode: empO.employeeCode||'',
-      project:d2.project, type:d2.type, jalaliDate:pjalaliDate, time:ptime, clientIso:d2.clientIso,
-      lat:d2.lat||'', lng:d2.lng||'', accuracy:d2.accuracy||'', reason:'', status:'pending', createdAt:t4.jalaliDate
-    });
-    notifyAdmin(
-      'ثبت آفلاین جدید در انتظار بررسی — ' + empO.fullName,
-      empO.fullName + ' یک ' + (d2.type==='in'?'ورود':'خروج') + ' آفلاین (بر اساس ساعت گوشی: ' + pjalaliDate + ' ' + ptime + ') ثبت کرد که نیاز به بررسی و تایید شما داره.\n\nبرای بررسی، وارد پنل مدیریت → «تردد ناقص» شوید.'
-    );
     return jsonOut({ok:true});
   }
   if(action === 'getPendingOfflineLogs'){
@@ -1282,7 +1282,7 @@ function esh_set(sheet, rowNum, headerName, value){
       </div>
 
       <label class="chk-item" id="nightShiftConfirmRow" style="display:none; width:100%; box-sizing:border-box; background:#fff4e2; border-radius:10px; padding:10px 12px; margin-bottom:10px;">
-        <input type="checkbox" id="nightShiftConfirmChk"> 🌙 مدت زیادی از ورودم گذشته و این خروج مربوط به شیفت طولانی/شب‌کاری واقعیه
+        <input type="checkbox" id="nightShiftConfirmChk"> 🌙 ورودم دیروز بوده و این خروج واقعاً مربوط به شیفت شب‌کاری/طولانیه
       </label>
 
       <div class="swipe-track swipe-disabled" id="swipeTrack">
@@ -1935,7 +1935,8 @@ var loggedInEmployee = null;
 var adminPin = null;
 var adminUsername = null;
 var todayLastType = null; // 'ورود' | 'خروج' | null — from server data, used to only enable the valid next action
-var lastOpenCheckinIso = null; // timestamp of the current open check-in (if any), used for the long-shift confirmation
+var lastOpenCheckinIso = null; // timestamp of the current open check-in (if any), used for the overnight-shift confirmation
+var lastOpenCheckinDate = null; // jalali date string of that check-in
 var editingEmpId = null;
 var editingProjId = null;
 var editingPairIds = null; // {inId, outId} when editing a paired row
@@ -3273,7 +3274,7 @@ async function submitEntry(type){
   if(type === 'out' && nightShiftConfirmRequired()){
     var chk = document.getElementById('nightShiftConfirmChk');
     if(!chk || !chk.checked){
-      setStatus('🌙 مدت زیادی از ورودتان گذشته — لطفاً تیک تایید شیفت طولانی/شب‌کاری رو بزنید تا بتونید خروج بزنید.', 'err');
+      setStatus('🌙 ورودتان مربوط به دیروز است — لطفاً تیک تایید شیفت شب‌کاری/طولانی رو بزنید تا بتونید خروج بزنید.', 'err');
       return;
     }
   }
@@ -3364,6 +3365,7 @@ async function loadMyLogs(){
   var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
   todayLastType = lastQueuedType || lastServerType; // a still-pending queued entry takes priority over server state
   lastOpenCheckinIso = (todayLastType === 'ورود' && !lastQueuedType && lastServerEntry) ? lastServerEntry.isoTimestamp : null;
+  lastOpenCheckinDate = (todayLastType === 'ورود' && !lastQueuedType && lastServerEntry) ? lastServerEntry.jalaliDate : null;
   updateTodayStatusHint();
   updateNightShiftCheckbox();
 
@@ -3428,19 +3430,9 @@ function updateTodayStatusHint(){
   var el = document.getElementById('todayStatusHint');
   if(el) el.textContent = hint;
 }
-function isNightOrientedShift(){
-  if(!loggedInEmployee) return false;
-  if(loggedInEmployee.shiftType === 'floating') return true;
-  if(loggedInEmployee.shiftType === 'simple' && loggedInEmployee.shiftStart && loggedInEmployee.shiftEnd){
-    return timeToMinutesClient(loggedInEmployee.shiftStart) > timeToMinutesClient(loggedInEmployee.shiftEnd);
-  }
-  return false;
-}
 function nightShiftConfirmRequired(){
-  if(todayLastType !== 'ورود' || !lastOpenCheckinIso) return false;
-  if(isNightOrientedShift()) return false; // already expected to work long/overnight hours
-  var elapsedHours = (new Date() - new Date(lastOpenCheckinIso)) / 3600000;
-  return elapsedHours > 10;
+  if(todayLastType !== 'ورود' || !lastOpenCheckinDate) return false;
+  return lastOpenCheckinDate !== jalaliString(new Date());
 }
 function updateNightShiftCheckbox(){
   var row = document.getElementById('nightShiftConfirmRow');
