@@ -728,7 +728,7 @@ function doPost(e){
       if(minutesSinceIn < 5){
         return jsonOut({ok:false, error:'checkout_too_soon'});
       }
-      if(minutesSinceIn > 12*60){
+      if(minutesSinceIn > 17*60){
         return jsonOut({ok:false, error:'checkout_expired'});
       }
     }
@@ -946,6 +946,11 @@ function doPost(e){
     if(!empA) return jsonOut({ok:false, error:'unknown_employee'});
     var lshA = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var isoA = jalaliDateTimeToIso(body.jalaliDate, body.time) || serverNow().isoTimestamp;
+    var empRowsA = readRows(lshA).filter(function(r){ return r.username === empA.username; });
+    var lastA = empRowsA.length ? empRowsA.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsA.length-1] : null;
+    if(lastA && String(isoA) <= String(lastA.isoTimestamp)){
+      return jsonOut({ok:false, error:'must_be_after_last_entry'});
+    }
     var holInfoA = getHolidayInfo(body.jalaliDate);
     var lidA = Utilities.getUuid();
     appendRowByHeader(lshA, {
@@ -1058,7 +1063,10 @@ function doPost(e){
     if(newIso) esh_set(lsh5, row6._row, 'isoTimestamp', newIso);
     var eshFind = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var empMatch = readRows(eshFind).filter(function(r){ return r.fullName === body.employee; })[0];
-    esh_set(lsh5, row6._row, 'employeeCode', empMatch ? (empMatch.employeeCode||'') : (row6.employeeCode||''));
+    if(empMatch){
+      esh_set(lsh5, row6._row, 'username', empMatch.username);
+      esh_set(lsh5, row6._row, 'employeeCode', empMatch.employeeCode||'');
+    }
     var holInfo4 = getHolidayInfo(body.jalaliDate);
     esh_set(lsh5, row6._row, 'isHoliday', holInfo4.isHoliday ? 'تعطیل' : '');
     esh_set(lsh5, row6._row, 'holidayReason', holInfo4.reason);
@@ -1934,7 +1942,7 @@ var adminUsername = null;
 var todayLastType = null; // 'ورود' | 'خروج' | null — from server data, used to only enable the valid next action
 var editingEmpId = null;
 var editingProjId = null;
-var editingLogId = null;
+var editingPairIds = null; // {inId, outId} when editing a paired row
 
 // ---------- Tabs ----------
 function switchTab(which){
@@ -2242,7 +2250,13 @@ async function submitAdminLog(){
     pin: adminPin, username: username, project: project, type: type,
     jalaliDate: jalaliDate, time: hh+':'+mm+':'+ss, reason: document.getElementById('adminLogReason').value.trim()
   }); });
-  if(!res.ok){ showAdminNotice('ثبت تردد ناموفق بود: ' + (res.error||'')); return; }
+  if(!res.ok){
+    var msg = res.error === 'must_be_after_last_entry'
+      ? 'این ساعت زودتر از آخرین ثبت موجود این پرسنله. برای اصلاح ثبت‌های قدیمی، از ✏️ ویرایش توی گزارش استفاده کن، نه ثبت جدید.'
+      : (res.error || 'خطای شبکه');
+    showAdminNotice('ثبت تردد ناموفق بود: ' + msg);
+    return;
+  }
   clearAdminNotice();
   closeAdminLogSheet();
   alert('ثبت شد.');
@@ -3328,7 +3342,7 @@ async function submitEntry(type){
       return;
     }
     if(res.error === 'checkout_expired'){
-      setStatus('⛔ بیش از ۱۲ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید و باید تایم را دستی ثبت کنید.<br><br>'+
+      setStatus('⛔ بیش از ۱۷ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید و باید تایم را دستی ثبت کنید.<br><br>'+
         '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\'out\')">📨 درخواست ثبت دستی خروج بفرست</button>', 'err');
       return;
     }
@@ -3732,29 +3746,32 @@ function renderLogTable(){
 
   var pairs = pairLogEntriesForDisplay(entries);
   tbody.innerHTML = pairs.map(function(p){
-    var editTarget = (p.inE && p.inE.id === editingLogId) ? p.inE : ((p.outE && p.outE.id === editingLogId) ? p.outE : null);
-    if(editTarget){
-      var e = editTarget;
-      var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===e.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
-      var prOpts = projects.map(function(pr){ return '<option'+(pr.name===e.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
-      var edp = parseJalaliDateStr(e.jalaliDate);
+    var pairKey = (p.inE?p.inE.id:'') + '|' + (p.outE?p.outE.id:'');
+    var isEditing = editingPairIds && ((editingPairIds.inId||'')+'|'+(editingPairIds.outId||'')) === pairKey;
+    if(isEditing){
+      var refE = p.inE || p.outE;
+      var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===refE.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
+      var prOpts = projects.map(function(pr){ return '<option'+(pr.name===refE.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
+      var edp = parseJalaliDateStr(refE.jalaliDate);
       var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
       var dayOpts = ''; for(var dd=1; dd<=31; dd++){ dayOpts += '<option value="'+dd+'"'+(edp && String(dd)===edp.day?' selected':'')+'>'+dd+'</option>'; }
       var monthOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(edp && m===edp.month?' selected':'')+'>'+m+'</option>'; }).join('');
       var yearOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
       return '<tr class="edit-row"><td colspan="6">'+
-        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش '+(e.type==='ورود'?'ورود':'خروج')+' — '+esc(e.employee)+'</div>'+
+        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش — '+esc(refE.employee)+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
           '<select id="logEditDay" style="width:64px;">'+dayOpts+'</select>'+
           '<select id="logEditMonth" style="width:100px;">'+monthOpts+'</select>'+
           '<select id="logEditYear" style="width:80px;">'+yearOpts+'</select>'+
-          '<input type="time" id="logEditTime" step="1" value="'+esc(e.time)+'" style="width:110px;" class="field-mono">'+
           '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
           '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
-          '<select id="logEditType" style="width:90px;"><option value="in"'+(e.type==='ورود'?' selected':'')+'>ورود</option><option value="out"'+(e.type==='خروج'?' selected':'')+'>خروج</option></select>'+
+        '</div>'+
+        '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
+          (p.inE ? ('<label style="display:flex; align-items:center; gap:4px;">ورود: <input type="time" id="logEditInTime" step="1" value="'+esc(p.inE.time)+'" class="field-mono" style="width:110px;"></label>') : '')+
+          (p.outE ? ('<label style="display:flex; align-items:center; gap:4px;">خروج: <input type="time" id="logEditOutTime" step="1" value="'+esc(p.outE.time)+'" class="field-mono" style="width:110px;"></label>') : '')+
         '</div>'+
         '<div class="btn-row">'+
-          '<button type="button" class="btn btn-in btn-small" onclick="saveEditLog(\''+e.id+'\')">💾 ذخیره</button>'+
+          '<button type="button" class="btn btn-in btn-small" onclick="saveEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">💾 ذخیره</button>'+
           '<button type="button" class="btn btn-ghost btn-small" onclick="cancelEditLog()">لغو</button>'+
         '</div></td></tr>';
     }
@@ -3763,43 +3780,56 @@ function renderLogTable(){
       if(!e) return '<span style="color:#b5ae98;">—</span>';
       var noteDisp2 = displayNote(e.note);
       var noteHtml = noteDisp2 ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(noteDisp2)+'</span>' : '';
-      var acts = e.id ? ('<button class="icon-btn edit" title="ویرایش" onclick="startEditLog(\''+e.id+'\')">✏️</button><button class="icon-btn del" title="حذف" onclick="deleteLogEntry(\''+e.id+'\')">✕</button>') : '';
-      return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi>'+noteHtml+'<div style="white-space:nowrap;">'+acts+'</div>';
+      return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi>'+noteHtml;
     }
+    var pairActions = '<button class="icon-btn edit" title="ویرایش" onclick="startEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✏️</button>'+
+      '<button class="icon-btn del" title="حذف" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
     return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+'</td>'+
       '<td>'+esc(p.employee)+'</td><td>'+esc(p.project)+'</td>'+
-      '<td>'+cellFor(p.inE)+'</td><td>'+cellFor(p.outE)+'</td><td></td></tr>';
+      '<td>'+cellFor(p.inE)+'</td><td>'+cellFor(p.outE)+'</td>'+
+      '<td style="white-space:nowrap;">'+pairActions+'</td></tr>';
   }).join('');
 }
-function startEditLog(id){ editingLogId = id; renderLogTable(); }
-function cancelEditLog(){ editingLogId = null; renderLogTable(); }
-async function saveEditLog(id){
+function startEditLogPair(inId, outId){ editingPairIds = {inId: inId||null, outId: outId||null}; renderLogTable(); }
+function cancelEditLog(){ editingPairIds = null; renderLogTable(); }
+async function saveOneLogEntry(id, jalaliDate, time, employee, project, type){
+  var res = await apiCall(function(){ return apiPost('updateLog', {
+    pin: adminPin, id: id, jalaliDate: jalaliDate, time: time, employee: employee, project: project, type: type
+  }); });
+  return res.ok;
+}
+async function saveEditLogPair(inId, outId){
   var day = document.getElementById('logEditDay').value;
   var monthIdx = parseInt(document.getElementById('logEditMonth').value, 10);
   var year = document.getElementById('logEditYear').value;
   var jalaliDate = day + ' ' + jMonths[monthIdx-1] + ' ' + year;
-  var timeParts = document.getElementById('logEditTime').value.split(':');
-  var hh = timeParts[0]||'00'; if(hh.length<2) hh='0'+hh;
-  var mm = timeParts[1]||'00'; if(mm.length<2) mm='0'+mm;
-  var ss = timeParts[2]||'00'; if(ss.length<2) ss='0'+ss;
-  var payload = {
-    pin: adminPin, id: id,
-    jalaliDate: jalaliDate,
-    time: hh+':'+mm+':'+ss,
-    employee: document.getElementById('logEditEmp').value,
-    project: document.getElementById('logEditProj').value,
-    type: document.getElementById('logEditType').value
-  };
-  var res = await apiCall(function(){ return apiPost('updateLog', payload); });
-  if(!res.ok){ showAdminNotice('ویرایش ثبت ناموفق بود: ' + (res.error||'')); return; }
+  var employee = document.getElementById('logEditEmp').value;
+  var project = document.getElementById('logEditProj').value;
+  function normTime(raw){
+    var p = (raw||'').split(':');
+    var hh = p[0]||'00'; if(hh.length<2) hh='0'+hh;
+    var mm = p[1]||'00'; if(mm.length<2) mm='0'+mm;
+    var ss = p[2]||'00'; if(ss.length<2) ss='0'+ss;
+    return hh+':'+mm+':'+ss;
+  }
+  var ok = true;
+  if(inId){
+    var inTime = normTime(document.getElementById('logEditInTime').value);
+    ok = ok && await saveOneLogEntry(inId, jalaliDate, inTime, employee, project, 'in');
+  }
+  if(outId){
+    var outTime = normTime(document.getElementById('logEditOutTime').value);
+    ok = ok && await saveOneLogEntry(outId, jalaliDate, outTime, employee, project, 'out');
+  }
+  if(!ok){ showAdminNotice('ویرایش ثبت ناموفق بود.'); return; }
   clearAdminNotice();
-  editingLogId = null;
+  editingPairIds = null;
   await loadFullLog();
 }
-async function deleteLogEntry(id){
-  if(!confirm('این ثبت تردد حذف شود؟ این کار قابل بازگشت نیست.')) return;
-  var res = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:id}); });
-  if(!res.ok){ showAdminNotice('حذف ثبت ناموفق بود: ' + (res.error||'')); return; }
+async function deleteLogPair(inId, outId){
+  if(!confirm('این ردیف (ورود و خروج) حذف بشه؟ این کار قابل بازگشت نیست.')) return;
+  if(inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:inId}); });
+  if(outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:outId}); });
   clearAdminNotice();
   await loadFullLog();
 }
