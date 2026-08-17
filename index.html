@@ -1496,6 +1496,7 @@ function esh_set(sheet, rowNum, headerName, value){
       <input type="text" id="adminUsernameInput" placeholder="نام کاربری مدیر" class="field-mono">
       <input type="password" id="pinInput" placeholder="رمز عبور">
       <button type="button" class="btn btn-primary" id="pinBtn" onclick="checkPin()">ورود</button>
+      <button type="button" class="btn btn-ghost" id="adminFpQuickLoginBtn" style="display:none; margin-top:8px;" onclick="tryAdminFingerprintLogin()">👆 ورود سریع با اثر انگشت</button>
       <div class="hint" id="pinHint" style="margin-top:10px;"></div>
     </div>
   </div>
@@ -1622,6 +1623,14 @@ function esh_set(sheet, rowNum, headerName, value){
       <label>رمز عبور جدید (اختیاری)</label>
       <input type="password" id="newPin" placeholder="رمز جدید">
       <button type="button" class="btn btn-ghost" onclick="setPin()">💾 ذخیره تغییرات</button>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">ورود سریع با اثر انگشت (مدیریت)</div>
+      <div class="hint" style="margin-top:-4px;">اگه فعال کنی، دفعه بعد که با یوزرنیم/رمز وارد بشی، اطلاعات ورودت روی همین گوشی ذخیره می‌شه و می‌تونی بعداً با اثر انگشت گوشی وارد پنل مدیریت بشی — فقط روی همین دستگاه.</div>
+      <label class="chk-item" style="width:100%; box-sizing:border-box;">
+        <input type="checkbox" id="adminFpToggle" onchange="saveAdminFpPref()"> فعال‌سازی ورود سریع با اثر انگشت روی این گوشی
+      </label>
     </div>
 
     <div class="card">
@@ -2057,6 +2066,9 @@ async function checkPin(){
     adminUsername = enteredUser;
     sessionStorage.setItem('adminPin', adminPin);
     sessionStorage.setItem('adminUsername', adminUsername);
+    if(localStorage.getItem('adminFpEnabled') === 'yes'){
+      await cacheAdminCreds(enteredUser, entered);
+    }
     document.getElementById('adminGate').style.display='none';
     document.getElementById('adminView').style.display='block';
     refreshAdminView();
@@ -2064,6 +2076,47 @@ async function checkPin(){
     document.getElementById('pinHint').textContent = res.error ? ('خطا: '+res.error) : 'نام کاربری یا رمز اشتباه است. (پیش‌فرض: admin / 1234)';
     document.getElementById('pinHint').style.color = '#a32a2a';
   }
+}
+async function cacheAdminCreds(username, pin){
+  try{
+    var hash = await hashCreds(username.toLowerCase()+':'+pin);
+    localStorage.setItem('cachedAdminAuth', JSON.stringify({username:username, pin:pin, hash:hash}));
+  }catch(e){}
+}
+function getCachedAdminAuth(){
+  try{ return JSON.parse(localStorage.getItem('cachedAdminAuth')||'null'); }catch(e){ return null; }
+}
+function updateAdminFpQuickLoginVisibility(){
+  var btn = document.getElementById('adminFpQuickLoginBtn');
+  if(!btn) return;
+  var enabled = localStorage.getItem('adminFpEnabled') === 'yes';
+  var cached = getCachedAdminAuth();
+  btn.style.display = (enabled && cached && deviceHasFingerprint) ? 'block' : 'none';
+}
+async function tryAdminFingerprintLogin(){
+  var cached = getCachedAdminAuth();
+  if(!cached){ alert('هنوز هیچ ورود قبلی روی این گوشی ذخیره نشده. یک‌بار باید با یوزرنیم/رمز وارد بشی.'); return; }
+  var ok = await verifyFingerprint();
+  if(!ok){ document.getElementById('pinHint').textContent = 'تایید اثر انگشت ناموفق بود یا لغو شد.'; document.getElementById('pinHint').style.color = '#a32a2a'; return; }
+  adminPin = cached.pin;
+  adminUsername = cached.username;
+  sessionStorage.setItem('adminPin', adminPin);
+  sessionStorage.setItem('adminUsername', adminUsername);
+  document.getElementById('adminGate').style.display='none';
+  document.getElementById('adminView').style.display='block';
+  refreshAdminView();
+}
+function saveAdminFpPref(){
+  var checked = document.getElementById('adminFpToggle').checked;
+  if(checked){
+    localStorage.setItem('adminFpEnabled', 'yes');
+    cacheAdminCreds(adminUsername, adminPin); // cache right away using the current active session too
+    alert('فعال شد. دفعه بعد که دوباره با یوزرنیم/رمز وارد بشی، دکمه ورود سریع با اثر انگشت روی این گوشی نمایان می‌شه.');
+  } else {
+    localStorage.removeItem('adminFpEnabled');
+    localStorage.removeItem('cachedAdminAuth');
+  }
+  updateAdminFpQuickLoginVisibility();
 }
 function refreshCurrentEmpSection(){
   var active = ['checkin','request','history'].find(function(s){
@@ -2394,6 +2447,8 @@ async function refreshAdminSection(name){
       var stEl = document.getElementById('notifyEmailStatus');
       if(stEl) stEl.textContent = emailRes.lastStatus ? ('آخرین وضعیت ارسال: ' + emailRes.lastStatus) : 'هنوز ایمیلی ارسال نشده.';
     }
+    var fpChk = document.getElementById('adminFpToggle');
+    if(fpChk) fpChk.checked = (localStorage.getItem('adminFpEnabled') === 'yes');
   }
 }
 function adminLogout(){
@@ -2405,6 +2460,7 @@ function adminLogout(){
   document.getElementById('adminGate').style.display='block';
   document.getElementById('pinInput').value='';
   document.getElementById('adminUsernameInput').value='';
+  updateAdminFpQuickLoginVisibility();
 }
 async function setPin(){
   var cur = document.getElementById('curPin').value.trim();
@@ -3771,24 +3827,32 @@ function renderLogTable(){
       var refE = p.inE || p.outE;
       var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===refE.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
       var prOpts = projects.map(function(pr){ return '<option'+(pr.name===refE.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
-      var edp = parseJalaliDateStr(refE.jalaliDate);
       var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
-      var dayOpts = ''; for(var dd=1; dd<=31; dd++){ dayOpts += '<option value="'+dd+'"'+(edp && String(dd)===edp.day?' selected':'')+'>'+dd+'</option>'; }
-      var monthOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(edp && m===edp.month?' selected':'')+'>'+m+'</option>'; }).join('');
-      var yearOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
+      function buildDateSelects(prefix, dateStr){
+        var dp = parseJalaliDateStr(dateStr);
+        var dOpts = ''; for(var dd=1; dd<=31; dd++){ dOpts += '<option value="'+dd+'"'+(dp && String(dd)===dp.day?' selected':'')+'>'+dd+'</option>'; }
+        var mOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(dp && m===dp.month?' selected':'')+'>'+m+'</option>'; }).join('');
+        var yOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yOpts += '<option value="'+yy+'"'+(dp && String(yy)===dp.year?' selected':'')+'>'+yy+'</option>'; }
+        return '<select id="'+prefix+'Day" style="width:60px;">'+dOpts+'</select>'+
+               '<select id="'+prefix+'Month" style="width:96px;">'+mOpts+'</select>'+
+               '<select id="'+prefix+'Year" style="width:76px;">'+yOpts+'</select>';
+      }
       return '<tr class="edit-row"><td colspan="6">'+
         '<div class="hint" style="margin:0 0 6px;">در حال ویرایش — '+esc(refE.employee)+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
-          '<select id="logEditDay" style="width:64px;">'+dayOpts+'</select>'+
-          '<select id="logEditMonth" style="width:100px;">'+monthOpts+'</select>'+
-          '<select id="logEditYear" style="width:80px;">'+yearOpts+'</select>'+
           '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
           '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
         '</div>'+
-        '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
-          (p.inE ? ('<label style="display:flex; align-items:center; gap:4px;">ورود: <input type="time" id="logEditInTime" step="1" value="'+esc(p.inE.time)+'" class="field-mono" style="width:110px;"></label>') : '')+
-          (p.outE ? ('<label style="display:flex; align-items:center; gap:4px;">خروج: <input type="time" id="logEditOutTime" step="1" value="'+esc(p.outE.time)+'" class="field-mono" style="width:110px;"></label>') : '')+
-        '</div>'+
+        (p.inE ? ('<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">ورود</div>'+
+          '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
+            buildDateSelects('logEditIn', p.inE.jalaliDate)+
+            '<input type="time" id="logEditInTime" step="1" value="'+esc(p.inE.time)+'" class="field-mono" style="width:104px;">'+
+          '</div>') : '')+
+        (p.outE ? ('<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">خروج</div>'+
+          '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
+            buildDateSelects('logEditOut', p.outE.jalaliDate)+
+            '<input type="time" id="logEditOutTime" step="1" value="'+esc(p.outE.time)+'" class="field-mono" style="width:104px;">'+
+          '</div>') : '')+
         '<div class="btn-row">'+
           '<button type="button" class="btn btn-in btn-small" onclick="saveEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">💾 ذخیره</button>'+
           '<button type="button" class="btn btn-ghost btn-small" onclick="cancelEditLog()">لغو</button>'+
@@ -3820,10 +3884,6 @@ async function saveOneLogEntry(id, jalaliDate, time, employee, project, type){
   return res.ok;
 }
 async function saveEditLogPair(inId, outId){
-  var day = document.getElementById('logEditDay').value;
-  var monthIdx = parseInt(document.getElementById('logEditMonth').value, 10);
-  var year = document.getElementById('logEditYear').value;
-  var jalaliDate = day + ' ' + jMonths[monthIdx-1] + ' ' + year;
   var employee = document.getElementById('logEditEmp').value;
   var project = document.getElementById('logEditProj').value;
   function normTime(raw){
@@ -3833,14 +3893,22 @@ async function saveEditLogPair(inId, outId){
     var ss = p[2]||'00'; if(ss.length<2) ss='0'+ss;
     return hh+':'+mm+':'+ss;
   }
+  function readDate(prefix){
+    var d = document.getElementById(prefix+'Day').value;
+    var m = parseInt(document.getElementById(prefix+'Month').value, 10);
+    var y = document.getElementById(prefix+'Year').value;
+    return d + ' ' + jMonths[m-1] + ' ' + y;
+  }
   var ok = true;
   if(inId){
+    var inDate = readDate('logEditIn');
     var inTime = normTime(document.getElementById('logEditInTime').value);
-    ok = ok && await saveOneLogEntry(inId, jalaliDate, inTime, employee, project, 'in');
+    ok = ok && await saveOneLogEntry(inId, inDate, inTime, employee, project, 'in');
   }
   if(outId){
+    var outDate = readDate('logEditOut');
     var outTime = normTime(document.getElementById('logEditOutTime').value);
-    ok = ok && await saveOneLogEntry(outId, jalaliDate, outTime, employee, project, 'out');
+    ok = ok && await saveOneLogEntry(outId, outDate, outTime, employee, project, 'out');
   }
   if(!ok){ showAdminNotice('ویرایش ثبت ناموفق بود.'); return; }
   clearAdminNotice();
@@ -4172,7 +4240,7 @@ function init(){
     document.getElementById('mainApp').style.display='none';
     return;
   }
-  detectFingerprintSupport().then(function(v){ deviceHasFingerprint = v; updateFpQuickLoginVisibility(); });
+  detectFingerprintSupport().then(function(v){ deviceHasFingerprint = v; updateFpQuickLoginVisibility(); updateAdminFpQuickLoginVisibility(); });
   document.getElementById('setupScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
 
