@@ -322,6 +322,12 @@
       </ol>
       <button type="button" class="btn btn-ghost copy-btn" onclick="copyScript()">📋 کپی کد Apps Script</button>
       <pre id="scriptCode">// ============================================================
+// ⚙️ تنظیمات این نسخه — برای هر شرکت/مشتری جدید فقط همین یک خط رو عوض کن
+// (خط دومی که باید عوض بشه، API_URL توی خود index.html هست)
+// ============================================================
+var MAX_EMPLOYEES = 0; // 0 = بدون محدودیت. برای محدود کردن، یه عدد بذار مثلاً 10 یا 20.
+
+// ============================================================
 // Self-healing sheet getter: creates the sheet if missing, and
 // adds any newly-introduced header columns to existing sheets
 // (so upgrading this script never breaks old data).
@@ -715,6 +721,10 @@ function doPost(e){
     var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var empRows = readRows(lsh2).filter(function(r){ return r.username === d.username; });
     empRows.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    var todaysCount = empRows.filter(function(r){ return r.jalaliDate === t.jalaliDate; }).length;
+    if(todaysCount >= 2){
+      return jsonOut({ok:false, error:'daily_limit_reached'});
+    }
     var lastEntry = empRows.length ? empRows[empRows.length-1] : null;
     var wantIn = (d.type === 'in');
     if(wantIn && lastEntry && lastEntry.type === 'ورود'){
@@ -897,6 +907,9 @@ function doPost(e){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
     var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    if(MAX_EMPLOYEES > 0 && readRows(esh5).length >= MAX_EMPLOYEES){
+      return jsonOut({ok:false, error:'employee_limit_reached'});
+    }
     var id2 = Utilities.getUuid();
     appendRowByHeader(esh5, {
       id:id2, fullName:body.fullName, username:body.username, password:body.password,
@@ -2659,7 +2672,9 @@ async function saveEmployee(){
     }
     btn.disabled = false;
     if(!res.ok){
-      var saveMsg = res.error === 'employee_code_required' ? 'کد پرسنلی الزامی است' : (res.error||'نامشخص');
+      var saveMsg = res.error === 'employee_code_required' ? 'کد پرسنلی الزامی است'
+        : res.error === 'employee_limit_reached' ? 'به سقف مجاز تعداد پرسنل این نسخه رسیدی.'
+        : (res.error||'نامشخص');
       showAdminNotice('ذخیره پرسنل ناموفق بود: ' + saveMsg);
       return;
     }
@@ -3388,6 +3403,7 @@ async function submitEntry(type){
     if(res.error === 'fingerprint_required') msg = 'تایید اثر انگشت لازم است. دوباره تلاش کنید.';
     if(res.error === 'already_checked_in') msg = 'شما قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
     if(res.error === 'not_checked_in') msg = 'شما هنوز ورود نزده‌اید — ابتدا ورود بزنید.';
+    if(res.error === 'daily_limit_reached') msg = 'شما امروز حداکثر تعداد ثبت تردد (یک ورود و یک خروج) رو زدید. برای ثبت بیشتر باید با مدیر هماهنگ کنید.';
     if(res.error === 'checkout_too_soon'){
       setStatus('⛔ حداقل باید ۵ دقیقه از ثبت ورودتان بگذرد تا بتوانید خروج بزنید.', 'err');
       return;
@@ -3847,11 +3863,13 @@ function renderLogTable(){
           '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
             buildDateSelects('logEditIn', p.inE.jalaliDate)+
             '<input type="time" id="logEditInTime" step="1" value="'+esc(p.inE.time)+'" class="field-mono" style="width:104px;">'+
+            '<button type="button" class="icon-btn del" title="فقط ورود حذف شود" onclick="deleteSingleLogEntry(\''+p.inE.id+'\')">🗑</button>'+
           '</div>') : '')+
         (p.outE ? ('<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">خروج</div>'+
           '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
             buildDateSelects('logEditOut', p.outE.jalaliDate)+
             '<input type="time" id="logEditOutTime" step="1" value="'+esc(p.outE.time)+'" class="field-mono" style="width:104px;">'+
+            '<button type="button" class="icon-btn del" title="فقط خروج حذف شود" onclick="deleteSingleLogEntry(\''+p.outE.id+'\')">🗑</button>'+
           '</div>') : '')+
         '<div class="btn-row">'+
           '<button type="button" class="btn btn-in btn-small" onclick="saveEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">💾 ذخیره</button>'+
@@ -3887,7 +3905,8 @@ async function saveEditLogPair(inId, outId){
   var employee = document.getElementById('logEditEmp').value;
   var project = document.getElementById('logEditProj').value;
   function normTime(raw){
-    var p = (raw||'').split(':');
+    if(!raw || !raw.trim()){ return null; } // empty means "leave it blank" — never silently becomes 00:00:00
+    var p = raw.split(':');
     var hh = p[0]||'00'; if(hh.length<2) hh='0'+hh;
     var mm = p[1]||'00'; if(mm.length<2) mm='0'+mm;
     var ss = p[2]||'00'; if(ss.length<2) ss='0'+ss;
@@ -3901,13 +3920,15 @@ async function saveEditLogPair(inId, outId){
   }
   var ok = true;
   if(inId){
-    var inDate = readDate('logEditIn');
     var inTime = normTime(document.getElementById('logEditInTime').value);
+    if(inTime === null){ showAdminNotice('ساعت ورود نمی‌تونه خالی باشه. اگه می‌خوای کلاً حذفش کنی، از دکمه 🗑 کنارش استفاده کن.'); return; }
+    var inDate = readDate('logEditIn');
     ok = ok && await saveOneLogEntry(inId, inDate, inTime, employee, project, 'in');
   }
   if(outId){
-    var outDate = readDate('logEditOut');
     var outTime = normTime(document.getElementById('logEditOutTime').value);
+    if(outTime === null){ showAdminNotice('ساعت خروج نمی‌تونه خالی باشه. اگه می‌خوای کلاً حذفش کنی، از دکمه 🗑 کنارش استفاده کن.'); return; }
+    var outDate = readDate('logEditOut');
     ok = ok && await saveOneLogEntry(outId, outDate, outTime, employee, project, 'out');
   }
   if(!ok){ showAdminNotice('ویرایش ثبت ناموفق بود.'); return; }
@@ -3920,6 +3941,14 @@ async function deleteLogPair(inId, outId){
   if(inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:inId}); });
   if(outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:outId}); });
   clearAdminNotice();
+  await loadFullLog();
+}
+async function deleteSingleLogEntry(id){
+  if(!confirm('فقط همین ثبت حذف بشه؟ این کار قابل بازگشت نیست.')) return;
+  var res = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  editingPairIds = null;
   await loadFullLog();
 }
 function exportCSV(){
