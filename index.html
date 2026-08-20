@@ -4071,17 +4071,25 @@ function renderLogTable(){
   var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
   var monthFilter = document.getElementById('logFilterMonth').value;
   var yearFilter = document.getElementById('logFilterYear').value;
-  var entries = all.filter(function(e){
+  // filter by employee code/name only here — this never splits a pair apart, since it's per-person
+  var codeFiltered = all.filter(function(e){
     if(codeFilter && String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) === -1 && String(e.employee||'').toLowerCase().indexOf(codeFilter) === -1) return false;
-    if(!matchesMonthYear(e.jalaliDate, monthFilter, yearFilter)) return false;
     return true;
   });
-  if(entries.length===0){
+  // pair FIRST (using every entry for the matched employee(s)), so a pair that spans two months
+  // (an overnight shift) always stays together — THEN filter the resulting pairs by month/year
+  var allPairs = pairLogEntriesForDisplay(codeFiltered);
+  var pairs = allPairs.filter(function(p){
+    if(!monthFilter && !yearFilter) return true;
+    var inMatch = p.inE && matchesMonthYear(p.inE.jalaliDate, monthFilter, yearFilter);
+    var outMatch = p.outE && matchesMonthYear(p.outE.jalaliDate, monthFilter, yearFilter);
+    return inMatch || outMatch;
+  });
+  if(pairs.length===0){
     tbody.innerHTML = '<tr><td colspan="6" class="empty">'+((codeFilter||monthFilter||yearFilter) ? 'با این فیلتر ثبتی یافت نشد' : 'هنوز ثبتی وجود ندارد')+'</td></tr>';
     return;
   }
 
-  var pairs = pairLogEntriesForDisplay(entries);
   tbody.innerHTML = pairs.map(function(p){
     var pairKey = (p.inE?p.inE.id:'') + '|' + (p.outE?p.outE.id:'');
     var isEditing = editingPairIds && ((editingPairIds.inId||'')+'|'+(editingPairIds.outId||'')) === pairKey;
