@@ -531,6 +531,10 @@ function jalaliToGregorianServer(jy, jm, jd){
   var gm; for(gm=0; gm<13; gm++){ var v=sal_a[gm]; if(gd<=v) break; gd-=v; }
   return [gy, gm, gd];
 }
+function logManualEntryAudit(entry){
+  var mlsh = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
+  appendRowByHeader(mlsh, entry);
+}
 function jalaliDateTimeToIso(jalaliDateStr, timeStr){
   var p = String(jalaliDateStr||'').trim().split(' ');
   if(p.length < 3) return null;
@@ -1012,7 +1016,60 @@ function doPost(e){
       employeeCode: empA.employeeCode || '',
       isHoliday: holInfoA.isHoliday ? 'تعطیل' : '', holidayReason: holInfoA.reason
     });
+    logManualEntryAudit({
+      id:lidA, jalaliDate:body.jalaliDate, time:body.time, employee:empA.fullName, username:empA.username,
+      project:body.project||'', type: body.type === 'in' ? 'ورود' : 'خروج', employeeCode: empA.employeeCode||'',
+      reason: body.reason||'', createdAt: serverNow().jalaliDate + ' ' + serverNow().time, source:'single'
+    });
     return jsonOut({ok:true});
+  }
+  if(action === 'adminAddLogBatch'){
+    var eshB = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var empB = readRows(eshB).filter(function(r){ return r.username === body.username; })[0];
+    if(!empB) return jsonOut({ok:false, error:'unknown_employee'});
+    var entriesB = body.entries || [];
+    if(!entriesB.length) return jsonOut({ok:false, error:'no_entries'});
+
+    var lshB = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var empRowsB = readRows(lshB).filter(function(r){ return r.username === empB.username; });
+    var lastIsoB = empRowsB.length ? empRowsB.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsB.length-1].isoTimestamp : null;
+
+    var computedB = [];
+    for(var bi=0; bi<entriesB.length; bi++){
+      var eb = entriesB[bi];
+      var isoB = jalaliDateTimeToIso(eb.jalaliDate, eb.time);
+      if(!isoB) return jsonOut({ok:false, error:'invalid_date_time', at: eb.jalaliDate + ' ' + eb.time});
+      computedB.push({jalaliDate:eb.jalaliDate, time:eb.time, type:eb.type, iso:isoB});
+    }
+    computedB.sort(function(a,c){ return String(a.iso).localeCompare(String(c.iso)); });
+
+    var runningLast = lastIsoB;
+    for(var bj=0; bj<computedB.length; bj++){
+      if(runningLast && String(computedB[bj].iso) <= String(runningLast)){
+        return jsonOut({ok:false, error:'must_be_after_last_entry', at: computedB[bj].jalaliDate + ' ' + computedB[bj].time});
+      }
+      runningLast = computedB[bj].iso;
+    }
+
+    var t5 = serverNow();
+    computedB.forEach(function(eb){
+      var holInfoB = getHolidayInfo(eb.jalaliDate);
+      var lidB = Utilities.getUuid();
+      appendRowByHeader(lshB, {
+        id:lidB, jalaliDate:eb.jalaliDate, time:eb.time, employee:empB.fullName, username:empB.username, project:body.project||'',
+        type: eb.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:eb.iso,
+        note: 'ثبت مستقیم توسط مدیر (ماهانه)' + (body.reason ? (' — ' + body.reason) : ''),
+        employeeCode: empB.employeeCode || '',
+        isHoliday: holInfoB.isHoliday ? 'تعطیل' : '', holidayReason: holInfoB.reason
+      });
+      logManualEntryAudit({
+        id:lidB, jalaliDate:eb.jalaliDate, time:eb.time, employee:empB.fullName, username:empB.username,
+        project:body.project||'', type: eb.type === 'in' ? 'ورود' : 'خروج', employeeCode: empB.employeeCode||'',
+        reason: body.reason||'', createdAt: t5.jalaliDate + ' ' + t5.time, source:'monthly-bulk'
+      });
+    });
+
+    return jsonOut({ok:true, count: computedB.length});
   }
   if(action === 'getPendingOfflineLogs'){
     var poshG = getSheet('PendingOfflineLogs', ['id','username','employee','employeeCode','project','type','jalaliDate','time','clientIso','lat','lng','accuracy','reason','status','createdAt']);
@@ -1765,25 +1822,57 @@ function esh_set(sheet, rowNum, headerName, value){
   <div class="bottom-sheet-modal" id="adminLogSheet">
     <div class="sheet-handle"></div>
     <div class="eyebrow">ثبت مستقیم تردد (بدون درخواست)</div>
-    <div class="hint" style="margin-top:-4px;">مستقیماً برای یک پرسنل، ورود یا خروج با ساعت دلخواه ثبت می‌کنه — نیاز به تایید درخواست نداره.</div>
+    <div class="hint" style="margin-top:-4px;">مستقیماً برای یک پرسنل، بدون نیاز به تایید درخواست، تردد ثبت می‌کنه.</div>
+
+    <div class="date-row" style="margin-bottom:10px;">
+      <button type="button" class="btn btn-small" id="adminLogModeSingleBtn" onclick="setAdminLogMode('single')" style="flex:1;">یک ثبت</button>
+      <button type="button" class="btn btn-small btn-ghost" id="adminLogModeMonthlyBtn" onclick="setAdminLogMode('monthly')" style="flex:1;">📅 کل یک ماه</button>
+    </div>
+
     <label>پرسنل</label>
     <select id="adminLogEmp"></select>
     <label>پروژه</label>
     <select id="adminLogProj"></select>
-    <label>نوع</label>
-    <select id="adminLogType">
-      <option value="in">ورود</option>
-      <option value="out">خروج</option>
-    </select>
-    <label>تاریخ</label>
-    <div class="date-row">
-      <select id="adminLogDay"></select><select id="adminLogMonth"></select><select id="adminLogYear"></select>
+
+    <div id="adminLogSingleSection">
+      <label>نوع</label>
+      <select id="adminLogType">
+        <option value="in">ورود</option>
+        <option value="out">خروج</option>
+      </select>
+      <label>تاریخ</label>
+      <div class="date-row">
+        <select id="adminLogDay"></select><select id="adminLogMonth"></select><select id="adminLogYear"></select>
+      </div>
+      <label>ساعت</label>
+      <input type="time" id="adminLogTime" step="1">
+      <label>یادداشت (اختیاری)</label>
+      <input type="text" id="adminLogReason" placeholder="مثلاً: طبق هماهنگی تلفنی">
+      <button type="button" class="btn btn-primary" onclick="submitAdminLog()">💾 ثبت</button>
     </div>
-    <label>ساعت</label>
-    <input type="time" id="adminLogTime" step="1">
-    <label>یادداشت (اختیاری)</label>
-    <input type="text" id="adminLogReason" placeholder="مثلاً: طبق هماهنگی تلفنی">
-    <button type="button" class="btn btn-primary" onclick="submitAdminLog()">💾 ثبت</button>
+
+    <div id="adminLogMonthlySection" style="display:none;">
+      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد کن.</div>
+      <label>ماه و سال</label>
+      <div class="date-row">
+        <select id="adminLogMonthlyMonth"></select><select id="adminLogMonthlyYear"></select>
+      </div>
+      <button type="button" class="btn btn-ghost" onclick="loadMonthDaysForBulkEntry()">📆 بارگذاری روزهای این ماه</button>
+
+      <div id="bulkFixedTimeBox" style="display:none; background:#fff4e2; border-radius:10px; padding:10px 12px; margin-top:10px;">
+        <div class="hint" style="margin:0 0 6px;">🔁 اگه ساعت ورود/خروج این پرسنل هر روز ثابته (مثلاً نگهبان)، یه‌بار اینجا وارد کن و اعمال کن:</div>
+        <div class="date-row">
+          <input type="time" id="bulkFixedIn" step="1">
+          <input type="time" id="bulkFixedOut" step="1">
+        </div>
+        <button type="button" class="btn btn-ghost btn-small" style="margin-top:6px; width:100%;" onclick="applyFixedTimeToAllDays()">اعمال به همه روزها</button>
+      </div>
+
+      <div id="bulkDaysContainer" style="margin-top:10px;"></div>
+
+      <button type="button" class="btn btn-primary" id="bulkSubmitBtn" style="display:none; margin-top:10px;" onclick="submitMonthlyBulkLog()">💾 ثبت همه</button>
+    </div>
+
     <button type="button" class="btn btn-ghost" style="margin-top:8px;" onclick="closeAdminLogSheet()">انصراف</button>
   </div>
 
@@ -2321,8 +2410,107 @@ function openAdminLogSheet(){
   projSel.innerHTML = projects.map(function(p){ return '<option>'+esc(p.name)+'</option>'; }).join('');
   document.getElementById('adminLogTime').value = '';
   document.getElementById('adminLogReason').value = '';
+
+  var mMonthSel = document.getElementById('adminLogMonthlyMonth');
+  var mYearSel = document.getElementById('adminLogMonthlyYear');
+  if(mMonthSel.options.length === 0){
+    jMonths.forEach(function(m){ mMonthSel.innerHTML += '<option value="'+m+'">'+m+'</option>'; });
+    var today = new Date();
+    var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+    mMonthSel.value = jMonths[tj[1]-1];
+    for(var y=tj[0]+1; y>=tj[0]-3; y--){ mYearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+    mYearSel.value = String(tj[0]);
+  }
+  document.getElementById('bulkDaysContainer').innerHTML = '';
+  document.getElementById('bulkFixedTimeBox').style.display = 'none';
+  document.getElementById('bulkSubmitBtn').style.display = 'none';
+  document.getElementById('bulkFixedIn').value = '';
+  document.getElementById('bulkFixedOut').value = '';
+  setAdminLogMode('single');
+
   document.getElementById('adminLogOverlay').classList.add('open');
   document.getElementById('adminLogSheet').classList.add('open');
+}
+function setAdminLogMode(mode){
+  document.getElementById('adminLogSingleSection').style.display = (mode === 'single') ? 'block' : 'none';
+  document.getElementById('adminLogMonthlySection').style.display = (mode === 'monthly') ? 'block' : 'none';
+  document.getElementById('adminLogModeSingleBtn').classList.toggle('btn-ghost', mode !== 'single');
+  document.getElementById('adminLogModeMonthlyBtn').classList.toggle('btn-ghost', mode !== 'monthly');
+}
+function loadMonthDaysForBulkEntry(){
+  var monthName = document.getElementById('adminLogMonthlyMonth').value;
+  var year = parseInt(document.getElementById('adminLogMonthlyYear').value, 10);
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var daysCount = jalaliMonthLength(monthIdx, year);
+  var box = document.getElementById('bulkDaysContainer');
+  var rows = [];
+  for(var d=1; d<=daysCount; d++){
+    rows.push(
+      '<div class="date-row" style="align-items:center; margin-bottom:6px;">'+
+        '<span style="width:70px; font-size:13px; flex-shrink:0;">'+d+' '+monthName+'</span>'+
+        '<input type="time" id="bulkDay'+d+'In" step="1" style="flex:1;">'+
+        '<input type="time" id="bulkDay'+d+'Out" step="1" style="flex:1;">'+
+      '</div>'
+    );
+  }
+  box.innerHTML = '<div class="date-row" style="font-size:11px; color:#7a7360; margin-bottom:4px;"><span style="width:70px; flex-shrink:0;"></span><span style="flex:1;">ورود</span><span style="flex:1;">خروج</span></div>' + rows.join('');
+  document.getElementById('bulkFixedTimeBox').style.display = 'block';
+  document.getElementById('bulkSubmitBtn').style.display = 'block';
+}
+function applyFixedTimeToAllDays(){
+  var fixedIn = document.getElementById('bulkFixedIn').value;
+  var fixedOut = document.getElementById('bulkFixedOut').value;
+  if(!fixedIn && !fixedOut){ alert('حداقل یکی از ساعت ورود یا خروج رو وارد کن'); return; }
+  var monthName = document.getElementById('adminLogMonthlyMonth').value;
+  var year = parseInt(document.getElementById('adminLogMonthlyYear').value, 10);
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var daysCount = jalaliMonthLength(monthIdx, year);
+  for(var d=1; d<=daysCount; d++){
+    var inEl = document.getElementById('bulkDay'+d+'In');
+    var outEl = document.getElementById('bulkDay'+d+'Out');
+    if(inEl && fixedIn) inEl.value = fixedIn;
+    if(outEl && fixedOut) outEl.value = fixedOut;
+  }
+}
+function normTimeForSubmit(raw){
+  var p = (raw||'').split(':');
+  var hh = p[0]||'00'; if(hh.length<2) hh='0'+hh;
+  var mm = p[1]||'00'; if(mm.length<2) mm='0'+mm;
+  var ss = p[2]||'00'; if(ss.length<2) ss='0'+ss;
+  return hh+':'+mm+':'+ss;
+}
+async function submitMonthlyBulkLog(){
+  var username = document.getElementById('adminLogEmp').value;
+  var project = document.getElementById('adminLogProj').value;
+  if(!username){ alert('یک پرسنل انتخاب کن'); return; }
+  var monthName = document.getElementById('adminLogMonthlyMonth').value;
+  var year = parseInt(document.getElementById('adminLogMonthlyYear').value, 10);
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var daysCount = jalaliMonthLength(monthIdx, year);
+  var entries = [];
+  for(var d=1; d<=daysCount; d++){
+    var inVal = document.getElementById('bulkDay'+d+'In').value;
+    var outVal = document.getElementById('bulkDay'+d+'Out').value;
+    var jalaliDate = d + ' ' + monthName + ' ' + year;
+    if(inVal) entries.push({jalaliDate: jalaliDate, time: normTimeForSubmit(inVal), type:'in'});
+    if(outVal) entries.push({jalaliDate: jalaliDate, time: normTimeForSubmit(outVal), type:'out'});
+  }
+  if(entries.length === 0){ alert('حداقل برای یک روز ساعتی وارد کن'); return; }
+  if(!confirm(entries.length + ' ثبت برای این پرسنل ذخیره بشه؟')) return;
+  var res = await apiCall(function(){ return apiPost('adminAddLogBatch', {
+    pin: adminPin, username: username, project: project, entries: entries
+  }); });
+  if(!res.ok){
+    var msg = res.error === 'must_be_after_last_entry'
+      ? 'یکی از ساعت‌ها (' + (res.at||'') + ') زودتر از یک ثبت قبلیه — ترتیب روزها/ساعت‌ها رو چک کن.'
+      : (res.error || 'خطای شبکه');
+    showAdminNotice('ثبت گروهی ناموفق بود: ' + msg);
+    return;
+  }
+  clearAdminNotice();
+  closeAdminLogSheet();
+  alert(res.count + ' ثبت با موفقیت ذخیره شد.');
+  refreshCurrentAdminSection();
 }
 function closeAdminLogSheet(){
   document.getElementById('adminLogOverlay').classList.remove('open');
@@ -3477,7 +3665,7 @@ async function loadMyHistory(){
   var box = document.getElementById('myHistoryList');
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>'; return; }
-  populateMonthYearFilter('myHistFilterMonth','myHistFilterYear');
+  populateMonthYearFilter('myHistFilterMonth','myHistFilterYear', true);
   var monthFilter = document.getElementById('myHistFilterMonth').value;
   var yearFilter = document.getElementById('myHistFilterYear').value;
   var entries = (res.logs||[]).filter(function(e){ return matchesMonthYear(e.jalaliDate, monthFilter, yearFilter); });
@@ -3820,7 +4008,7 @@ function pairLogEntriesForDisplay(entries){
 }
 function renderLogTable(){
   var tbody = document.getElementById('logTableBody');
-  populateMonthYearFilter('logFilterMonth','logFilterYear');
+  populateMonthYearFilter('logFilterMonth','logFilterYear', true);
   var all = window._allEntries || [];
   var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
   var monthFilter = document.getElementById('logFilterMonth').value;
@@ -4218,15 +4406,21 @@ function matchesMonthYear(dateStr, monthFilter, yearFilter){
   if(yearFilter && p.year !== yearFilter) return false;
   return true;
 }
-function populateMonthYearFilter(monthId, yearId){
+function populateMonthYearFilter(monthId, yearId, defaultToCurrent){
   var monthSel = document.getElementById(monthId);
   var yearSel = document.getElementById(yearId);
   if(!monthSel || monthSel.options.length > 1) return; // already populated
   jMonths.forEach(function(m){ monthSel.innerHTML += '<option value="'+m+'">'+m+'</option>'; });
   var today = new Date();
-  var curJY = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate())[0];
+  var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+  var curJY = tj[0];
+  var curJM = tj[1];
   var topYear = Math.max(1425, curJY+1);
   for(var y=topYear; y>=curJY-5; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+  if(defaultToCurrent){
+    monthSel.value = jMonths[curJM-1];
+    yearSel.value = String(curJY);
+  }
 }
 function displayNote(rawNote){
   if(!rawNote) return '';
