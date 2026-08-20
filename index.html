@@ -3708,8 +3708,8 @@ async function loadMyLogs(){
     var holBadge = isHolidayEntry(p.inE||p.outE) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
     var inNote = p.inE ? displayNote(p.inE.note) : '';
     var outNote = p.outE ? displayNote(p.outE.note) : '';
-    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#7a7360;">('+p.inE.jalaliDate+')</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
-    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#7a7360;">('+p.outE.jalaliDate+')</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
+    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
+    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
     return '<div class="list-item"><div>'+
       '<b>'+esc(p.project)+'</b>'+holBadge+
       '<div class="meta">'+inHtml+'</div><div class="meta">'+outHtml+'</div></div></div>';
@@ -4129,7 +4129,8 @@ function renderLogTable(){
       if(!e) return '<span style="color:#b5ae98;">—</span>';
       var noteDisp2 = displayNote(e.note);
       var noteHtml = noteDisp2 ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(noteDisp2)+'</span>' : '';
-      return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi>'+noteHtml;
+      var dateHtml = '<br><bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+e.jalaliDate+')</bdi>';
+      return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi>'+dateHtml+noteHtml;
     }
     var pairActions = '<button class="icon-btn edit" title="ویرایش" onclick="startEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✏️</button>'+
       '<button class="icon-btn del" title="حذف" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
