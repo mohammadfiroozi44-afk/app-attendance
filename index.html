@@ -1852,7 +1852,7 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
 
     <div id="adminLogMonthlySection" style="display:none;">
-      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد کن.</div>
+      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده.</div>
       <label>ماه و سال</label>
       <div class="date-row">
         <select id="adminLogMonthlyMonth"></select><select id="adminLogMonthlyYear"></select>
@@ -1871,6 +1871,7 @@ function esh_set(sheet, rowNum, headerName, value){
       <div id="bulkDaysContainer" style="margin-top:10px;"></div>
 
       <button type="button" class="btn btn-primary" id="bulkSubmitBtn" style="display:none; margin-top:10px;" onclick="submitMonthlyBulkLog()">💾 ثبت همه</button>
+      <div id="bulkSubmitStatus" style="display:none; background:#fde8e8; color:#a32a2a; border-radius:10px; padding:10px 12px; margin-top:8px; font-size:13px;"></div>
     </div>
 
     <button type="button" class="btn btn-ghost" style="margin-top:8px;" onclick="closeAdminLogSheet()">انصراف</button>
@@ -2426,6 +2427,7 @@ async function openAdminLogSheet(){
   document.getElementById('bulkDaysContainer').innerHTML = '';
   document.getElementById('bulkFixedTimeBox').style.display = 'none';
   document.getElementById('bulkSubmitBtn').style.display = 'none';
+  document.getElementById('bulkSubmitStatus').style.display = 'none';
   document.getElementById('bulkFixedIn').value = '';
   document.getElementById('bulkFixedOut').value = '';
   setAdminLogMode('single');
@@ -2481,7 +2483,16 @@ function normTimeForSubmit(raw){
   var ss = p[2]||'00'; if(ss.length<2) ss='0'+ss;
   return hh+':'+mm+':'+ss;
 }
+function nextJalaliDay(d, monthIdx, year){
+  var dim = jalaliMonthLength(monthIdx, year);
+  if(d < dim) return {day: d+1, monthIdx: monthIdx, year: year};
+  var nm = monthIdx + 1, ny = year;
+  if(nm > 12){ nm = 1; ny = year + 1; }
+  return {day: 1, monthIdx: nm, year: ny};
+}
 async function submitMonthlyBulkLog(){
+  var statusEl = document.getElementById('bulkSubmitStatus');
+  statusEl.style.display = 'none';
   var username = document.getElementById('adminLogEmp').value;
   var project = document.getElementById('adminLogProj').value;
   if(!username){ alert('یک پرسنل انتخاب کن'); return; }
@@ -2495,7 +2506,18 @@ async function submitMonthlyBulkLog(){
     var outVal = document.getElementById('bulkDay'+d+'Out').value;
     var jalaliDate = d + ' ' + monthName + ' ' + year;
     if(inVal) entries.push({jalaliDate: jalaliDate, time: normTimeForSubmit(inVal), type:'in'});
-    if(outVal) entries.push({jalaliDate: jalaliDate, time: normTimeForSubmit(outVal), type:'out'});
+    if(outVal){
+      var outTime = normTimeForSubmit(outVal);
+      // overnight shift: if checkout clock-time is earlier than check-in clock-time on the same row, it belongs to the next calendar day
+      var isOvernight = inVal && (timeToMinutesClient(outTime) < timeToMinutesClient(normTimeForSubmit(inVal)));
+      if(isOvernight){
+        var nd = nextJalaliDay(d, monthIdx, year);
+        var outDate = nd.day + ' ' + jMonths[nd.monthIdx-1] + ' ' + nd.year;
+        entries.push({jalaliDate: outDate, time: outTime, type:'out'});
+      } else {
+        entries.push({jalaliDate: jalaliDate, time: outTime, type:'out'});
+      }
+    }
   }
   if(entries.length === 0){ alert('حداقل برای یک روز ساعتی وارد کن'); return; }
   if(!confirm(entries.length + ' ثبت برای این پرسنل ذخیره بشه؟')) return;
@@ -2504,8 +2526,10 @@ async function submitMonthlyBulkLog(){
   }); });
   if(!res.ok){
     var msg = res.error === 'must_be_after_last_entry'
-      ? 'یکی از ساعت‌ها (' + (res.at||'') + ') زودتر از یک ثبت قبلیه — ترتیب روزها/ساعت‌ها رو چک کن.'
+      ? 'یکی از ساعت‌ها (' + (res.at||'') + ') زودتر از یک ثبت قبلیه یا ترتیبش با روز/ساعت دیگه‌ای تو همین فرم نمی‌خونه — روزها و ساعت‌ها رو دوباره چک کن.'
       : (res.error || 'خطای شبکه');
+    statusEl.textContent = '⛔ ثبت گروهی ناموفق بود: ' + msg;
+    statusEl.style.display = 'block';
     showAdminNotice('ثبت گروهی ناموفق بود: ' + msg);
     return;
   }
