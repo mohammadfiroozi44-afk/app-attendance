@@ -2402,8 +2402,10 @@ function clearReqDateFilter(scope){
 }
 
 // ---------- Add-request bottom sheet ----------
-function openAdminLogSheet(){
+async function openAdminLogSheet(){
   initLeaveDateSelects();
+  if(!employees || employees.length === 0){ await loadEmployeesAdmin(); }
+  if(!projects || projects.length === 0){ await loadProjectsAdmin(); }
   var empSel = document.getElementById('adminLogEmp');
   empSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+(e.employeeCode?(' (کد '+esc(e.employeeCode)+')'):'')+'</option>'; }).join('');
   var projSel = document.getElementById('adminLogProj');
