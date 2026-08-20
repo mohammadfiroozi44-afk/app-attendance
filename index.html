@@ -1031,21 +1031,32 @@ function doPost(e){
     if(!entriesB.length) return jsonOut({ok:false, error:'no_entries'});
 
     var lshB = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
-    var empRowsB = readRows(lshB).filter(function(r){ return r.username === empB.username; });
-    var lastIsoB = empRowsB.length ? empRowsB.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsB.length-1].isoTimestamp : null;
+    // NOTE: intentionally NOT checked against the employee's overall existing history for ordering —
+    // this bulk feature is for backfilling any historical month (e.g. an employee without a phone),
+    // and admin may fill months in any order. Only internal same-batch ordering, and exact duplicates
+    // against existing rows, are validated below.
+    var empRowsB = readRows(lshB).filter(function(r){ return r.username === body.username; });
+    var existingIsoSet = {};
+    empRowsB.forEach(function(r){ existingIsoSet[String(r.isoTimestamp)] = true; });
 
     var computedB = [];
     for(var bi=0; bi<entriesB.length; bi++){
       var eb = entriesB[bi];
       var isoB = jalaliDateTimeToIso(eb.jalaliDate, eb.time);
       if(!isoB) return jsonOut({ok:false, error:'invalid_date_time', at: eb.jalaliDate + ' ' + eb.time});
+      if(existingIsoSet[String(isoB)]){
+        return jsonOut({ok:false, error:'duplicate_entry', at: eb.jalaliDate + ' ' + eb.time});
+      }
       computedB.push({jalaliDate:eb.jalaliDate, time:eb.time, type:eb.type, iso:isoB});
     }
     computedB.sort(function(a,c){ return String(a.iso).localeCompare(String(c.iso)); });
 
-    var runningLast = lastIsoB;
+    var runningLast = null;
     for(var bj=0; bj<computedB.length; bj++){
-      if(runningLast && String(computedB[bj].iso) <= String(runningLast)){
+      if(runningLast && String(computedB[bj].iso) === String(runningLast)){
+        return jsonOut({ok:false, error:'duplicate_entry', at: computedB[bj].jalaliDate + ' ' + computedB[bj].time});
+      }
+      if(runningLast && String(computedB[bj].iso) < String(runningLast)){
         return jsonOut({ok:false, error:'must_be_after_last_entry', at: computedB[bj].jalaliDate + ' ' + computedB[bj].time});
       }
       runningLast = computedB[bj].iso;
@@ -1163,6 +1174,16 @@ function doPost(e){
     var holInfo4 = getHolidayInfo(body.jalaliDate);
     esh_set(lsh5, row6._row, 'isHoliday', holInfo4.isHoliday ? 'تعطیل' : '');
     esh_set(lsh5, row6._row, 'holidayReason', holInfo4.reason);
+    var mlsh3 = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
+    var mrow3 = readRows(mlsh3).filter(function(r){ return r.id === body.id; })[0];
+    if(mrow3){
+      esh_set(mlsh3, mrow3._row, 'jalaliDate', body.jalaliDate);
+      esh_set(mlsh3, mrow3._row, 'time', body.time);
+      esh_set(mlsh3, mrow3._row, 'employee', body.employee);
+      esh_set(mlsh3, mrow3._row, 'project', body.project);
+      esh_set(mlsh3, mrow3._row, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
+      if(empMatch) esh_set(mlsh3, mrow3._row, 'employeeCode', empMatch.employeeCode||'');
+    }
     var noteStr = String(row6.note || '');
     var editMatch = noteStr.match(/ویرایش‌شده توسط مدیر \((\d+)\)/);
     if(editMatch){
@@ -1178,6 +1199,9 @@ function doPost(e){
     var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var row7 = ensureIds(lsh6, readRows(lsh6)).filter(function(r){ return r.id === body.id; })[0];
     if(row7) lsh6.deleteRow(row7._row);
+    var mlsh2 = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
+    var mrow2 = readRows(mlsh2).filter(function(r){ return r.id === body.id; })[0];
+    if(mrow2) mlsh2.deleteRow(mrow2._row);
     return jsonOut({ok:true});
   }
 
@@ -1855,7 +1879,7 @@ function esh_set(sheet, rowNum, headerName, value){
       <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده.</div>
       <label>ماه و سال</label>
       <div class="date-row">
-        <select id="adminLogMonthlyMonth"></select><select id="adminLogMonthlyYear"></select>
+        <select id="adminLogMonthlyMonth" onchange="onBulkMonthYearChanged()"></select><select id="adminLogMonthlyYear" onchange="onBulkMonthYearChanged()"></select>
       </div>
       <button type="button" class="btn btn-ghost" onclick="loadMonthDaysForBulkEntry()">📆 بارگذاری روزهای این ماه</button>
 
@@ -2441,6 +2465,12 @@ function setAdminLogMode(mode){
   document.getElementById('adminLogModeSingleBtn').classList.toggle('btn-ghost', mode !== 'single');
   document.getElementById('adminLogModeMonthlyBtn').classList.toggle('btn-ghost', mode !== 'monthly');
 }
+function onBulkMonthYearChanged(){
+  document.getElementById('bulkDaysContainer').innerHTML = '';
+  document.getElementById('bulkFixedTimeBox').style.display = 'none';
+  document.getElementById('bulkSubmitBtn').style.display = 'none';
+  document.getElementById('bulkSubmitStatus').style.display = 'none';
+}
 function loadMonthDaysForBulkEntry(){
   var monthName = document.getElementById('adminLogMonthlyMonth').value;
   var year = parseInt(document.getElementById('adminLogMonthlyYear').value, 10);
@@ -2526,7 +2556,9 @@ async function submitMonthlyBulkLog(){
   }); });
   if(!res.ok){
     var msg = res.error === 'must_be_after_last_entry'
-      ? 'یکی از ساعت‌ها (' + (res.at||'') + ') زودتر از یک ثبت قبلیه یا ترتیبش با روز/ساعت دیگه‌ای تو همین فرم نمی‌خونه — روزها و ساعت‌ها رو دوباره چک کن.'
+      ? 'ترتیب ساعت‌ها تو همین فرم به‌هم ریخته — دور ساعت (' + (res.at||'') + ') رو با روزهای کناریش چک کن.'
+      : res.error === 'duplicate_entry'
+      ? 'یه ثبت دقیقاً با همین تاریخ/ساعت (' + (res.at||'') + ') از قبل موجوده.'
       : (res.error || 'خطای شبکه');
     statusEl.textContent = '⛔ ثبت گروهی ناموفق بود: ' + msg;
     statusEl.style.display = 'block';
