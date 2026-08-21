@@ -2517,11 +2517,14 @@ async function loadMonthDaysForBulkEntry(){
       outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null
     };
     var hasData = inE || outE;
+    var debugLine = '<div style="font-size:9px; color:#888; direction:ltr; text-align:right;">'+
+      esc(dayEntries.length + ' entry(s): ' + dayEntries.map(function(e){ return '['+e.type+' '+e.time+']'; }).join(' '))+
+      '</div>';
 
     rows.push(
       '<div class="date-row" style="align-items:center; margin-bottom:6px;'+(hasData?' background:#eaf3ec; border-radius:8px; padding:4px;':'')+'">'+
         '<span style="width:82px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-        '<input type="time" id="bulkDay'+d+'In" step="1" style="flex:1;" value="'+(inTimeNorm?esc(inTimeNorm):'')+'">'+
+        '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" step="1" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm):'')+'">'+debugLine+'</div>'+
         '<input type="time" id="bulkDay'+d+'Out" step="1" style="flex:1;" value="'+(outTimeNorm?esc(outTimeNorm):'')+'">'+
       '</div>'
     );
