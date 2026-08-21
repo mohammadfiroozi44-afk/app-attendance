@@ -1088,14 +1088,20 @@ function doPost(e){
     // against existing rows, are validated below.
     var empRowsB = readRows(lshB).filter(function(r){ return r.username === body.username; });
     var existingIsoSet = {};
-    empRowsB.forEach(function(r){ existingIsoSet[String(r.isoTimestamp)] = true; });
+    var existingKeySet = {};
+    empRowsB.forEach(function(r){
+      existingIsoSet[String(r.isoTimestamp)] = true;
+      var normType = r.type === 'ورود' ? 'in' : (r.type === 'خروج' ? 'out' : r.type);
+      existingKeySet[String(r.jalaliDate).trim() + '|' + String(r.time).trim() + '|' + normType] = true;
+    });
 
     var computedB = [];
     for(var bi=0; bi<entriesB.length; bi++){
       var eb = entriesB[bi];
       var isoB = jalaliDateTimeToIso(eb.jalaliDate, eb.time);
       if(!isoB) return jsonOut({ok:false, error:'invalid_date_time', at: eb.jalaliDate + ' ' + eb.time});
-      if(existingIsoSet[String(isoB)]){
+      var keyB = String(eb.jalaliDate).trim() + '|' + String(eb.time).trim() + '|' + eb.type;
+      if(existingIsoSet[String(isoB)] || existingKeySet[keyB]){
         return jsonOut({ok:false, error:'duplicate_entry', at: eb.jalaliDate + ' ' + eb.time});
       }
       computedB.push({jalaliDate:eb.jalaliDate, time:eb.time, type:eb.type, iso:isoB});
@@ -2517,57 +2523,61 @@ async function loadMonthDaysForBulkEntry(){
   var daysCount = jalaliMonthLength(monthIdx, year);
   var box = document.getElementById('bulkDaysContainer');
   box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  try {
+    var holRes = await apiCall(function(){ return apiGet('holidaysPublic'); });
+    var holidaySet = {};
+    if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate] = h.reason || 'تعطیل'; });
 
-  var holRes = await apiCall(function(){ return apiGet('holidaysPublic'); });
-  var holidaySet = {};
-  if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate] = h.reason || 'تعطیل'; });
+    var logsRes = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
+    if(!logsRes.ok){ box.innerHTML = '<div class="empty">دریافت اطلاعات ناموفق بود: '+(logsRes.error||'')+'</div>'; return; }
+    var empLogs = (logsRes.logs||[]).filter(function(e){ return e.username === username; });
 
-  var logsRes = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
-  var empLogs = logsRes.ok ? (logsRes.logs||[]).filter(function(e){ return e.username === username; }) : [];
+    window._bulkExisting = {};
+    var rows = [];
+    for(var d=1; d<=daysCount; d++){
+      var dateStr = d + ' ' + monthName + ' ' + year;
+      var weekday = jalaliWeekdayName(year, monthIdx, d);
+      var isHol = isFridayJalali(year, monthIdx, d) || holidaySet.hasOwnProperty(dateStr);
+      var weekdayColor = isHol ? '#a32a2a' : '#1f7a4d';
 
-  window._bulkExisting = {};
-  var rows = [];
-  for(var d=1; d<=daysCount; d++){
-    var dateStr = d + ' ' + monthName + ' ' + year;
-    var weekday = jalaliWeekdayName(year, monthIdx, d);
-    var isHol = isFridayJalali(year, monthIdx, d) || holidaySet.hasOwnProperty(dateStr);
-    var weekdayColor = isHol ? '#a32a2a' : '#1f7a4d';
-
-    var dayEntries = empLogs.filter(function(e){
-      var p = parseJalaliDateStr(e.jalaliDate);
-      return p && parseInt(p.day,10) === d && p.month === monthName && parseInt(p.year,10) === year;
-    });
-    dayEntries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
-    var inE = dayEntries.filter(function(e){ return e.type === 'ورود'; })[0] || null;
-    var outEntries = dayEntries.filter(function(e){ return e.type === 'خروج'; });
-    var outE = outEntries.length ? outEntries[outEntries.length-1] : null;
-    var inTimeNorm = inE ? normTimeForSubmit(inE.time) : null;
-    var outTimeNorm = outE ? normTimeForSubmit(outE.time) : null;
-    window._bulkExisting[d] = {
-      inId: inE ? inE.id : null, inTime: inTimeNorm,
-      outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null
-    };
-    var hasData = inE || outE;
-    rows.push(
-      '<div class="date-row" style="align-items:center; margin-bottom:6px;'+(hasData?' background:#eaf3ec; border-radius:8px; padding:4px;':'')+'">'+
-        '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-        '<input type="time" id="bulkDay'+d+'In" step="1" style="flex:1;" value="'+(inTimeNorm?esc(inTimeNorm):'')+'">'+
-        '<input type="time" id="bulkDay'+d+'Out" step="1" style="flex:1;" value="'+(outTimeNorm?esc(outTimeNorm):'')+'">'+
-        (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
-      '</div>'
-    );
+      var dayEntries = empLogs.filter(function(e){
+        var p = parseJalaliDateStr(e.jalaliDate);
+        return p && parseInt(p.day,10) === d && p.month === monthName && parseInt(p.year,10) === year;
+      });
+      dayEntries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+      var inE = dayEntries.filter(function(e){ return e.type === 'ورود'; })[0] || null;
+      var outEntries = dayEntries.filter(function(e){ return e.type === 'خروج'; });
+      var outE = outEntries.length ? outEntries[outEntries.length-1] : null;
+      var inTimeNorm = inE ? normTimeForSubmit(inE.time) : null;
+      var outTimeNorm = outE ? normTimeForSubmit(outE.time) : null;
+      window._bulkExisting[d] = {
+        inId: inE ? inE.id : null, inTime: inTimeNorm, inProject: inE ? inE.project : null,
+        outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null, outProject: outE ? outE.project : null
+      };
+      var hasData = inE || outE;
+      rows.push(
+        '<div class="date-row" style="align-items:center; margin-bottom:6px;'+(hasData?' background:#eaf3ec; border-radius:8px; padding:4px;':'')+'">'+
+          '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
+          '<input type="time" id="bulkDay'+d+'In" step="1" style="flex:1;" value="'+(inTimeNorm?esc(inTimeNorm):'')+'">'+
+          '<input type="time" id="bulkDay'+d+'Out" step="1" style="flex:1;" value="'+(outTimeNorm?esc(outTimeNorm):'')+'">'+
+          (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
+        '</div>'
+      );
+    }
+    box.innerHTML = '<div class="date-row" style="font-size:11px; color:#7a7360; margin-bottom:4px;"><span style="width:82px; flex-shrink:0;"></span><span style="flex:1;">ورود</span><span style="flex:1;">خروج</span></div>' + rows.join('');
+    document.getElementById('bulkFixedTimeBox').style.display = 'block';
+    document.getElementById('bulkSubmitBtn').style.display = 'block';
+    var dayOpts = '';
+    for(var dd=1; dd<=daysCount; dd++){ dayOpts += '<option value="'+dd+'">'+dd+' '+monthName+'</option>'; }
+    var fromSel = document.getElementById('bulkRangeFrom');
+    var toSel = document.getElementById('bulkRangeTo');
+    fromSel.innerHTML = dayOpts;
+    toSel.innerHTML = dayOpts;
+    fromSel.value = '1';
+    toSel.value = String(daysCount);
+  } catch(err){
+    box.innerHTML = '<div class="empty">⛔ خطا در بارگذاری: ' + esc(err && err.message ? err.message : String(err)) + '</div>';
   }
-  box.innerHTML = '<div class="date-row" style="font-size:11px; color:#7a7360; margin-bottom:4px;"><span style="width:82px; flex-shrink:0;"></span><span style="flex:1;">ورود</span><span style="flex:1;">خروج</span></div>' + rows.join('');
-  document.getElementById('bulkFixedTimeBox').style.display = 'block';
-  document.getElementById('bulkSubmitBtn').style.display = 'block';
-  var dayOpts = '';
-  for(var dd=1; dd<=daysCount; dd++){ dayOpts += '<option value="'+dd+'">'+dd+' '+monthName+'</option>'; }
-  var fromSel = document.getElementById('bulkRangeFrom');
-  var toSel = document.getElementById('bulkRangeTo');
-  fromSel.innerHTML = dayOpts;
-  toSel.innerHTML = dayOpts;
-  fromSel.value = '1';
-  toSel.value = String(daysCount);
 }
 function clearBulkDay(d){
   if(!confirm(d + 'ام این ماه پاک بشه؟ (با زدن «ثبت همه» حذف نهایی می‌شه)')) return;
@@ -2606,98 +2616,103 @@ function nextJalaliDay(d, monthIdx, year){
 async function submitMonthlyBulkLog(){
   var statusEl = document.getElementById('bulkSubmitStatus');
   statusEl.style.display = 'none';
-  var username = document.getElementById('adminLogEmp').value;
-  var project = document.getElementById('adminLogProj').value;
-  if(!username){ alert('یک پرسنل انتخاب کن'); return; }
-  var empObj = employees.filter(function(e){ return e.username === username; })[0];
-  var employeeFullName = empObj ? empObj.fullName : '';
-  var monthName = document.getElementById('adminLogMonthlyMonth').value;
-  var year = parseInt(document.getElementById('adminLogMonthlyYear').value, 10);
-  var monthIdx = jMonths.indexOf(monthName) + 1;
-  var daysCount = jalaliMonthLength(monthIdx, year);
-  var existing = window._bulkExisting || {};
+  try {
+    var username = document.getElementById('adminLogEmp').value;
+    var project = document.getElementById('adminLogProj').value;
+    if(!username){ alert('یک پرسنل انتخاب کن'); return; }
+    var empObj = employees.filter(function(e){ return e.username === username; })[0];
+    var employeeFullName = empObj ? empObj.fullName : '';
+    var monthName = document.getElementById('adminLogMonthlyMonth').value;
+    var year = parseInt(document.getElementById('adminLogMonthlyYear').value, 10);
+    var monthIdx = jMonths.indexOf(monthName) + 1;
+    var daysCount = jalaliMonthLength(monthIdx, year);
+    var existing = window._bulkExisting || {};
 
-  var toCreate = [];
-  var toUpdate = [];
-  var toDelete = [];
+    var toCreate = [];
+    var toUpdate = [];
+    var toDelete = [];
 
-  for(var d=1; d<=daysCount; d++){
-    var inVal = document.getElementById('bulkDay'+d+'In').value;
-    var outVal = document.getElementById('bulkDay'+d+'Out').value;
-    var jalaliDate = d + ' ' + monthName + ' ' + year;
-    var ex = existing[d] || {};
+    for(var d=1; d<=daysCount; d++){
+      var inVal = document.getElementById('bulkDay'+d+'In').value;
+      var outVal = document.getElementById('bulkDay'+d+'Out').value;
+      var jalaliDate = d + ' ' + monthName + ' ' + year;
+      var ex = existing[d] || {};
 
-    if(inVal){
-      var inTime = normTimeForSubmit(inVal);
-      if(ex.inId){
-        if(ex.inTime !== inTime) toUpdate.push({id: ex.inId, jalaliDate: jalaliDate, time: inTime, type:'in'});
-      } else {
-        toCreate.push({jalaliDate: jalaliDate, time: inTime, type:'in'});
+      if(inVal){
+        var inTime = normTimeForSubmit(inVal);
+        if(ex.inId){
+          if(ex.inTime !== inTime || ex.inProject !== project) toUpdate.push({id: ex.inId, jalaliDate: jalaliDate, time: inTime, type:'in'});
+        } else {
+          toCreate.push({jalaliDate: jalaliDate, time: inTime, type:'in'});
+        }
+      } else if(ex.inId){
+        toDelete.push(ex.inId);
       }
-    } else if(ex.inId){
-      toDelete.push(ex.inId);
-    }
 
-    if(outVal){
-      var outTime = normTimeForSubmit(outVal);
-      var outDate = jalaliDate;
-      var isOvernight = inVal && (timeToMinutesClient(outTime) < timeToMinutesClient(normTimeForSubmit(inVal)));
-      if(isOvernight){
-        var nd = nextJalaliDay(d, monthIdx, year);
-        outDate = nd.day + ' ' + jMonths[nd.monthIdx-1] + ' ' + nd.year;
+      if(outVal){
+        var outTime = normTimeForSubmit(outVal);
+        var outDate = jalaliDate;
+        var isOvernight = inVal && (timeToMinutesClient(outTime) < timeToMinutesClient(normTimeForSubmit(inVal)));
+        if(isOvernight){
+          var nd = nextJalaliDay(d, monthIdx, year);
+          outDate = nd.day + ' ' + jMonths[nd.monthIdx-1] + ' ' + nd.year;
+        }
+        if(ex.outId){
+          if(ex.outTime !== outTime || ex.outDate !== outDate || ex.outProject !== project) toUpdate.push({id: ex.outId, jalaliDate: outDate, time: outTime, type:'out'});
+        } else {
+          toCreate.push({jalaliDate: outDate, time: outTime, type:'out'});
+        }
+      } else if(ex.outId){
+        toDelete.push(ex.outId);
       }
-      if(ex.outId){
-        if(ex.outTime !== outTime || ex.outDate !== outDate) toUpdate.push({id: ex.outId, jalaliDate: outDate, time: outTime, type:'out'});
-      } else {
-        toCreate.push({jalaliDate: outDate, time: outTime, type:'out'});
+    }
+
+    if(toCreate.length===0 && toUpdate.length===0 && toDelete.length===0){ alert('هیچ تغییری نسبت به قبل وجود نداره.'); return; }
+    var summary = [];
+    if(toCreate.length) summary.push(toCreate.length+' ثبت جدید');
+    if(toUpdate.length) summary.push(toUpdate.length+' ویرایش');
+    if(toDelete.length) summary.push(toDelete.length+' حذف (روزهایی که خالی کردی)');
+    if(!confirm(summary.join('، ') + ' — اعمال بشه؟')) return;
+
+    if(toCreate.length){
+      var res = await apiCall(function(){ return apiPost('adminAddLogBatch', {
+        pin: adminPin, username: username, project: project, entries: toCreate
+      }); });
+      if(!res.ok){
+        var msg = res.error === 'must_be_after_last_entry'
+          ? 'ترتیب ساعت‌ها تو همین فرم به‌هم ریخته — دور ساعت (' + (res.at||'') + ') رو با روزهای کناریش چک کن.'
+          : res.error === 'duplicate_entry'
+          ? 'یه ثبت دقیقاً با همین تاریخ/ساعت (' + (res.at||'') + ') از قبل موجوده.'
+          : (res.error || 'خطای شبکه');
+        statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msg;
+        statusEl.style.display = 'block';
+        showAdminNotice('ثبت گروهی ناموفق بود: ' + msg);
+        return;
       }
-    } else if(ex.outId){
-      toDelete.push(ex.outId);
     }
-  }
-
-  if(toCreate.length===0 && toUpdate.length===0 && toDelete.length===0){ alert('هیچ تغییری نسبت به قبل وجود نداره.'); return; }
-  var summary = [];
-  if(toCreate.length) summary.push(toCreate.length+' ثبت جدید');
-  if(toUpdate.length) summary.push(toUpdate.length+' ویرایش');
-  if(toDelete.length) summary.push(toDelete.length+' حذف (روزهایی که خالی کردی)');
-  if(!confirm(summary.join('، ') + ' — اعمال بشه؟')) return;
-
-  if(toCreate.length){
-    var res = await apiCall(function(){ return apiPost('adminAddLogBatch', {
-      pin: adminPin, username: username, project: project, entries: toCreate
-    }); });
-    if(!res.ok){
-      var msg = res.error === 'must_be_after_last_entry'
-        ? 'ترتیب ساعت‌ها تو همین فرم به‌هم ریخته — دور ساعت (' + (res.at||'') + ') رو با روزهای کناریش چک کن.'
-        : res.error === 'duplicate_entry'
-        ? 'یه ثبت دقیقاً با همین تاریخ/ساعت (' + (res.at||'') + ') از قبل موجوده.'
-        : (res.error || 'خطای شبکه');
-      statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msg;
-      statusEl.style.display = 'block';
-      showAdminNotice('ثبت گروهی ناموفق بود: ' + msg);
-      return;
+    if(toUpdate.length){
+      var updatesPayload = toUpdate.map(function(u){
+        return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: project, type: u.type};
+      });
+      var ures = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: updatesPayload}); });
+      if(!ures.ok){
+        statusEl.textContent = '⛔ ویرایش ناموفق بود' + (ures.at ? (' (دور ' + ures.at + ')') : '') + ': ' + (ures.error||'');
+        statusEl.style.display = 'block';
+        return;
+      }
     }
-  }
-  if(toUpdate.length){
-    var updatesPayload = toUpdate.map(function(u){
-      return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: project, type: u.type};
-    });
-    var ures = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: updatesPayload}); });
-    if(!ures.ok){
-      statusEl.textContent = '⛔ ویرایش ناموفق بود' + (ures.at ? (' (دور ' + ures.at + ')') : '') + ': ' + (ures.error||'');
-      statusEl.style.display = 'block';
-      return;
+    if(toDelete.length){
+      await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDelete}); });
     }
-  }
-  if(toDelete.length){
-    await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDelete}); });
-  }
 
-  clearAdminNotice();
-  closeAdminLogSheet();
-  alert(summary.join('، ') + ' با موفقیت اعمال شد.');
-  refreshCurrentAdminSection();
+    clearAdminNotice();
+    closeAdminLogSheet();
+    alert(summary.join('، ') + ' با موفقیت اعمال شد.');
+    refreshCurrentAdminSection();
+  } catch(err){
+    statusEl.textContent = '⛔ خطای غیرمنتظره: ' + (err && err.message ? err.message : String(err)) + ' — اگه داده‌ای ذخیره شده، از گزارش چک کن، بعد دوباره تلاش کن.';
+    statusEl.style.display = 'block';
+  }
 }
 function closeAdminLogSheet(){
   document.getElementById('adminLogOverlay').classList.remove('open');
