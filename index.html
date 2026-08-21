@@ -1913,7 +1913,7 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
 
     <div id="adminLogMonthlySection" style="display:none;">
-      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد یا ویرایش کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده. ردیف‌های سبزرنگ یعنی از قبل داده دارن — می‌تونی ویرایششون کنی.</div>
+      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد یا ویرایش کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده و با همون تاریخ ذخیره می‌شه. زیر «خروج» اگه نوشته «⬅️ ادامه دیشب» یعنی این خروج مال ورودِ روز قبله، نه ورود همین ردیف. زیر «ورود» اگه نوشته «🌙 خروج ← فردا» یعنی خروج این ورود تو ردیف روز بعد میاد. ردیف‌های سبزرنگ یعنی از قبل داده دارن — می‌تونی ویرایششون کنی.</div>
       <label>ماه و سال</label>
       <div class="date-row">
         <select id="adminLogMonthlyMonth" onchange="onBulkMonthYearChanged()"></select><select id="adminLogMonthlyYear" onchange="onBulkMonthYearChanged()"></select>
@@ -2550,16 +2550,20 @@ async function loadMonthDaysForBulkEntry(){
       var outE = outEntries.length ? outEntries[outEntries.length-1] : null;
       var inTimeNorm = inE ? normTimeForSubmit(inE.time) : null;
       var outTimeNorm = outE ? normTimeForSubmit(outE.time) : null;
+      // is this day's خروج actually paired with THIS day's own ورود, or is it a carryover from last night's overnight check-in?
+      var outIsCarryover = outE && (!inE || timeToMinutesClient(outTimeNorm) < timeToMinutesClient(inTimeNorm));
       window._bulkExisting[d] = {
         inId: inE ? inE.id : null, inTime: inTimeNorm, inProject: inE ? inE.project : null,
         outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null, outProject: outE ? outE.project : null
       };
       var hasData = inE || outE;
+      var inNote = (inE && (!outE || outIsCarryover)) ? '<div style="font-size:10px; color:#3b4a8f;">🌙 خروج ← فردا</div>' : '';
+      var outNote = outIsCarryover ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
       rows.push(
         '<div class="date-row" style="align-items:center; margin-bottom:6px;'+(hasData?' background:#eaf3ec; border-radius:8px; padding:4px;':'')+'">'+
           '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-          '<input type="time" id="bulkDay'+d+'In" step="1" style="flex:1;" value="'+(inTimeNorm?esc(inTimeNorm):'')+'">'+
-          '<input type="time" id="bulkDay'+d+'Out" step="1" style="flex:1;" value="'+(outTimeNorm?esc(outTimeNorm):'')+'">'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" step="1" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm):'')+'">'+inNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" step="1" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm):'')+'">'+outNote+'</div>'+
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
         '</div>'
       );
