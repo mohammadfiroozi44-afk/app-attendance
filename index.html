@@ -1884,12 +1884,18 @@ function esh_set(sheet, rowNum, headerName, value){
       <button type="button" class="btn btn-ghost" onclick="loadMonthDaysForBulkEntry()">📆 بارگذاری روزهای این ماه</button>
 
       <div id="bulkFixedTimeBox" style="display:none; background:#fff4e2; border-radius:10px; padding:10px 12px; margin-top:10px;">
-        <div class="hint" style="margin:0 0 6px;">🔁 اگه ساعت ورود/خروج این پرسنل هر روز ثابته (مثلاً نگهبان)، یه‌بار اینجا وارد کن و اعمال کن:</div>
+        <div class="hint" style="margin:0 0 6px;">🔁 اگه یه بازه از این ماه ساعت ورود/خروج ثابتی داره (مثلاً یه هفته یه‌جور، هفته بعد جور دیگه)، اینجا وارد کن و فقط به همون بازه اعمال کن:</div>
         <div class="date-row">
           <input type="time" id="bulkFixedIn" step="1">
           <input type="time" id="bulkFixedOut" step="1">
         </div>
-        <button type="button" class="btn btn-ghost btn-small" style="margin-top:6px; width:100%;" onclick="applyFixedTimeToAllDays()">اعمال به همه روزها</button>
+        <div class="date-row" style="margin-top:6px; align-items:center;">
+          <span style="font-size:12px; flex-shrink:0;">از روز</span>
+          <select id="bulkRangeFrom"></select>
+          <span style="font-size:12px; flex-shrink:0;">تا روز</span>
+          <select id="bulkRangeTo"></select>
+        </div>
+        <button type="button" class="btn btn-ghost btn-small" style="margin-top:6px; width:100%;" onclick="applyFixedTimeToRange()">اعمال به این بازه</button>
       </div>
 
       <div id="bulkDaysContainer" style="margin-top:10px;"></div>
@@ -2490,16 +2496,24 @@ function loadMonthDaysForBulkEntry(){
   box.innerHTML = '<div class="date-row" style="font-size:11px; color:#7a7360; margin-bottom:4px;"><span style="width:70px; flex-shrink:0;"></span><span style="flex:1;">ورود</span><span style="flex:1;">خروج</span></div>' + rows.join('');
   document.getElementById('bulkFixedTimeBox').style.display = 'block';
   document.getElementById('bulkSubmitBtn').style.display = 'block';
+  var dayOpts = '';
+  for(var dd=1; dd<=daysCount; dd++){ dayOpts += '<option value="'+dd+'">'+dd+' '+monthName+'</option>'; }
+  var fromSel = document.getElementById('bulkRangeFrom');
+  var toSel = document.getElementById('bulkRangeTo');
+  fromSel.innerHTML = dayOpts;
+  toSel.innerHTML = dayOpts;
+  fromSel.value = '1';
+  toSel.value = String(daysCount);
 }
-function applyFixedTimeToAllDays(){
+function applyFixedTimeToRange(){
   var fixedIn = document.getElementById('bulkFixedIn').value;
   var fixedOut = document.getElementById('bulkFixedOut').value;
   if(!fixedIn && !fixedOut){ alert('حداقل یکی از ساعت ورود یا خروج رو وارد کن'); return; }
-  var monthName = document.getElementById('adminLogMonthlyMonth').value;
-  var year = parseInt(document.getElementById('adminLogMonthlyYear').value, 10);
-  var monthIdx = jMonths.indexOf(monthName) + 1;
-  var daysCount = jalaliMonthLength(monthIdx, year);
-  for(var d=1; d<=daysCount; d++){
+  var fromDay = parseInt(document.getElementById('bulkRangeFrom').value, 10);
+  var toDay = parseInt(document.getElementById('bulkRangeTo').value, 10);
+  if(!fromDay || !toDay){ alert('بازه روزها رو انتخاب کن'); return; }
+  if(fromDay > toDay){ var tmp = fromDay; fromDay = toDay; toDay = tmp; }
+  for(var d=fromDay; d<=toDay; d++){
     var inEl = document.getElementById('bulkDay'+d+'In');
     var outEl = document.getElementById('bulkDay'+d+'Out');
     if(inEl && fixedIn) inEl.value = fixedIn;
