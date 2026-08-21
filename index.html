@@ -2510,17 +2510,19 @@ async function loadMonthDaysForBulkEntry(){
     var inE = dayEntries.filter(function(e){ return e.type === 'ورود'; })[0] || null;
     var outEntries = dayEntries.filter(function(e){ return e.type === 'خروج'; });
     var outE = outEntries.length ? outEntries[outEntries.length-1] : null;
+    var inTimeNorm = inE ? normTimeForSubmit(inE.time) : null;
+    var outTimeNorm = outE ? normTimeForSubmit(outE.time) : null;
     window._bulkExisting[d] = {
-      inId: inE ? inE.id : null, inTime: inE ? inE.time : null,
-      outId: outE ? outE.id : null, outTime: outE ? outE.time : null, outDate: outE ? outE.jalaliDate : null
+      inId: inE ? inE.id : null, inTime: inTimeNorm,
+      outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null
     };
     var hasData = inE || outE;
 
     rows.push(
       '<div class="date-row" style="align-items:center; margin-bottom:6px;'+(hasData?' background:#eaf3ec; border-radius:8px; padding:4px;':'')+'">'+
         '<span style="width:82px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-        '<input type="time" id="bulkDay'+d+'In" step="1" style="flex:1;" value="'+(inE?esc(inE.time):'')+'">'+
-        '<input type="time" id="bulkDay'+d+'Out" step="1" style="flex:1;" value="'+(outE?esc(outE.time):'')+'">'+
+        '<input type="time" id="bulkDay'+d+'In" step="1" style="flex:1;" value="'+(inTimeNorm?esc(inTimeNorm):'')+'">'+
+        '<input type="time" id="bulkDay'+d+'Out" step="1" style="flex:1;" value="'+(outTimeNorm?esc(outTimeNorm):'')+'">'+
       '</div>'
     );
   }
