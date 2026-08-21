@@ -2502,7 +2502,11 @@ async function loadMonthDaysForBulkEntry(){
     var isHol = isFridayJalali(year, monthIdx, d) || holidaySet.hasOwnProperty(dateStr);
     var weekdayColor = isHol ? '#a32a2a' : '#1f7a4d';
 
-    var dayEntries = empLogs.filter(function(e){ return e.jalaliDate === dateStr; });
+    var dayEntries = empLogs.filter(function(e){
+      var p = parseJalaliDateStr(e.jalaliDate);
+      return p && parseInt(p.day,10) === d && p.month === monthName && parseInt(p.year,10) === year;
+    });
+    dayEntries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
     var inE = dayEntries.filter(function(e){ return e.type === 'ورود'; })[0] || null;
     var outEntries = dayEntries.filter(function(e){ return e.type === 'خروج'; });
     var outE = outEntries.length ? outEntries[outEntries.length-1] : null;
