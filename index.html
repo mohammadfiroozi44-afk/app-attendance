@@ -1949,11 +1949,19 @@ function esh_set(sheet, rowNum, headerName, value){
       </div>
       <button type="button" class="btn btn-ghost" onclick="loadMonthDaysForBulkEntry()">📆 بارگذاری / ویرایش روزهای این ماه</button>
 
+      <button type="button" class="btn btn-ghost" style="margin-top:8px;" onclick="toggleBulkPasteBox()">📝 پیست سریع با متن</button>
+      <div id="bulkPasteBox" style="display:none; background:#eef3fb; border-radius:10px; padding:10px 12px; margin-top:8px;">
+        <div class="hint" style="margin:0 0 6px;">هر خط یک روز؛ شماره‌روز، ساعت ورود، ساعت خروج رو با کاما جدا کن (اگه یکی رو نداره، جاش خالی بذار). مثال:</div>
+        <div class="hint" style="margin:0 0 6px; direction:ltr; text-align:right; font-family:monospace; background:#fff; padding:6px; border-radius:6px;">1,09:00,19:00<br>2,09:00,19:00<br>3,,19:00</div>
+        <textarea id="bulkPasteText" rows="6" style="width:100%; box-sizing:border-box; font-family:monospace; direction:ltr; text-align:right;" placeholder="1,09:00,19:00"></textarea>
+        <button type="button" class="btn btn-primary btn-small" style="margin-top:6px; width:100%;" onclick="applyBulkPasteText()">اعمال به فرم (باید اول «بارگذاری روزها» زده باشی)</button>
+      </div>
+
       <div id="bulkFixedTimeBox" style="display:none; background:#fff4e2; border-radius:10px; padding:10px 12px; margin-top:10px;">
         <div class="hint" style="margin:0 0 6px;">🔁 اگه یه بازه از این ماه ساعت ورود/خروج ثابتی داره (مثلاً یه هفته یه‌جور، هفته بعد جور دیگه)، اینجا وارد کن و فقط به همون بازه اعمال کن:</div>
         <div class="date-row">
-          <input type="time" id="bulkFixedIn" step="1">
-          <input type="time" id="bulkFixedOut" step="1">
+          <input type="time" id="bulkFixedIn">
+          <input type="time" id="bulkFixedOut">
         </div>
         <div class="date-row" style="margin-top:6px; align-items:center;">
           <span style="font-size:12px; flex-shrink:0;">از روز</span>
@@ -2591,8 +2599,8 @@ async function loadMonthDaysForBulkEntry(){
       rows.push(
         '<div class="date-row" style="align-items:center; margin-bottom:6px;'+(hasData?' background:#eaf3ec; border-radius:8px; padding:4px;':'')+'">'+
           '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" step="1" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm):'')+'">'+inNote+'</div>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" step="1" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm):'')+'">'+outNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm.slice(0,5)):'')+'">'+inNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm.slice(0,5)):'')+'">'+outNote+'</div>'+
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
         '</div>'
       );
@@ -2616,6 +2624,40 @@ function clearBulkDay(d){
   if(!confirm(d + 'ام این ماه پاک بشه؟ (با زدن «ثبت همه» حذف نهایی می‌شه)')) return;
   document.getElementById('bulkDay'+d+'In').value = '';
   document.getElementById('bulkDay'+d+'Out').value = '';
+}
+function toggleBulkPasteBox(){
+  var box = document.getElementById('bulkPasteBox');
+  box.style.display = (box.style.display === 'none') ? 'block' : 'none';
+}
+function normalizeTimeForInput(raw){
+  raw = String(raw||'').trim();
+  if(!raw) return '';
+  var m = raw.match(/^(\d{1,2})[:.\-]?(\d{2})$/);
+  if(!m) return '';
+  var hh = parseInt(m[1],10), mm = parseInt(m[2],10);
+  if(hh<0 || hh>23 || mm<0 || mm>59) return '';
+  return (hh<10?'0':'')+hh+':'+(mm<10?'0':'')+mm;
+}
+function applyBulkPasteText(){
+  var text = document.getElementById('bulkPasteText').value;
+  if(!text.trim()){ alert('چیزی تایپ نکردی'); return; }
+  var lines = text.split('\n');
+  var applied = 0, skipped = 0;
+  lines.forEach(function(line){
+    line = line.trim();
+    if(!line) return;
+    var parts = line.split(/[,،]/).map(function(s){ return s.trim(); });
+    var d = parseInt(parts[0], 10);
+    var inEl = document.getElementById('bulkDay'+d+'In');
+    var outEl = document.getElementById('bulkDay'+d+'Out');
+    if(!d || !inEl || !outEl){ skipped++; return; }
+    var inTime = normalizeTimeForInput(parts[1]);
+    var outTime = normalizeTimeForInput(parts[2]);
+    if(inTime) inEl.value = inTime;
+    if(outTime) outEl.value = outTime;
+    if(inTime || outTime) applied++; else skipped++;
+  });
+  alert(applied + ' روز اعمال شد' + (skipped ? ('، ' + skipped + ' خط رد شد (فرمت اشتباه یا روز خارج از این ماه)') : '') + '.');
 }
 function applyFixedTimeToRange(){
   var fixedIn = document.getElementById('bulkFixedIn').value;
