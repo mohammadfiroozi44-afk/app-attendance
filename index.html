@@ -1103,6 +1103,25 @@ function doPost(e){
     });
     return jsonOut({ok:true});
   }
+  if(action === 'adminAddLeaveBatch'){
+    var eshLB = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var empLB = readRows(eshLB).filter(function(r){ return r.username === body.username; })[0];
+    if(!empLB) return jsonOut({ok:false, error:'unknown_employee'});
+    var lrshLB = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
+    var tLB = serverNow();
+    var days = body.days || [];
+    days.forEach(function(dateStr){
+      var lidLB = Utilities.getUuid();
+      appendRowByHeader(lrshLB, {
+        id:lidLB, username:empLB.username, employee:empLB.fullName, employeeCode: empLB.employeeCode||'',
+        startDate:dateStr, endDate:dateStr, reason: body.reason||'ثبت مستقیم توسط مدیر',
+        status:'approved', createdAt:tLB.jalaliDate, createdTime:tLB.time,
+        leaveType:'daily', startTime:'', endTime:'',
+        requestType: body.requestType || 'leave', leaveCategory: body.leaveCategory || 'استحقاقی'
+      });
+    });
+    return jsonOut({ok:true, count: days.length});
+  }
   if(action === 'adminAddLogBatch'){
     var eshB = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var empB = readRows(eshB).filter(function(r){ return r.username === body.username; })[0];
@@ -1949,6 +1968,13 @@ function esh_set(sheet, rowNum, headerName, value){
       </div>
       <button type="button" class="btn btn-ghost" onclick="loadMonthDaysForBulkEntry()">📆 بارگذاری / ویرایش روزهای این ماه</button>
 
+      <label style="margin-top:8px;">نوع مرخصی (برای روزهایی که تیک «مرخصی» می‌زنی)</label>
+      <select id="bulkLeaveCategory">
+        <option value="استحقاقی">استحقاقی</option>
+        <option value="استعلاجی">استعلاجی</option>
+        <option value="بدون‌حقوق">بدون‌حقوق</option>
+      </select>
+
       <button type="button" class="btn btn-ghost" style="margin-top:8px;" onclick="toggleBulkPasteBox()">📝 پیست سریع با متن</button>
       <div id="bulkPasteBox" style="display:none; background:#eef3fb; border-radius:10px; padding:10px 12px; margin-top:8px;">
         <div class="hint" style="margin:0 0 6px;">هر خط یک روز؛ شماره‌روز، ساعت ورود، ساعت خروج رو با کاما جدا کن (اگه یکی رو نداره، جاش خالی بذار). مثال:</div>
@@ -2597,11 +2623,15 @@ async function loadMonthDaysForBulkEntry(){
       var inNote = (inE && (!outE || outIsCarryover)) ? '<div style="font-size:10px; color:#3b4a8f;">🌙 خروج ← فردا</div>' : '';
       var outNote = outIsCarryover ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
       rows.push(
-        '<div class="date-row" style="align-items:center; margin-bottom:6px;'+(hasData?' background:#eaf3ec; border-radius:8px; padding:4px;':'')+'">'+
+        '<div class="date-row" id="bulkRow'+d+'" style="align-items:center; margin-bottom:2px;'+(hasData?' background:#eaf3ec; border-radius:8px 8px 0 0; padding:4px;':'')+'">'+
           '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
           '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm.slice(0,5)):'')+'">'+inNote+'</div>'+
           '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm.slice(0,5)):'')+'">'+outNote+'</div>'+
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
+        '</div>'+
+        '<div class="date-row" style="margin-bottom:8px; padding:0 4px 4px; font-size:12px;'+(hasData?' background:#eaf3ec; border-radius:0 0 8px 8px;':'')+'">'+
+          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Leave" onchange="onBulkDayStatusChange('+d+',\'leave\')"> 🏖 مرخصی</label>'+
+          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Absence" onchange="onBulkDayStatusChange('+d+',\'absence\')"> ❌ غیبت</label>'+
         '</div>'
       );
     }
@@ -2620,10 +2650,26 @@ async function loadMonthDaysForBulkEntry(){
     box.innerHTML = '<div class="empty">⛔ خطا در بارگذاری: ' + esc(err && err.message ? err.message : String(err)) + '</div>';
   }
 }
+function onBulkDayStatusChange(d, kind){
+  var leaveChk = document.getElementById('bulkDay'+d+'Leave');
+  var absenceChk = document.getElementById('bulkDay'+d+'Absence');
+  var inEl = document.getElementById('bulkDay'+d+'In');
+  var outEl = document.getElementById('bulkDay'+d+'Out');
+  if(kind === 'leave' && leaveChk.checked) absenceChk.checked = false;
+  if(kind === 'absence' && absenceChk.checked) leaveChk.checked = false;
+  var locked = leaveChk.checked || absenceChk.checked;
+  if(locked){ inEl.value = ''; outEl.value = ''; }
+  inEl.disabled = locked;
+  outEl.disabled = locked;
+}
 function clearBulkDay(d){
   if(!confirm(d + 'ام این ماه پاک بشه؟ (با زدن «ثبت همه» حذف نهایی می‌شه)')) return;
   document.getElementById('bulkDay'+d+'In').value = '';
   document.getElementById('bulkDay'+d+'Out').value = '';
+  document.getElementById('bulkDay'+d+'In').disabled = false;
+  document.getElementById('bulkDay'+d+'Out').disabled = false;
+  document.getElementById('bulkDay'+d+'Leave').checked = false;
+  document.getElementById('bulkDay'+d+'Absence').checked = false;
 }
 function toggleBulkPasteBox(){
   var box = document.getElementById('bulkPasteBox');
@@ -2651,6 +2697,7 @@ function applyBulkPasteText(){
     var inEl = document.getElementById('bulkDay'+d+'In');
     var outEl = document.getElementById('bulkDay'+d+'Out');
     if(!d || !inEl || !outEl){ skipped++; return; }
+    if(inEl.disabled){ skipped++; return; } // day marked as leave/absence — skip
     var inTime = normalizeTimeForInput(parts[1]);
     var outTime = normalizeTimeForInput(parts[2]);
     if(inTime) inEl.value = inTime;
@@ -2670,6 +2717,7 @@ function applyFixedTimeToRange(){
   for(var d=fromDay; d<=toDay; d++){
     var inEl = document.getElementById('bulkDay'+d+'In');
     var outEl = document.getElementById('bulkDay'+d+'Out');
+    if(inEl && inEl.disabled) continue; // skip days marked as leave/absence
     if(inEl && fixedIn) inEl.value = fixedIn;
     if(outEl && fixedOut) outEl.value = fixedOut;
   }
@@ -2706,12 +2754,26 @@ async function submitMonthlyBulkLog(){
     var toCreate = [];
     var toUpdate = [];
     var toDelete = [];
+    var leaveDays = [];
 
     for(var d=1; d<=daysCount; d++){
-      var inVal = document.getElementById('bulkDay'+d+'In').value;
-      var outVal = document.getElementById('bulkDay'+d+'Out').value;
       var jalaliDate = d + ' ' + monthName + ' ' + year;
       var ex = existing[d] || {};
+      var leaveChk = document.getElementById('bulkDay'+d+'Leave');
+      var absenceChk = document.getElementById('bulkDay'+d+'Absence');
+      if(leaveChk && leaveChk.checked){
+        leaveDays.push(jalaliDate);
+        if(ex.inId) toDelete.push(ex.inId);
+        if(ex.outId) toDelete.push(ex.outId);
+        continue; // leave days skip normal time handling entirely
+      }
+      if(absenceChk && absenceChk.checked){
+        if(ex.inId) toDelete.push(ex.inId);
+        if(ex.outId) toDelete.push(ex.outId);
+        continue; // absence days: just ensure no time entries exist — no leave record needed
+      }
+      var inVal = document.getElementById('bulkDay'+d+'In').value;
+      var outVal = document.getElementById('bulkDay'+d+'Out').value;
 
       if(inVal){
         var inTime = normTimeForSubmit(inVal);
@@ -2742,13 +2804,25 @@ async function submitMonthlyBulkLog(){
       }
     }
 
-    if(toCreate.length===0 && toUpdate.length===0 && toDelete.length===0){ alert('هیچ تغییری نسبت به قبل وجود نداره.'); return; }
+    if(toCreate.length===0 && toUpdate.length===0 && toDelete.length===0 && leaveDays.length===0){ alert('هیچ تغییری نسبت به قبل وجود نداره.'); return; }
     var summary = [];
     if(toCreate.length) summary.push(toCreate.length+' ثبت جدید');
     if(toUpdate.length) summary.push(toUpdate.length+' ویرایش');
-    if(toDelete.length) summary.push(toDelete.length+' حذف (روزهایی که خالی کردی)');
+    if(toDelete.length) summary.push(toDelete.length+' حذف (روزهایی که خالی/مرخصی/غیبت کردی)');
+    if(leaveDays.length) summary.push(leaveDays.length+' روز مرخصی');
     if(!confirm(summary.join('، ') + ' — اعمال بشه؟')) return;
 
+    if(leaveDays.length){
+      var leaveCategory = document.getElementById('bulkLeaveCategory').value;
+      var lres = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
+        pin: adminPin, username: username, days: leaveDays, leaveCategory: leaveCategory
+      }); });
+      if(!lres.ok){
+        statusEl.textContent = '⛔ ثبت مرخصی ناموفق بود: ' + (lres.error||'');
+        statusEl.style.display = 'block';
+        return;
+      }
+    }
     if(toCreate.length){
       var res = await apiCall(function(){ return apiPost('adminAddLogBatch', {
         pin: adminPin, username: username, project: project, entries: toCreate
