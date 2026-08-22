@@ -367,10 +367,17 @@ function readRows(sheet){
   return rows;
 }
 
+var _colIndexCache = {};
 function colIndex(sheet, headerName){
-  var lastCol = Math.max(sheet.getLastColumn(), 1);
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  return headers.indexOf(headerName) + 1; // 1-based; 0 if not found
+  var sheetName = sheet.getName();
+  if(!_colIndexCache[sheetName]){
+    var lastCol = Math.max(sheet.getLastColumn(), 1);
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    var map = {};
+    headers.forEach(function(h, i){ map[h] = i+1; });
+    _colIndexCache[sheetName] = map;
+  }
+  return _colIndexCache[sheetName][headerName] || 0;
 }
 
 // Appends a row using an object keyed by header name, so it's always correct
@@ -540,37 +547,38 @@ function deleteOneLogRow(id){
   if(mrow2) mlsh2.deleteRow(mrow2._row);
   return {ok:true};
 }
+function setRowField(sheet, rowValues, headerName, value){
+  var idx = colIndex(sheet, headerName) - 1;
+  if(idx >= 0) rowValues[idx] = value;
+}
 function updateOneLogRow(body){
   var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
   var rows7 = ensureIds(lsh5, readRows(lsh5));
   var row6 = rows7.filter(function(r){ return r.id === body.id; })[0];
   if(!row6) return {ok:false, error:'not found'};
-  esh_set(lsh5, row6._row, 'jalaliDate', body.jalaliDate);
-  esh_set(lsh5, row6._row, 'time', body.time);
-  esh_set(lsh5, row6._row, 'employee', body.employee);
-  esh_set(lsh5, row6._row, 'project', body.project);
-  esh_set(lsh5, row6._row, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
+
+  var lastCol = lsh5.getLastColumn();
+  var rowRange = lsh5.getRange(row6._row, 1, 1, lastCol);
+  var rowValues = rowRange.getValues()[0];
+
+  setRowField(lsh5, rowValues, 'jalaliDate', body.jalaliDate);
+  setRowField(lsh5, rowValues, 'time', body.time);
+  setRowField(lsh5, rowValues, 'employee', body.employee);
+  setRowField(lsh5, rowValues, 'project', body.project);
+  setRowField(lsh5, rowValues, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
   var newIso = jalaliDateTimeToIso(body.jalaliDate, body.time);
-  if(newIso) esh_set(lsh5, row6._row, 'isoTimestamp', newIso);
+  if(newIso) setRowField(lsh5, rowValues, 'isoTimestamp', newIso);
+
   var eshFind = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
   var empMatch = readRows(eshFind).filter(function(r){ return r.fullName === body.employee; })[0];
   if(empMatch){
-    esh_set(lsh5, row6._row, 'username', empMatch.username);
-    esh_set(lsh5, row6._row, 'employeeCode', empMatch.employeeCode||'');
+    setRowField(lsh5, rowValues, 'username', empMatch.username);
+    setRowField(lsh5, rowValues, 'employeeCode', empMatch.employeeCode||'');
   }
   var holInfo4 = getHolidayInfo(body.jalaliDate);
-  esh_set(lsh5, row6._row, 'isHoliday', holInfo4.isHoliday ? 'تعطیل' : '');
-  esh_set(lsh5, row6._row, 'holidayReason', holInfo4.reason);
-  var mlsh3 = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
-  var mrow3 = readRows(mlsh3).filter(function(r){ return r.id === body.id; })[0];
-  if(mrow3){
-    esh_set(mlsh3, mrow3._row, 'jalaliDate', body.jalaliDate);
-    esh_set(mlsh3, mrow3._row, 'time', body.time);
-    esh_set(mlsh3, mrow3._row, 'employee', body.employee);
-    esh_set(mlsh3, mrow3._row, 'project', body.project);
-    esh_set(mlsh3, mrow3._row, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
-    if(empMatch) esh_set(mlsh3, mrow3._row, 'employeeCode', empMatch.employeeCode||'');
-  }
+  setRowField(lsh5, rowValues, 'isHoliday', holInfo4.isHoliday ? 'تعطیل' : '');
+  setRowField(lsh5, rowValues, 'holidayReason', holInfo4.reason);
+
   var noteStr = String(row6.note || '');
   var editMatch = noteStr.match(/ویرایش‌شده توسط مدیر \((\d+)\)/);
   if(editMatch){
@@ -579,7 +587,23 @@ function updateOneLogRow(body){
   } else {
     noteStr = (noteStr ? noteStr + ' | ' : '') + 'ویرایش‌شده توسط مدیر (1)';
   }
-  esh_set(lsh5, row6._row, 'note', noteStr);
+  setRowField(lsh5, rowValues, 'note', noteStr);
+  rowRange.setValues([rowValues]);
+
+  var mlsh3 = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
+  var mrow3 = readRows(mlsh3).filter(function(r){ return r.id === body.id; })[0];
+  if(mrow3){
+    var mLastCol = mlsh3.getLastColumn();
+    var mRowRange = mlsh3.getRange(mrow3._row, 1, 1, mLastCol);
+    var mRowValues = mRowRange.getValues()[0];
+    setRowField(mlsh3, mRowValues, 'jalaliDate', body.jalaliDate);
+    setRowField(mlsh3, mRowValues, 'time', body.time);
+    setRowField(mlsh3, mRowValues, 'employee', body.employee);
+    setRowField(mlsh3, mRowValues, 'project', body.project);
+    setRowField(mlsh3, mRowValues, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
+    if(empMatch) setRowField(mlsh3, mRowValues, 'employeeCode', empMatch.employeeCode||'');
+    mRowRange.setValues([mRowValues]);
+  }
   return {ok:true};
 }
 function logManualEntryAudit(entry){
@@ -1046,6 +1070,11 @@ function doPost(e){
     var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
     var rows6 = ensureIds(lsh4, readRows(lsh4)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6});
+  }
+  if(action === 'getLogsForUser'){
+    var lsh4u = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var rows6u = ensureIds(lsh4u, readRows(lsh4u)).filter(function(r){ return r.username === body.username; }).map(function(r){ delete r._row; return r; });
+    return jsonOut({ok:true, logs: rows6u});
   }
   if(action === 'adminAddLog'){
     var eshA = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
@@ -2528,9 +2557,9 @@ async function loadMonthDaysForBulkEntry(){
     var holidaySet = {};
     if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate] = h.reason || 'تعطیل'; });
 
-    var logsRes = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
+    var logsRes = await apiCall(function(){ return apiPost('getLogsForUser', {pin:adminPin, username:username}); });
     if(!logsRes.ok){ box.innerHTML = '<div class="empty">دریافت اطلاعات ناموفق بود: '+(logsRes.error||'')+'</div>'; return; }
-    var empLogs = (logsRes.logs||[]).filter(function(e){ return e.username === username; });
+    var empLogs = logsRes.logs || [];
 
     window._bulkExisting = {};
     var rows = [];
@@ -4380,10 +4409,23 @@ function exportCSV(){
   var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
   var monthFilter = document.getElementById('logFilterMonth').value;
   var yearFilter = document.getElementById('logFilterYear').value;
-  var entries = all.filter(function(e){
+  var codeFiltered = all.filter(function(e){
     if(codeFilter && String(e.employeeCode||'').toLowerCase().indexOf(codeFilter) === -1 && String(e.employee||'').toLowerCase().indexOf(codeFilter) === -1) return false;
-    if(!matchesMonthYear(e.jalaliDate, monthFilter, yearFilter)) return false;
     return true;
+  });
+  // pair first, then keep pairs where EITHER side matches — same logic as the on-screen report,
+  // so a cross-month overnight pair is exported completely, not split/truncated
+  var allPairs = pairLogEntriesForDisplay(codeFiltered);
+  var matchingPairs = allPairs.filter(function(p){
+    if(!monthFilter && !yearFilter) return true;
+    var inMatch = p.inE && matchesMonthYear(p.inE.jalaliDate, monthFilter, yearFilter);
+    var outMatch = p.outE && matchesMonthYear(p.outE.jalaliDate, monthFilter, yearFilter);
+    return inMatch || outMatch;
+  });
+  var entries = [];
+  matchingPairs.forEach(function(p){
+    if(p.inE) entries.push(p.inE);
+    if(p.outE) entries.push(p.outE);
   });
   if(entries.length===0){ alert('داده‌ای برای خروجی وجود ندارد'); return; }
   var rows = [['تاریخ','ساعت','پرسنل','کد پرسنلی','پروژه','نوع','lat','lng','accuracy','یادداشت']];
