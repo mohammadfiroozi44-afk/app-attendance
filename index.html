@@ -63,6 +63,24 @@
     box-shadow: 0 10px 30px -12px #00000055;
     margin-bottom:14px;
   }
+  .app-header-sticky{
+    position:sticky;
+    top:0;
+    z-index:80;
+  }
+  #globalProgressBar{
+    display:none; position:fixed; top:0; left:0; right:0; height:3px; z-index:99999;
+    background:#eee7d6; overflow:hidden;
+  }
+  #globalProgressBar .fill{
+    height:100%; width:30%;
+    background:linear-gradient(90deg,#2e7d4f,#e8892f);
+    animation: globalProgressSlide 1s infinite linear;
+  }
+  @keyframes globalProgressSlide{
+    0%{ transform:translateX(-100%); }
+    100%{ transform:translateX(400%); }
+  }
 
   .tabs{display:flex; gap:8px; margin-bottom:14px;}
 
@@ -304,6 +322,7 @@
 </style>
 </head>
 <body>
+<div id="globalProgressBar"><div class="fill"></div></div>
 <div class="wrap">
 
   <!-- SETUP REQUIRED SCREEN (shown only if API_URL isn't configured) -->
@@ -1446,7 +1465,7 @@ function esh_set(sheet, rowNum, headerName, value){
 
   <!-- EMPLOYEE VIEW -->
   <div id="empView" style="display:none;">
-    <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
+    <div class="card app-header-sticky" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
       <div style="display:flex; align-items:center; gap:10px;">
         <button type="button" class="hamburger-btn" onclick="toggleDrawer('emp')">☰</button>
         <span>خوش آمدید، <b id="empWelcomeName"></b></span>
@@ -1704,7 +1723,7 @@ function esh_set(sheet, rowNum, headerName, value){
   <!-- ADMIN VIEW -->
   <div id="adminView" style="display:none;">
 
-    <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
+    <div class="card app-header-sticky" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
       <div style="display:flex; align-items:center; gap:10px;">
         <button type="button" class="hamburger-btn" onclick="toggleDrawer('admin')">☰</button>
         <span>⚙️ پنل مدیریت</span>
@@ -2180,18 +2199,63 @@ function tickClock(){
 setInterval(tickClock, 1000); tickClock();
 
 // ---------- API helpers (Google Apps Script backend) ----------
+var _activeApiCalls = 0;
+var _activeWriteCalls = 0;
+function isWriteAction(action){
+  if(!action) return false;
+  if(action.indexOf('get') === 0) return false;
+  if(action === 'holidaysPublic') return false;
+  return true;
+}
+function beginApiTracking(action){
+  _activeApiCalls++;
+  showGlobalProgress();
+  var isWrite = isWriteAction(action);
+  if(isWrite){ _activeWriteCalls++; window._submissionInProgress = true; }
+  return isWrite;
+}
+function endApiTracking(wasWrite){
+  _activeApiCalls = Math.max(0, _activeApiCalls-1);
+  if(_activeApiCalls === 0) hideGlobalProgress();
+  if(wasWrite){
+    _activeWriteCalls = Math.max(0, _activeWriteCalls-1);
+    if(_activeWriteCalls === 0) window._submissionInProgress = false;
+  }
+}
+function showGlobalProgress(){
+  var bar = document.getElementById('globalProgressBar');
+  if(bar) bar.style.display = 'block';
+}
+function hideGlobalProgress(){
+  var bar = document.getElementById('globalProgressBar');
+  if(bar) bar.style.display = 'none';
+}
+function confirmLeaveIfBusy(){
+  if(!window._submissionInProgress) return true;
+  return confirm('یه عملیات هنوز در حال ثبته — اگه الان خارج بشی ممکنه بخشی از اطلاعات ثبت نشه. مطمئنی؟');
+}
 async function apiGet(action, params){
   var qs = new URLSearchParams(Object.assign({action:action}, params||{})).toString();
-  var res = await fetch(API_URL + '?' + qs, {method:'GET'});
-  return await res.json();
+  var wasWrite = beginApiTracking(action);
+  try {
+    var res = await fetch(API_URL + '?' + qs, {method:'GET'});
+    return await res.json();
+  } finally {
+    endApiTracking(wasWrite);
+  }
 }
 async function apiPost(action, payload){
-  var res = await fetch(API_URL, {
-    method:'POST',
-    headers:{'Content-Type':'text/plain;charset=utf-8'}, // avoids CORS preflight
-    body: JSON.stringify(Object.assign({action:action}, payload||{}))
-  });
-  return await res.json();
+  var wasWrite = beginApiTracking(action);
+  try {
+    var res = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'}, // avoids CORS preflight
+      body: JSON.stringify(Object.assign({action:action}, payload||{}))
+    });
+    return await res.json();
+  } finally {
+    endApiTracking(wasWrite);
+  }
 }
 async function apiCall(fn){
   try{ return await fn(); }
@@ -2417,11 +2481,9 @@ window.addEventListener('beforeunload', function(e){
   }
 });
 window.addEventListener('popstate', function(){
-  if(window._submissionInProgress){
-    if(!confirm('یه عملیات هنوز در حال ثبته — اگه الان خارج بشی ممکنه بخشی از اطلاعات ثبت نشه. مطمئنی؟')){
-      history.pushState({section:'stay'}, '', location.hash); // cancel the back navigation
-      return;
-    }
+  if(!confirmLeaveIfBusy()){
+    history.pushState({section:'stay'}, '', location.hash); // cancel the back navigation
+    return;
   }
   _isNavigatingBack = true;
   if(loggedInEmployee && document.getElementById('empView').style.display !== 'none'){
@@ -2432,7 +2494,11 @@ window.addEventListener('popstate', function(){
   _isNavigatingBack = false;
 });
 function goToHomeSection(){
-  if(loggedInEmployee){ showEmpSection('checkin'); }
+  var empView = document.getElementById('empView');
+  var adminView = document.getElementById('adminView');
+  if(adminView && adminView.style.display !== 'none'){ showAdminSection('dashboard'); }
+  else if(empView && empView.style.display !== 'none'){ showEmpSection('checkin'); }
+  else if(loggedInEmployee){ showEmpSection('checkin'); }
   else if(adminPin){ showAdminSection('dashboard'); }
 }
 // ---------- Unified requests list (merges attendance/leave/mission/overtime/other) ----------
@@ -3033,10 +3099,8 @@ async function submitMonthlyBulkLog(){
   }
 }
 function closeAdminLogSheet(){
-  if(window._submissionInProgress){
-    if(!confirm('صفحه در حال ثبت اطلاعاته — اگه الان خارج بشی ممکنه بخشی از داده‌ها ثبت نشه. مطمئنی می‌خوای خارج بشی؟')) return;
-    window._submissionInProgress = false;
-  }
+  if(!confirmLeaveIfBusy()) return;
+  window._submissionInProgress = false;
   document.getElementById('adminLogOverlay').classList.remove('open');
   document.getElementById('adminLogSheet').classList.remove('open');
   hideBulkProgress();
@@ -3078,6 +3142,7 @@ function openAddRequestSheet(){
   onReqCategoryChange();
 }
 function closeAddRequestSheet(){
+  if(!confirmLeaveIfBusy()) return;
   document.getElementById('addReqOverlay').classList.remove('open');
   document.getElementById('addReqSheet').classList.remove('open');
 }
