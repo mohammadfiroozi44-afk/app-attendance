@@ -1103,6 +1103,28 @@ function doPost(e){
     });
     return jsonOut({ok:true});
   }
+  if(action === 'getDayStatusForUser'){
+    var dsmshG = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','createdAt']);
+    var rowsG = readRows(dsmshG).filter(function(r){ return r.username === body.username; }).map(function(r){ delete r._row; return r; });
+    return jsonOut({ok:true, statuses: rowsG});
+  }
+  if(action === 'syncDayStatusForMonth'){
+    var eshDS = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var empDS = readRows(eshDS).filter(function(r){ return r.username === body.username; })[0];
+    if(!empDS) return jsonOut({ok:false, error:'unknown_employee'});
+    var dsmsh2 = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','createdAt']);
+    var datesToClear = body.allDatesInMonth || [];
+    var existingRows = readRows(dsmsh2).filter(function(r){ return r.username === body.username && datesToClear.indexOf(r.jalaliDate) !== -1; });
+    existingRows.sort(function(a,b){ return b._row - a._row; });
+    existingRows.forEach(function(r){ dsmsh2.deleteRow(r._row); });
+    var tDS = serverNow();
+    var newEntries = body.entries || [];
+    newEntries.forEach(function(e){
+      var idDS = Utilities.getUuid();
+      appendRowByHeader(dsmsh2, {id:idDS, username:empDS.username, employee:empDS.fullName, jalaliDate:e.jalaliDate, status:e.status, createdAt: tDS.jalaliDate+' '+tDS.time});
+    });
+    return jsonOut({ok:true, count: newEntries.length});
+  }
   if(action === 'adminAddLeaveBatch'){
     var eshLB = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var empLB = readRows(eshLB).filter(function(r){ return r.username === body.username; })[0];
@@ -2595,6 +2617,16 @@ async function loadMonthDaysForBulkEntry(){
     if(!logsRes.ok){ box.innerHTML = '<div class="empty">دریافت اطلاعات ناموفق بود: '+(logsRes.error||'')+'</div>'; return; }
     var empLogs = logsRes.logs || [];
 
+    var leavesRes = await apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); });
+    var empLeaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){
+      return l.username === username && l.status === 'approved' && l.leaveType !== 'hourly' && (l.requestType === 'leave' || !l.requestType);
+    }) : [];
+
+    var statusRes = await apiCall(function(){ return apiPost('getDayStatusForUser', {pin:adminPin, username:username}); });
+    var dayStatusMap = {};
+    if(statusRes.ok) (statusRes.statuses||[]).forEach(function(s){ dayStatusMap[s.jalaliDate] = s.status; });
+    window._bulkOriginalDayStatus = dayStatusMap;
+
     window._bulkExisting = {};
     var rows = [];
     for(var d=1; d<=daysCount; d++){
@@ -2615,25 +2647,40 @@ async function loadMonthDaysForBulkEntry(){
       var outTimeNorm = outE ? normTimeForSubmit(outE.time) : null;
       // is this day's خروج actually paired with THIS day's own ورود, or is it a carryover from last night's overnight check-in?
       var outIsCarryover = outE && (!inE || timeToMinutesClient(outTimeNorm) < timeToMinutesClient(inTimeNorm));
+      var dateKey = year*10000 + monthIdx*100 + d;
+      var matchingLeave = empLeaves.filter(function(l){
+        var sKey = jalaliDateSortKeyClient(l.startDate);
+        var eKey = jalaliDateSortKeyClient(l.endDate);
+        return dateKey >= sKey && dateKey <= eKey;
+      })[0] || null;
+      var leaveIsMultiDay = matchingLeave && (jalaliDateSortKeyClient(matchingLeave.startDate) !== jalaliDateSortKeyClient(matchingLeave.endDate));
+
       window._bulkExisting[d] = {
         inId: inE ? inE.id : null, inTime: inTimeNorm, inProject: inE ? inE.project : null,
-        outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null, outProject: outE ? outE.project : null
+        outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null, outProject: outE ? outE.project : null,
+        leaveId: matchingLeave ? matchingLeave.id : null, leaveIsMultiDay: leaveIsMultiDay
       };
       var hasData = inE || outE;
-      var autoOff = isHol && !hasData;
+      var persistedStatus = dayStatusMap[dateStr] || null; // 'absence' | 'off' | null, from a previous save
+      var isOffChecked = persistedStatus ? (persistedStatus === 'off') : (isHol && !hasData);
+      var isAbsenceChecked = persistedStatus === 'absence';
+      var autoOff = isOffChecked; // kept for the disabled-inputs logic below
+      var hasLeave = !!matchingLeave;
+      var timeLocked = autoOff || isAbsenceChecked || hasLeave;
       var inNote = (inE && (!outE || outIsCarryover)) ? '<div style="font-size:10px; color:#3b4a8f;">🌙 خروج ← فردا</div>' : '';
       var outNote = outIsCarryover ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
+      var leaveNote = leaveIsMultiDay ? '<div style="font-size:10px; color:#8a5a10;">بخشی از مرخصیِ چندروزه — از تب «درخواست‌ها» ویرایش کن</div>' : '';
       rows.push(
         '<div class="date-row" id="bulkRow'+d+'" style="align-items:center; margin-bottom:2px;'+(hasData?' background:#eaf3ec; border-radius:8px 8px 0 0; padding:4px;':'')+'">'+
           '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm.slice(0,5)):'')+'" '+(autoOff?'disabled':'')+'>'+inNote+'</div>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm.slice(0,5)):'')+'" '+(autoOff?'disabled':'')+'>'+outNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm.slice(0,5)):'')+'" '+(timeLocked?'disabled':'')+'>'+inNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm.slice(0,5)):'')+'" '+(timeLocked?'disabled':'')+'>'+outNote+'</div>'+
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
         '</div>'+
         '<div class="date-row" style="margin-bottom:8px; padding:0 4px 4px; font-size:12px;'+(hasData?' background:#eaf3ec; border-radius:0 0 8px 8px;':'')+'">'+
-          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Leave" onchange="onBulkDayStatusChange('+d+',\'leave\')"> 🏖 مرخصی</label>'+
-          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Absence" onchange="onBulkDayStatusChange('+d+',\'absence\')"> ❌ غیبت</label>'+
-          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Off" onchange="onBulkDayStatusChange('+d+',\'off\')" '+(autoOff?'checked':'')+'> 🏠 Off</label>'+
+          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Leave" onchange="onBulkDayStatusChange('+d+',\'leave\')" '+(hasLeave?'checked':'')+' '+(leaveIsMultiDay?'disabled':'')+'> 🏖 مرخصی'+leaveNote+'</label>'+
+          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Absence" onchange="onBulkDayStatusChange('+d+',\'absence\')" '+(isAbsenceChecked?'checked':'')+'> ❌ غیبت</label>'+
+          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Off" onchange="onBulkDayStatusChange('+d+',\'off\')" '+(isOffChecked?'checked':'')+'> 🏠 Off</label>'+
         '</div>'
       );
     }
@@ -2760,6 +2807,7 @@ async function submitMonthlyBulkLog(){
     var toUpdate = [];
     var toDelete = [];
     var leaveDays = [];
+    var leaveIdsToDelete = [];
 
     for(var d=1; d<=daysCount; d++){
       var jalaliDate = d + ' ' + monthName + ' ' + year;
@@ -2768,10 +2816,14 @@ async function submitMonthlyBulkLog(){
       var absenceChk = document.getElementById('bulkDay'+d+'Absence');
       var offChk = document.getElementById('bulkDay'+d+'Off');
       if(leaveChk && leaveChk.checked){
-        leaveDays.push(jalaliDate);
+        if(!ex.leaveId){ leaveDays.push(jalaliDate); } // only create if it didn't already exist
         if(ex.inId) toDelete.push(ex.inId);
         if(ex.outId) toDelete.push(ex.outId);
         continue; // leave days skip normal time handling entirely
+      }
+      if(ex.leaveId && !ex.leaveIsMultiDay){
+        // admin unchecked "مرخصی" for a day that had a single-day leave record — remove it
+        leaveIdsToDelete.push(ex.leaveId);
       }
       if((absenceChk && absenceChk.checked) || (offChk && offChk.checked)){
         if(ex.inId) toDelete.push(ex.inId);
@@ -2810,14 +2862,37 @@ async function submitMonthlyBulkLog(){
       }
     }
 
-    if(toCreate.length===0 && toUpdate.length===0 && toDelete.length===0 && leaveDays.length===0){ alert('هیچ تغییری نسبت به قبل وجود نداره.'); return; }
+    var allDatesInMonth = [];
+    var statusEntries = [];
+    for(var sd=1; sd<=daysCount; sd++){
+      var sDateStr = sd + ' ' + monthName + ' ' + year;
+      allDatesInMonth.push(sDateStr);
+      var sAbsenceChk = document.getElementById('bulkDay'+sd+'Absence');
+      var sOffChk = document.getElementById('bulkDay'+sd+'Off');
+      if(sAbsenceChk && sAbsenceChk.checked) statusEntries.push({jalaliDate: sDateStr, status:'absence'});
+      else if(sOffChk && sOffChk.checked) statusEntries.push({jalaliDate: sDateStr, status:'off'});
+    }
+    var originalStatus = window._bulkOriginalDayStatus || {};
+    var newStatusMap = {};
+    statusEntries.forEach(function(e){ newStatusMap[e.jalaliDate] = e.status; });
+    var statusChanged = false;
+    allDatesInMonth.forEach(function(dt){
+      if((originalStatus[dt]||null) !== (newStatusMap[dt]||null)) statusChanged = true;
+    });
+
+    if(toCreate.length===0 && toUpdate.length===0 && toDelete.length===0 && leaveDays.length===0 && leaveIdsToDelete.length===0 && !statusChanged){ alert('هیچ تغییری نسبت به قبل وجود نداره.'); return; }
     var summary = [];
     if(toCreate.length) summary.push(toCreate.length+' ثبت جدید');
     if(toUpdate.length) summary.push(toUpdate.length+' ویرایش');
     if(toDelete.length) summary.push(toDelete.length+' حذف (روزهایی که خالی/مرخصی/غیبت کردی)');
-    if(leaveDays.length) summary.push(leaveDays.length+' روز مرخصی');
+    if(leaveDays.length) summary.push(leaveDays.length+' روز مرخصی جدید');
+    if(leaveIdsToDelete.length) summary.push(leaveIdsToDelete.length+' مرخصیِ حذف‌شده');
+    if(statusChanged) summary.push('علامت‌های غیبت/Off به‌روزرسانی می‌شن');
     if(!confirm(summary.join('، ') + ' — اعمال بشه؟')) return;
 
+    if(leaveIdsToDelete.length){
+      await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin: adminPin, ids: leaveIdsToDelete}); });
+    }
     if(leaveDays.length){
       var leaveCategory = document.getElementById('bulkLeaveCategory').value;
       var lres = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
@@ -2858,6 +2933,12 @@ async function submitMonthlyBulkLog(){
     }
     if(toDelete.length){
       await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDelete}); });
+    }
+
+    if(statusChanged){
+      await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
+        pin: adminPin, username: username, allDatesInMonth: allDatesInMonth, entries: statusEntries
+      }); });
     }
 
     clearAdminNotice();
