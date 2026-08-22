@@ -1451,6 +1451,7 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="hamburger-btn" onclick="toggleDrawer('emp')">☰</button>
         <span>خوش آمدید، <b id="empWelcomeName"></b></span>
       </div>
+      <button type="button" class="btn btn-ghost btn-small" onclick="goToHomeSection()">🏠 خانه</button>
     </div>
 
     <div class="emp-section" id="empSec-checkin">
@@ -1708,6 +1709,7 @@ function esh_set(sheet, rowNum, headerName, value){
         <button type="button" class="hamburger-btn" onclick="toggleDrawer('admin')">☰</button>
         <span>⚙️ پنل مدیریت</span>
       </div>
+      <button type="button" class="btn btn-ghost btn-small" onclick="goToHomeSection()">🏠 خانه</button>
     </div>
 
     <div id="adminNotice" class="status err" style="display:none; margin-bottom:14px;"></div>
@@ -2023,6 +2025,12 @@ function esh_set(sheet, rowNum, headerName, value){
       <div id="bulkDaysContainer" style="margin-top:10px;"></div>
 
       <button type="button" class="btn btn-primary" id="bulkSubmitBtn" style="display:none; margin-top:10px;" onclick="submitMonthlyBulkLog()">💾 ثبت همه</button>
+      <div id="bulkProgressBar" style="display:none; margin-top:10px;">
+        <div style="background:#eee7d6; border-radius:6px; overflow:hidden; height:10px;">
+          <div id="bulkProgressFill" style="background:#2e7d4f; height:100%; width:0%; transition:width 0.3s;"></div>
+        </div>
+        <div id="bulkProgressText" style="font-size:12px; text-align:center; margin-top:4px; color:#4a4436;"></div>
+      </div>
       <div id="bulkSubmitStatus" style="display:none; background:#fde8e8; color:#a32a2a; border-radius:10px; padding:10px 12px; margin-top:8px; font-size:13px;"></div>
     </div>
 
@@ -2393,6 +2401,39 @@ function closeDrawer(){
   document.getElementById('admDrawer').classList.remove('open');
   document.getElementById('empDrawer').classList.remove('open');
   document.getElementById('drawerOverlay').classList.remove('open');
+}
+// ---------- Back-button navigation: non-home sections push a history entry, ----------
+// ---------- so the phone's back button returns to the home section instead of exiting the app ----------
+var _isNavigatingBack = false;
+function pushSectionHistory(name, isHome){
+  if(_isNavigatingBack) return;
+  if(isHome) return; // home itself is the base state — no entry needed for it
+  history.pushState({section:name}, '', '#'+name);
+}
+window.addEventListener('beforeunload', function(e){
+  if(window._submissionInProgress){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+window.addEventListener('popstate', function(){
+  if(window._submissionInProgress){
+    if(!confirm('یه عملیات هنوز در حال ثبته — اگه الان خارج بشی ممکنه بخشی از اطلاعات ثبت نشه. مطمئنی؟')){
+      history.pushState({section:'stay'}, '', location.hash); // cancel the back navigation
+      return;
+    }
+  }
+  _isNavigatingBack = true;
+  if(loggedInEmployee && document.getElementById('empView').style.display !== 'none'){
+    showEmpSection('checkin');
+  } else if(adminPin && document.getElementById('adminView').style.display !== 'none'){
+    showAdminSection('dashboard');
+  }
+  _isNavigatingBack = false;
+});
+function goToHomeSection(){
+  if(loggedInEmployee){ showEmpSection('checkin'); }
+  else if(adminPin){ showAdminSection('dashboard'); }
 }
 // ---------- Unified requests list (merges attendance/leave/mission/overtime/other) ----------
 var reqState = { emp: { category:'all', dateStart:null, dateEnd:null } };
@@ -2788,6 +2829,19 @@ function nextJalaliDay(d, monthIdx, year){
   if(nm > 12){ nm = 1; ny = year + 1; }
   return {day: 1, monthIdx: nm, year: ny};
 }
+function showBulkProgress(percent, text){
+  var bar = document.getElementById('bulkProgressBar');
+  var fill = document.getElementById('bulkProgressFill');
+  var txt = document.getElementById('bulkProgressText');
+  if(!bar) return;
+  bar.style.display = 'block';
+  fill.style.width = percent + '%';
+  txt.textContent = text;
+}
+function hideBulkProgress(){
+  var bar = document.getElementById('bulkProgressBar');
+  if(bar) bar.style.display = 'none';
+}
 async function submitMonthlyBulkLog(){
   var statusEl = document.getElementById('bulkSubmitStatus');
   statusEl.style.display = 'none';
@@ -2890,8 +2944,18 @@ async function submitMonthlyBulkLog(){
     if(statusChanged) summary.push('علامت‌های غیبت/Off به‌روزرسانی می‌شن');
     if(!confirm(summary.join('، ') + ' — اعمال بشه؟')) return;
 
+    window._submissionInProgress = true;
+    var totalSteps = (leaveIdsToDelete.length?1:0) + (leaveDays.length?1:0) + (toCreate.length?1:0) + (toUpdate.length?1:0) + (toDelete.length?1:0) + (statusChanged?1:0);
+    var stepsDone = 0;
+    function stepProgress(label){
+      stepsDone++;
+      showBulkProgress(Math.round((stepsDone/Math.max(totalSteps,1))*100), label);
+    }
+    showBulkProgress(2, 'شروع...');
+
     if(leaveIdsToDelete.length){
       await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin: adminPin, ids: leaveIdsToDelete}); });
+      stepProgress('حذف مرخصی‌های قدیمی...');
     }
     if(leaveDays.length){
       var leaveCategory = document.getElementById('bulkLeaveCategory').value;
@@ -2901,8 +2965,11 @@ async function submitMonthlyBulkLog(){
       if(!lres.ok){
         statusEl.textContent = '⛔ ثبت مرخصی ناموفق بود: ' + (lres.error||'');
         statusEl.style.display = 'block';
+        window._submissionInProgress = false;
+        hideBulkProgress();
         return;
       }
+      stepProgress('ثبت مرخصی‌ها...');
     }
     if(toCreate.length){
       var res = await apiCall(function(){ return apiPost('adminAddLogBatch', {
@@ -2917,8 +2984,11 @@ async function submitMonthlyBulkLog(){
         statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msg;
         statusEl.style.display = 'block';
         showAdminNotice('ثبت گروهی ناموفق بود: ' + msg);
+        window._submissionInProgress = false;
+        hideBulkProgress();
         return;
       }
+      stepProgress('ثبت ورود/خروج‌های جدید...');
     }
     if(toUpdate.length){
       var updatesPayload = toUpdate.map(function(u){
@@ -2928,31 +2998,48 @@ async function submitMonthlyBulkLog(){
       if(!ures.ok){
         statusEl.textContent = '⛔ ویرایش ناموفق بود' + (ures.at ? (' (دور ' + ures.at + ')') : '') + ': ' + (ures.error||'');
         statusEl.style.display = 'block';
+        window._submissionInProgress = false;
+        hideBulkProgress();
         return;
       }
+      stepProgress('ویرایش ثبت‌های موجود...');
     }
     if(toDelete.length){
       await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDelete}); });
+      stepProgress('حذف ثبت‌های خالی‌شده...');
     }
 
     if(statusChanged){
       await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
         pin: adminPin, username: username, allDatesInMonth: allDatesInMonth, entries: statusEntries
       }); });
+      stepProgress('ذخیره‌ی وضعیت غیبت/Off...');
     }
 
+    showBulkProgress(100, 'انجام شد!');
+    window._submissionInProgress = false;
     clearAdminNotice();
-    closeAdminLogSheet();
-    alert(summary.join('، ') + ' با موفقیت اعمال شد.');
-    refreshCurrentAdminSection();
+    setTimeout(function(){
+      hideBulkProgress();
+      closeAdminLogSheet();
+      alert(summary.join('، ') + ' با موفقیت اعمال شد.');
+      refreshCurrentAdminSection();
+    }, 400);
   } catch(err){
     statusEl.textContent = '⛔ خطای غیرمنتظره: ' + (err && err.message ? err.message : String(err)) + ' — اگه داده‌ای ذخیره شده، از گزارش چک کن، بعد دوباره تلاش کن.';
     statusEl.style.display = 'block';
+    window._submissionInProgress = false;
+    hideBulkProgress();
   }
 }
 function closeAdminLogSheet(){
+  if(window._submissionInProgress){
+    if(!confirm('صفحه در حال ثبت اطلاعاته — اگه الان خارج بشی ممکنه بخشی از داده‌ها ثبت نشه. مطمئنی می‌خوای خارج بشی؟')) return;
+    window._submissionInProgress = false;
+  }
   document.getElementById('adminLogOverlay').classList.remove('open');
   document.getElementById('adminLogSheet').classList.remove('open');
+  hideBulkProgress();
 }
 async function submitAdminLog(){
   var username = document.getElementById('adminLogEmp').value;
@@ -3052,6 +3139,7 @@ function showEmpSection(name){
   if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
   else if(name === 'history') loadMyHistory();
+  pushSectionHistory(name, name === 'checkin');
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
@@ -3069,6 +3157,7 @@ function showAdminSection(name){
     if(btn) btn.classList.toggle('active', s===name);
   });
   if(name === 'projects') initProjMap();
+  pushSectionHistory(name, name === 'dashboard');
   refreshAdminSection(name);
   closeDrawer();
 }
