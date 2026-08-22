@@ -562,7 +562,7 @@ function jalaliToGregorianServer(jy, jm, jd){
   return [gy, gm, gd];
 }
 function deleteOneLogRow(id){
-  var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+  var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
   var row7 = ensureIds(lsh6, readRows(lsh6)).filter(function(r){ return r.id === id; })[0];
   if(row7) lsh6.deleteRow(row7._row);
   var mlsh2 = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
@@ -575,7 +575,7 @@ function setRowField(sheet, rowValues, headerName, value){
   if(idx >= 0) rowValues[idx] = value;
 }
 function updateOneLogRow(body){
-  var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+  var lsh5 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
   var rows7 = ensureIds(lsh5, readRows(lsh5));
   var row6 = rows7.filter(function(r){ return r.id === body.id; })[0];
   if(!row6) return {ok:false, error:'not found'};
@@ -659,7 +659,7 @@ function isFridayFromJalaliDateStr(jalaliDateStr){
 }
 function getHolidayInfo(jalaliDateStr){
   if(isFridayFromJalaliDateStr(jalaliDateStr)) return {isHoliday:true, reason:'جمعه'};
-  var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
+  var hsh = getSheet('Holidays', ['id','jalaliDate','reason','status']);
   var match = readRows(hsh).filter(function(r){ return r.jalaliDate === jalaliDateStr; })[0];
   if(match) return {isHoliday:true, reason: match.reason || 'تعطیل رسمی'};
   return {isHoliday:false, reason:''};
@@ -692,7 +692,7 @@ function doGet(e){
     return jsonOut({ok:true, projects: readRows(sh)});
   }
   if(action === 'holidaysPublic'){
-    var hshp = getSheet('Holidays', ['id','jalaliDate','reason']);
+    var hshp = getSheet('Holidays', ['id','jalaliDate','reason','status']);
     return jsonOut({ok:true, holidays: readRows(hshp).map(function(r){ delete r._row; return r; })});
   }
 
@@ -700,7 +700,7 @@ function doGet(e){
     if(String(e.parameter.pin) !== getAdminPin()){
       return jsonOut({ok:false, error:'invalid pin'});
     }
-    var lsh = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lsh = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var rows = ensureIds(lsh, readRows(lsh)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows});
   }
@@ -820,7 +820,7 @@ function doPost(e){
       note = (note ? note + ' | ' : '') + '⚠ دقت موقعیت پایین بود (±' + Math.round(Number(d.accuracy)) + 'م)';
     }
 
-    var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lsh2 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var empRows = readRows(lsh2).filter(function(r){ return r.username === d.username; });
     empRows.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
     var todaysCount = empRows.filter(function(r){ return r.jalaliDate === t.jalaliDate; }).length;
@@ -872,13 +872,13 @@ function doPost(e){
       id:id, jalaliDate:t.jalaliDate, time:t.time, employee:d.employee, username:d.username, project:d.project,
       type: d.type === 'in' ? 'ورود' : 'خروج', lat:d.lat, lng:d.lng, accuracy:d.accuracy,
       isoTimestamp:t.isoTimestamp, note:note, employeeCode: emp.employeeCode || '',
-      isHoliday: holInfo.isHoliday ? 'تعطیل' : '', holidayReason: holInfo.reason
+      isHoliday: holInfo.isHoliday ? 'تعطیل' : '', holidayReason: holInfo.reason, source:'اتومات'
     });
     return jsonOut({ok:true, jalaliDate:t.jalaliDate, time:t.time});
   }
 
   if(action === 'getMyLogs'){
-    var lsh3 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lsh3 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var rows3 = ensureIds(lsh3, readRows(lsh3)).filter(function(r){ return r.username === body.username; })
       .map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows3});
@@ -898,7 +898,7 @@ function doPost(e){
     if(body.requestedDate && normalizedReqTime){
       var reqIso = jalaliDateTimeToIso(body.requestedDate, normalizedReqTime);
       if(reqIso){
-        var lshChk = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+        var lshChk = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
         var empRowsChk = readRows(lshChk).filter(function(r){ return r.username === body.username; });
         var lastChk = empRowsChk.length ? empRowsChk.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsChk.length-1] : null;
         if(lastChk && String(reqIso) <= String(lastChk.isoTimestamp)){
@@ -1090,12 +1090,12 @@ function doPost(e){
 
   // ---------------- logs (admin edit/delete) ----------------
   if(action === 'getLogs'){
-    var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var rows6 = ensureIds(lsh4, readRows(lsh4)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6});
   }
   if(action === 'getLogsForUser'){
-    var lsh4u = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lsh4u = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var rows6u = ensureIds(lsh4u, readRows(lsh4u)).filter(function(r){ return r.username === body.username; }).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6u});
   }
@@ -1103,7 +1103,7 @@ function doPost(e){
     var eshA = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var empA = readRows(eshA).filter(function(r){ return r.username === body.username; })[0];
     if(!empA) return jsonOut({ok:false, error:'unknown_employee'});
-    var lshA = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lshA = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var isoA = jalaliDateTimeToIso(body.jalaliDate, body.time) || serverNow().isoTimestamp;
     var empRowsA = readRows(lshA).filter(function(r){ return r.username === empA.username; });
     var lastA = empRowsA.length ? empRowsA.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsA.length-1] : null;
@@ -1117,7 +1117,7 @@ function doPost(e){
       type: body.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:isoA,
       note: 'ثبت مستقیم توسط مدیر' + (body.reason ? (' — ' + body.reason) : ''),
       employeeCode: empA.employeeCode || '',
-      isHoliday: holInfoA.isHoliday ? 'تعطیل' : '', holidayReason: holInfoA.reason
+      isHoliday: holInfoA.isHoliday ? 'تعطیل' : '', holidayReason: holInfoA.reason, source:'دستی'
     });
     logManualEntryAudit({
       id:lidA, jalaliDate:body.jalaliDate, time:body.time, employee:empA.fullName, username:empA.username,
@@ -1174,7 +1174,7 @@ function doPost(e){
     var entriesB = body.entries || [];
     if(!entriesB.length) return jsonOut({ok:false, error:'no_entries'});
 
-    var lshB = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lshB = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     // NOTE: intentionally NOT checked against the employee's overall existing history for ordering —
     // this bulk feature is for backfilling any historical month (e.g. an employee without a phone),
     // and admin may fill months in any order. Only internal same-batch ordering, and exact duplicates
@@ -1221,7 +1221,7 @@ function doPost(e){
         type: eb.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:eb.iso,
         note: 'ثبت مستقیم توسط مدیر (ماهانه)' + (body.reason ? (' — ' + body.reason) : ''),
         employeeCode: empB.employeeCode || '',
-        isHoliday: holInfoB.isHoliday ? 'تعطیل' : '', holidayReason: holInfoB.reason
+        isHoliday: holInfoB.isHoliday ? 'تعطیل' : '', holidayReason: holInfoB.reason, source:'دستی'
       });
       logManualEntryAudit({
         id:lidB, jalaliDate:eb.jalaliDate, time:eb.time, employee:empB.fullName, username:empB.username,
@@ -1244,7 +1244,7 @@ function doPost(e){
     var useDateO = body.jalaliDate || prowA.jalaliDate;
     var useTimeO = body.time || prowA.time;
     var isoO = jalaliDateTimeToIso(useDateO, useTimeO) || serverNow().isoTimestamp;
-    var lshO = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lshO = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var empRowsO = readRows(lshO).filter(function(r){ return r.username === prowA.username; });
     var lastO = empRowsO.length ? empRowsO.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsO.length-1] : null;
     if(lastO && String(isoO) <= String(lastO.isoTimestamp)){
@@ -1256,7 +1256,7 @@ function doPost(e){
       id:lidO, jalaliDate:useDateO, time:useTimeO, employee:prowA.employee, username:prowA.username, project:prowA.project,
       type: prowA.type === 'in' ? 'ورود' : 'خروج', lat:prowA.lat||'', lng:prowA.lng||'', accuracy:prowA.accuracy||'',
       isoTimestamp:isoO, note: '⚠ ثبت آفلاین (تاییدشده توسط مدیر)', employeeCode: prowA.employeeCode || '',
-      isHoliday: holInfoO.isHoliday ? 'تعطیل' : '', holidayReason: holInfoO.reason
+      isHoliday: holInfoO.isHoliday ? 'تعطیل' : '', holidayReason: holInfoO.reason, source:'اتومات'
     });
     esh_set(poshA, prowA._row, 'status', 'approved');
     return jsonOut({ok:true});
@@ -1277,7 +1277,7 @@ function doPost(e){
     return jsonOut({ok:true, count: rowsRB.length});
   }
   if(action === 'recalcAllLogTimestamps'){
-    var lshR = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+    var lshR = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var rowsR = readRows(lshR);
     var fixedCount = 0;
     rowsR.forEach(function(r){
@@ -1296,17 +1296,17 @@ function doPost(e){
     return jsonOut({ok:true, total: rowsR.length, fixed: fixedCount});
   }
   if(action === 'getHolidays'){
-    var hsh = getSheet('Holidays', ['id','jalaliDate','reason']);
+    var hsh = getSheet('Holidays', ['id','jalaliDate','reason','status']);
     return jsonOut({ok:true, holidays: readRows(hsh).map(function(r){ delete r._row; return r; })});
   }
   if(action === 'addHoliday'){
-    var hsh2 = getSheet('Holidays', ['id','jalaliDate','reason']);
+    var hsh2 = getSheet('Holidays', ['id','jalaliDate','reason','status']);
     var hid = Utilities.getUuid();
-    appendRowByHeader(hsh2, {id:hid, jalaliDate: body.jalaliDate, reason: body.reason||''});
+    appendRowByHeader(hsh2, {id:hid, jalaliDate: body.jalaliDate, reason: body.reason||'', status:'تعطیل'});
     return jsonOut({ok:true});
   }
   if(action === 'deleteHoliday'){
-    var hsh3 = getSheet('Holidays', ['id','jalaliDate','reason']);
+    var hsh3 = getSheet('Holidays', ['id','jalaliDate','reason','status']);
     var hrow = readRows(hsh3).filter(function(r){ return r.id === body.id; })[0];
     if(hrow) hsh3.deleteRow(hrow._row);
     return jsonOut({ok:true});
@@ -1360,7 +1360,7 @@ function doPost(e){
       var t3 = serverNow();
       var useDate = rrow.requestedDate || t3.jalaliDate;
       var useTime = rrow.requestedTime || t3.time;
-      var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason']);
+      var lsh7 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
       var iso3 = rrow.requestedDate ? (jalaliDateTimeToIso(useDate, useTime) || t3.isoTimestamp) : t3.isoTimestamp;
       var empRowsChk2 = readRows(lsh7).filter(function(r){ return r.username === rrow.username; });
       var lastChk2 = empRowsChk2.length ? empRowsChk2.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsChk2.length-1] : null;
@@ -1375,7 +1375,7 @@ function doPost(e){
         type: rrow.type === 'in' ? 'ورود' : 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:iso3,
         note: 'ثبت دستی (تاییدشده) — دلیل: ' + (rrow.reason || '-') + (rrow.requestedDate ? ' — زمان درخواستی توسط پرسنل' : ''),
         employeeCode: rrow.employeeCode || '',
-        isHoliday: holInfo3.isHoliday ? 'تعطیل' : '', holidayReason: holInfo3.reason
+        isHoliday: holInfo3.isHoliday ? 'تعطیل' : '', holidayReason: holInfo3.reason, source:'دستی'
       });
     }
     return jsonOut({ok:true});
