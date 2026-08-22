@@ -1961,7 +1961,7 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
 
     <div id="adminLogMonthlySection" style="display:none;">
-      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد یا ویرایش کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده و با همون تاریخ ذخیره می‌شه. زیر «خروج» اگه نوشته «⬅️ ادامه دیشب» یعنی این خروج مال ورودِ روز قبله، نه ورود همین ردیف. زیر «ورود» اگه نوشته «🌙 خروج ← فردا» یعنی خروج این ورود تو ردیف روز بعد میاد. ردیف‌های سبزرنگ یعنی از قبل داده دارن — می‌تونی ویرایششون کنی.</div>
+      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد یا ویرایش کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده و با همون تاریخ ذخیره می‌شه. زیر «خروج» اگه نوشته «⬅️ ادامه دیشب» یعنی این خروج مال ورودِ روز قبله، نه ورود همین ردیف. زیر «ورود» اگه نوشته «🌙 خروج ← فردا» یعنی خروج این ورود تو ردیف روز بعد میاد. ردیف‌های سبزرنگ یعنی از قبل داده دارن — می‌تونی ویرایششون کنی. جمعه‌ها و تعطیلیِ تعریف‌شده، خودکار «🏠 Off» می‌خورن (اگه واقعاً کار کرده، تیکش رو بردار و ساعت بزن).</div>
       <label>ماه و سال</label>
       <div class="date-row">
         <select id="adminLogMonthlyMonth" onchange="onBulkMonthYearChanged()"></select><select id="adminLogMonthlyYear" onchange="onBulkMonthYearChanged()"></select>
@@ -2620,18 +2620,20 @@ async function loadMonthDaysForBulkEntry(){
         outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null, outProject: outE ? outE.project : null
       };
       var hasData = inE || outE;
+      var autoOff = isHol && !hasData;
       var inNote = (inE && (!outE || outIsCarryover)) ? '<div style="font-size:10px; color:#3b4a8f;">🌙 خروج ← فردا</div>' : '';
       var outNote = outIsCarryover ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
       rows.push(
         '<div class="date-row" id="bulkRow'+d+'" style="align-items:center; margin-bottom:2px;'+(hasData?' background:#eaf3ec; border-radius:8px 8px 0 0; padding:4px;':'')+'">'+
           '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm.slice(0,5)):'')+'">'+inNote+'</div>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm.slice(0,5)):'')+'">'+outNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm.slice(0,5)):'')+'" '+(autoOff?'disabled':'')+'>'+inNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm.slice(0,5)):'')+'" '+(autoOff?'disabled':'')+'>'+outNote+'</div>'+
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
         '</div>'+
         '<div class="date-row" style="margin-bottom:8px; padding:0 4px 4px; font-size:12px;'+(hasData?' background:#eaf3ec; border-radius:0 0 8px 8px;':'')+'">'+
           '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Leave" onchange="onBulkDayStatusChange('+d+',\'leave\')"> 🏖 مرخصی</label>'+
           '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Absence" onchange="onBulkDayStatusChange('+d+',\'absence\')"> ❌ غیبت</label>'+
+          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Off" onchange="onBulkDayStatusChange('+d+',\'off\')" '+(autoOff?'checked':'')+'> 🏠 Off</label>'+
         '</div>'
       );
     }
@@ -2653,11 +2655,13 @@ async function loadMonthDaysForBulkEntry(){
 function onBulkDayStatusChange(d, kind){
   var leaveChk = document.getElementById('bulkDay'+d+'Leave');
   var absenceChk = document.getElementById('bulkDay'+d+'Absence');
+  var offChk = document.getElementById('bulkDay'+d+'Off');
   var inEl = document.getElementById('bulkDay'+d+'In');
   var outEl = document.getElementById('bulkDay'+d+'Out');
-  if(kind === 'leave' && leaveChk.checked) absenceChk.checked = false;
-  if(kind === 'absence' && absenceChk.checked) leaveChk.checked = false;
-  var locked = leaveChk.checked || absenceChk.checked;
+  if(kind === 'leave' && leaveChk.checked){ absenceChk.checked = false; offChk.checked = false; }
+  if(kind === 'absence' && absenceChk.checked){ leaveChk.checked = false; offChk.checked = false; }
+  if(kind === 'off' && offChk.checked){ leaveChk.checked = false; absenceChk.checked = false; }
+  var locked = leaveChk.checked || absenceChk.checked || offChk.checked;
   if(locked){ inEl.value = ''; outEl.value = ''; }
   inEl.disabled = locked;
   outEl.disabled = locked;
@@ -2670,6 +2674,7 @@ function clearBulkDay(d){
   document.getElementById('bulkDay'+d+'Out').disabled = false;
   document.getElementById('bulkDay'+d+'Leave').checked = false;
   document.getElementById('bulkDay'+d+'Absence').checked = false;
+  document.getElementById('bulkDay'+d+'Off').checked = false;
 }
 function toggleBulkPasteBox(){
   var box = document.getElementById('bulkPasteBox');
@@ -2761,16 +2766,17 @@ async function submitMonthlyBulkLog(){
       var ex = existing[d] || {};
       var leaveChk = document.getElementById('bulkDay'+d+'Leave');
       var absenceChk = document.getElementById('bulkDay'+d+'Absence');
+      var offChk = document.getElementById('bulkDay'+d+'Off');
       if(leaveChk && leaveChk.checked){
         leaveDays.push(jalaliDate);
         if(ex.inId) toDelete.push(ex.inId);
         if(ex.outId) toDelete.push(ex.outId);
         continue; // leave days skip normal time handling entirely
       }
-      if(absenceChk && absenceChk.checked){
+      if((absenceChk && absenceChk.checked) || (offChk && offChk.checked)){
         if(ex.inId) toDelete.push(ex.inId);
         if(ex.outId) toDelete.push(ex.outId);
-        continue; // absence days: just ensure no time entries exist — no leave record needed
+        continue; // absence/off days: just ensure no time entries exist — no record needed
       }
       var inVal = document.getElementById('bulkDay'+d+'In').value;
       var outVal = document.getElementById('bulkDay'+d+'Out').value;
