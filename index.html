@@ -4729,18 +4729,22 @@ function renderLogTable(){
           '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
           '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
         '</div>'+
-        (p.inE ? ('<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">ورود</div>'+
-          '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
-            buildDateSelects('logEditIn', p.inE.jalaliDate)+
-            '<input type="time" id="logEditInTime" step="1" value="'+esc(p.inE.time)+'" class="field-mono" style="width:104px;">'+
-            '<button type="button" class="icon-btn del" title="فقط ورود حذف شود" onclick="deleteSingleLogEntry(\''+p.inE.id+'\')">🗑</button>'+
-          '</div>') : '')+
-        (p.outE ? ('<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">خروج</div>'+
-          '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
-            buildDateSelects('logEditOut', p.outE.jalaliDate)+
-            '<input type="time" id="logEditOutTime" step="1" value="'+esc(p.outE.time)+'" class="field-mono" style="width:104px;">'+
-            '<button type="button" class="icon-btn del" title="فقط خروج حذف شود" onclick="deleteSingleLogEntry(\''+p.outE.id+'\')">🗑</button>'+
-          '</div>') : '')+
+        (function(){
+          var inDefaultDate = p.inE ? p.inE.jalaliDate : (p.outE ? p.outE.jalaliDate : jalaliString(new Date()));
+          var outDefaultDate = p.outE ? p.outE.jalaliDate : (p.inE ? p.inE.jalaliDate : jalaliString(new Date()));
+          return '<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">ورود'+(p.inE?'':' <span style="font-weight:400; color:#8a5a10;">(ثبت نشده — ساعت رو پر کن تا اضافه بشه)</span>')+'</div>'+
+            '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
+              buildDateSelects('logEditIn', inDefaultDate)+
+              '<input type="time" id="logEditInTime" step="1" value="'+(p.inE?esc(p.inE.time):'')+'" class="field-mono" style="width:104px;">'+
+              (p.inE ? '<button type="button" class="icon-btn del" title="فقط ورود حذف شود" onclick="deleteSingleLogEntry(\''+p.inE.id+'\')">🗑</button>' : '')+
+            '</div>'+
+            '<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">خروج'+(p.outE?'':' <span style="font-weight:400; color:#8a5a10;">(ثبت نشده — ساعت رو پر کن تا اضافه بشه)</span>')+'</div>'+
+            '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
+              buildDateSelects('logEditOut', outDefaultDate)+
+              '<input type="time" id="logEditOutTime" step="1" value="'+(p.outE?esc(p.outE.time):'')+'" class="field-mono" style="width:104px;">'+
+              (p.outE ? '<button type="button" class="icon-btn del" title="فقط خروج حذف شود" onclick="deleteSingleLogEntry(\''+p.outE.id+'\')">🗑</button>' : '')+
+            '</div>';
+        })()+
         '<div class="btn-row">'+
           '<button type="button" class="btn btn-in btn-small" onclick="saveEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">💾 ذخیره</button>'+
           '<button type="button" class="btn btn-ghost btn-small" onclick="cancelEditLog()">لغو</button>'+
@@ -4775,6 +4779,8 @@ async function saveOneLogEntry(id, jalaliDate, time, employee, project, type){
 async function saveEditLogPair(inId, outId){
   var employee = document.getElementById('logEditEmp').value;
   var project = document.getElementById('logEditProj').value;
+  var empObj = employees.filter(function(e){ return e.fullName === employee; })[0];
+  var username = empObj ? empObj.username : null;
   function normTime(raw){
     if(!raw || !raw.trim()){ return null; } // empty means "leave it blank" — never silently becomes 00:00:00
     var p = raw.split(':');
@@ -4790,18 +4796,43 @@ async function saveEditLogPair(inId, outId){
     return d + ' ' + jMonths[m-1] + ' ' + y;
   }
   var ok = true;
+
+  var inTime = normTime(document.getElementById('logEditInTime').value);
   if(inId){
-    var inTime = normTime(document.getElementById('logEditInTime').value);
     if(inTime === null){ showAdminNotice('ساعت ورود نمی‌تونه خالی باشه. اگه می‌خوای کلاً حذفش کنی، از دکمه 🗑 کنارش استفاده کن.'); return; }
     var inDate = readDate('logEditIn');
     ok = ok && await saveOneLogEntry(inId, inDate, inTime, employee, project, 'in');
+  } else if(inTime !== null){
+    if(!username){ showAdminNotice('کاربریِ این پرسنل پیدا نشد.'); return; }
+    var newInDate = readDate('logEditIn');
+    var inCreateRes = await apiCall(function(){ return apiPost('adminAddLog', {
+      pin: adminPin, username: username, project: project, type: 'in', jalaliDate: newInDate, time: inTime
+    }); });
+    if(!inCreateRes.ok){
+      var inMsg = inCreateRes.error === 'must_be_after_last_entry' ? 'این ساعتِ ورود زودتر از آخرین ثبت موجوده — ترتیب رو چک کن.' : (inCreateRes.error||'خطای شبکه');
+      showAdminNotice('ثبت ورود ناموفق بود: ' + inMsg);
+      return;
+    }
   }
+
+  var outTime = normTime(document.getElementById('logEditOutTime').value);
   if(outId){
-    var outTime = normTime(document.getElementById('logEditOutTime').value);
     if(outTime === null){ showAdminNotice('ساعت خروج نمی‌تونه خالی باشه. اگه می‌خوای کلاً حذفش کنی، از دکمه 🗑 کنارش استفاده کن.'); return; }
     var outDate = readDate('logEditOut');
     ok = ok && await saveOneLogEntry(outId, outDate, outTime, employee, project, 'out');
+  } else if(outTime !== null){
+    if(!username){ showAdminNotice('کاربریِ این پرسنل پیدا نشد.'); return; }
+    var newOutDate = readDate('logEditOut');
+    var outCreateRes = await apiCall(function(){ return apiPost('adminAddLog', {
+      pin: adminPin, username: username, project: project, type: 'out', jalaliDate: newOutDate, time: outTime
+    }); });
+    if(!outCreateRes.ok){
+      var outMsg = outCreateRes.error === 'must_be_after_last_entry' ? 'این ساعتِ خروج زودتر از آخرین ثبت موجوده — ترتیب رو چک کن.' : (outCreateRes.error||'خطای شبکه');
+      showAdminNotice('ثبت خروج ناموفق بود: ' + outMsg);
+      return;
+    }
   }
+
   if(!ok){ showAdminNotice('ویرایش ثبت ناموفق بود.'); return; }
   clearAdminNotice();
   editingPairIds = null;
