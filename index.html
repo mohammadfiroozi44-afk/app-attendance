@@ -565,9 +565,6 @@ function deleteOneLogRow(id){
   var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
   var row7 = ensureIds(lsh6, readRows(lsh6)).filter(function(r){ return r.id === id; })[0];
   if(row7) lsh6.deleteRow(row7._row);
-  var mlsh2 = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
-  var mrow2 = readRows(mlsh2).filter(function(r){ return r.id === id; })[0];
-  if(mrow2) mlsh2.deleteRow(mrow2._row);
   return {ok:true};
 }
 function setRowField(sheet, rowValues, headerName, value){
@@ -612,26 +609,7 @@ function updateOneLogRow(body){
   }
   setRowField(lsh5, rowValues, 'note', noteStr);
   rowRange.setValues([rowValues]);
-
-  var mlsh3 = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
-  var mrow3 = readRows(mlsh3).filter(function(r){ return r.id === body.id; })[0];
-  if(mrow3){
-    var mLastCol = mlsh3.getLastColumn();
-    var mRowRange = mlsh3.getRange(mrow3._row, 1, 1, mLastCol);
-    var mRowValues = mRowRange.getValues()[0];
-    setRowField(mlsh3, mRowValues, 'jalaliDate', body.jalaliDate);
-    setRowField(mlsh3, mRowValues, 'time', body.time);
-    setRowField(mlsh3, mRowValues, 'employee', body.employee);
-    setRowField(mlsh3, mRowValues, 'project', body.project);
-    setRowField(mlsh3, mRowValues, 'type', body.type === 'in' ? 'ورود' : (body.type === 'out' ? 'خروج' : body.type));
-    if(empMatch) setRowField(mlsh3, mRowValues, 'employeeCode', empMatch.employeeCode||'');
-    mRowRange.setValues([mRowValues]);
-  }
   return {ok:true};
-}
-function logManualEntryAudit(entry){
-  var mlsh = getSheet('ManualLogEntries', ['id','jalaliDate','time','employee','username','project','type','employeeCode','reason','createdAt','source']);
-  appendRowByHeader(mlsh, entry);
 }
 function jalaliDateTimeToIso(jalaliDateStr, timeStr){
   var p = String(jalaliDateStr||'').trim().split(' ');
@@ -1119,11 +1097,6 @@ function doPost(e){
       employeeCode: empA.employeeCode || '',
       isHoliday: holInfoA.isHoliday ? 'تعطیل' : '', holidayReason: holInfoA.reason, source:'دستی'
     });
-    logManualEntryAudit({
-      id:lidA, jalaliDate:body.jalaliDate, time:body.time, employee:empA.fullName, username:empA.username,
-      project:body.project||'', type: body.type === 'in' ? 'ورود' : 'خروج', employeeCode: empA.employeeCode||'',
-      reason: body.reason||'', createdAt: serverNow().jalaliDate + ' ' + serverNow().time, source:'single'
-    });
     return jsonOut({ok:true});
   }
   if(action === 'getDayStatusForUser'){
@@ -1223,11 +1196,6 @@ function doPost(e){
         employeeCode: empB.employeeCode || '',
         isHoliday: holInfoB.isHoliday ? 'تعطیل' : '', holidayReason: holInfoB.reason, source:'دستی'
       });
-      logManualEntryAudit({
-        id:lidB, jalaliDate:eb.jalaliDate, time:eb.time, employee:empB.fullName, username:empB.username,
-        project:body.project||'', type: eb.type === 'in' ? 'ورود' : 'خروج', employeeCode: empB.employeeCode||'',
-        reason: body.reason||'', createdAt: t5.jalaliDate + ' ' + t5.time, source:'monthly-bulk'
-      });
     });
 
     return jsonOut({ok:true, count: computedB.length});
@@ -1311,6 +1279,35 @@ function doPost(e){
       filledCount++;
     });
     return jsonOut({ok:true, total: rowsBF.length, filled: filledCount});
+  }
+  if(action === 'setupSheetFilters'){
+    var sheetNames = ['Logs','Employees','Projects','Requests','LeaveRequests','PendingOfflineLogs','DayStatusMarkers','Holidays'];
+    var doneList = [];
+    sheetNames.forEach(function(name){
+      var sh;
+      try { sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name); } catch(e){ sh = null; }
+      if(!sh) return;
+      var lastRow = sh.getLastRow();
+      var lastCol = sh.getLastColumn();
+      if(lastRow < 1 || lastCol < 1) return;
+      var existingFilter = sh.getFilter();
+      if(existingFilter) existingFilter.remove();
+      var range = sh.getRange(1, 1, lastRow, lastCol);
+      range.createFilter();
+      doneList.push(name);
+    });
+    // Real chronological sort — only Logs has a genuinely sortable date key (isoTimestamp).
+    // Other sheets store dates as Jalali text (e.g. "3 مرداد 1405"), which does not sort correctly
+    // as plain text, so they are left in their natural (insertion) order with a filter applied,
+    // letting the person sort/filter interactively from the header dropdown.
+    var lshSort = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Logs');
+    if(lshSort && lshSort.getLastRow() > 1){
+      var isoColIdx = colIndex(lshSort, 'isoTimestamp');
+      if(isoColIdx > 0){
+        lshSort.getRange(2, 1, lshSort.getLastRow()-1, lshSort.getLastColumn()).sort({column: isoColIdx, ascending: true});
+      }
+    }
+    return jsonOut({ok:true, sheets: doneList});
   }
   if(action === 'getHolidays'){
     var hsh = getSheet('Holidays', ['id','jalaliDate','reason','status']);
@@ -1403,6 +1400,11 @@ function doPost(e){
     var lrows2 = readRows(lrsh3).map(function(r){ delete r._row; return r; })
       .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
     return jsonOut({ok:true, leaves: lrows2});
+  }
+  if(action === 'getLeaveRequestsForUser'){
+    var lrshU = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
+    var lrowsU = readRows(lrshU).filter(function(r){ return r.username === body.username; }).map(function(r){ delete r._row; return r; });
+    return jsonOut({ok:true, leaves: lrowsU});
   }
   if(action === 'deleteLeaveRequests'){
     var lrshDel = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
@@ -1898,6 +1900,8 @@ function esh_set(sheet, rowNum, headerName, value){
       <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
       <div class="hint" style="margin-top:10px;">این دکمه ستون «source» (دستی/اتومات) رو فقط برای ثبت‌های قدیمی که این ستون خالیه پر می‌کنه — بر اساس یادداشتِ همون ردیف حدس می‌زنه. ثبت‌های جدید که قبلاً این ستون رو دارن، دست‌نخورده می‌مونن.</div>
       <button type="button" class="btn btn-ghost" onclick="backfillLogSourceBtn()">🏷️ پرکردن ستون دستی/اتومات برای داده‌های قدیمی</button>
+      <div class="hint" style="margin-top:10px;">این دکمه یه فیلتر (فلش‌های بالای ستون‌ها) به همه‌ی شیت‌های اصلی گوگل‌شیت اضافه می‌کنه. شیت Logs هم بر اساس تاریخ/ساعت واقعی (نه متن فارسی) مرتب می‌شه؛ بقیه‌ی شیت‌ها فقط فیلتر می‌گیرن (چون تاریخ فارسیِ متنی قابل مرتب‌سازی درست نیست، خودت از فلش فیلتر می‌تونی مرتب کنی).</div>
+      <button type="button" class="btn btn-ghost" onclick="setupSheetFiltersBtn()">📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها</button>
     </div>
     </div><!-- /admSec-settings -->
 
@@ -2749,15 +2753,29 @@ async function loadMonthDaysForBulkEntry(){
     if(!logsRes.ok){ box.innerHTML = '<div class="empty">دریافت اطلاعات ناموفق بود: '+(logsRes.error||'')+'</div>'; return; }
     var empLogs = logsRes.logs || [];
 
-    var leavesRes = await apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); });
+    var leavesRes = await apiCall(function(){ return apiPost('getLeaveRequestsForUser', {pin:adminPin, username:username}); });
     var empLeaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){
-      return l.username === username && l.status === 'approved' && l.leaveType !== 'hourly' && (l.requestType === 'leave' || !l.requestType);
+      return l.status === 'approved' && l.leaveType !== 'hourly' && (l.requestType === 'leave' || !l.requestType);
     }) : [];
 
     var statusRes = await apiCall(function(){ return apiPost('getDayStatusForUser', {pin:adminPin, username:username}); });
     var dayStatusMap = {};
     if(statusRes.ok) (statusRes.statuses||[]).forEach(function(s){ dayStatusMap[s.jalaliDate] = s.status; });
     window._bulkOriginalDayStatus = dayStatusMap;
+
+    // Pair the raw entries EXACTLY the way the report table does — this is the single source of truth,
+    // so the edit form can never disagree with what's shown in the report.
+    var allPairs = pairLogEntriesForDisplay(empLogs);
+    var dayInMap = {};
+    var dayOutMap = {};
+    var outCarryoverMap = {};
+    allPairs.forEach(function(p){
+      if(p.inE) dayInMap[p.inE.jalaliDate] = p.inE;
+      if(p.outE){
+        dayOutMap[p.outE.jalaliDate] = p.outE;
+        outCarryoverMap[p.outE.jalaliDate] = !p.inE || (p.inE.jalaliDate !== p.outE.jalaliDate);
+      }
+    });
 
     window._bulkExisting = {};
     var rows = [];
@@ -2767,18 +2785,11 @@ async function loadMonthDaysForBulkEntry(){
       var isHol = isFridayJalali(year, monthIdx, d) || holidaySet.hasOwnProperty(dateStr);
       var weekdayColor = isHol ? '#a32a2a' : '#1f7a4d';
 
-      var dayEntries = empLogs.filter(function(e){
-        var p = parseJalaliDateStr(e.jalaliDate);
-        return p && parseInt(p.day,10) === d && p.month === monthName && parseInt(p.year,10) === year;
-      });
-      dayEntries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
-      var inE = dayEntries.filter(function(e){ return e.type === 'ورود'; })[0] || null;
-      var outEntries = dayEntries.filter(function(e){ return e.type === 'خروج'; });
-      var outE = outEntries.length ? outEntries[outEntries.length-1] : null;
+      var inE = dayInMap[dateStr] || null;
+      var outE = dayOutMap[dateStr] || null;
       var inTimeNorm = inE ? normTimeForSubmit(inE.time) : null;
       var outTimeNorm = outE ? normTimeForSubmit(outE.time) : null;
-      // is this day's خروج actually paired with THIS day's own ورود, or is it a carryover from last night's overnight check-in?
-      var outIsCarryover = outE && (!inE || timeToMinutesClient(outTimeNorm) < timeToMinutesClient(inTimeNorm));
+      var outIsCarryover = !!outCarryoverMap[dateStr];
       var dateKey = year*10000 + monthIdx*100 + d;
       var matchingLeave = empLeaves.filter(function(l){
         var sKey = jalaliDateSortKeyClient(l.startDate);
@@ -3316,6 +3327,16 @@ async function backfillLogSourceBtn(){
   if(!res.ok){ showAdminNotice('پرکردن ستون ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   alert('انجام شد. از '+res.total+' ثبت، '+res.filled+' مورد پر شد (بقیه از قبل مقدار داشتن).');
+}
+async function setupSheetFiltersBtn(){
+  if(!confirm('یه فیلتر به همه‌ی شیت‌های اصلی اضافه می‌شه و Logs بر اساس تاریخ واقعی مرتب می‌شه. ادامه بدم؟')) return;
+  var btn = event.target;
+  btn.disabled = true; btn.textContent = 'در حال اعمال...';
+  var res = await apiCall(function(){ return apiPost('setupSheetFilters', {pin:adminPin}); });
+  btn.disabled = false; btn.textContent = '📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها';
+  if(!res.ok){ showAdminNotice('اعمال فیلتر ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  alert('فیلتر روی این شیت‌ها اعمال شد: ' + (res.sheets||[]).join('، '));
 }
 async function saveNotifyEmail(){
   var email = document.getElementById('notifyEmail').value.trim();
