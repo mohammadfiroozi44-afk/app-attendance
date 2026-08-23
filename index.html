@@ -693,6 +693,10 @@ function doPost(e){
   var body = JSON.parse(e.postData.contents);
   var action = body.action;
 
+  if(action === 'ping'){
+    return jsonOut({ok:true, version: 'v-2026-08-23-editpair-fix', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
+  }
+
   // ---------------- login (device-locked) ----------------
   if(action === 'login'){
     var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
@@ -1902,6 +1906,12 @@ function esh_set(sheet, rowNum, headerName, value){
       <button type="button" class="btn btn-ghost" onclick="backfillLogSourceBtn()">🏷️ پرکردن ستون دستی/اتومات برای داده‌های قدیمی</button>
       <div class="hint" style="margin-top:10px;">این دکمه یه فیلتر (فلش‌های بالای ستون‌ها) به همه‌ی شیت‌های اصلی گوگل‌شیت اضافه می‌کنه. شیت Logs هم بر اساس تاریخ/ساعت واقعی (نه متن فارسی) مرتب می‌شه؛ بقیه‌ی شیت‌ها فقط فیلتر می‌گیرن (چون تاریخ فارسیِ متنی قابل مرتب‌سازی درست نیست، خودت از فلش فیلتر می‌تونی مرتب کنی).</div>
       <button type="button" class="btn btn-ghost" onclick="setupSheetFiltersBtn()">📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها</button>
+    </div>
+    <div class="card">
+      <div class="eyebrow">چک کردن نسخه‌ی سرور</div>
+      <div class="hint" style="margin-top:-4px;">این دکمه مستقیم از Code.gs که الان روی سرور فعاله می‌پرسه چه نسخه‌ایه — اگه بعد از Deploy جدید هنوز نسخه‌ی قدیمی نشون داد، یعنی Deploy درست انجام نشده.</div>
+      <button type="button" class="btn btn-ghost" onclick="checkServerVersion()">🔍 چک کردن نسخه</button>
+      <div id="serverVersionResult" style="margin-top:8px; font-size:13px; direction:ltr; text-align:right;"></div>
     </div>
     </div><!-- /admSec-settings -->
 
@@ -3337,6 +3347,21 @@ async function setupSheetFiltersBtn(){
   if(!res.ok){ showAdminNotice('اعمال فیلتر ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   alert('فیلتر روی این شیت‌ها اعمال شد: ' + (res.sheets||[]).join('، '));
+}
+async function checkServerVersion(){
+  var box = document.getElementById('serverVersionResult');
+  box.textContent = 'در حال چک کردن...';
+  var res = await apiCall(function(){ return apiPost('ping', {}); });
+  if(!res.ok){
+    box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
+    return;
+  }
+  var expected = 'v-2026-08-23-editpair-fix';
+  if(res.version === expected){
+    box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
+  } else {
+    box.innerHTML = '⛔ نسخه‌ی سرور قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
+  }
 }
 async function saveNotifyEmail(){
   var email = document.getElementById('notifyEmail').value.trim();
