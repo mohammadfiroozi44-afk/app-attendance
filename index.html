@@ -3612,7 +3612,7 @@ function renderPendingOffline(){
           '<select id="offEditDay-'+r.id+'" style="width:64px;">'+dayOpts+'</select>'+
           '<select id="offEditMonth-'+r.id+'" style="width:100px;">'+monthOpts+'</select>'+
           '<select id="offEditYear-'+r.id+'" style="width:80px;">'+yearOpts+'</select>'+
-          '<input type="time" id="offEditTime-'+r.id+'" step="1" value="'+esc(r.time)+'" class="field-mono" style="width:110px;">'+
+          '<input type="time" id="offEditTime-'+r.id+'" step="1" value="'+esc(normTimeForSubmit(r.time))+'" class="field-mono" style="width:110px;">'+
         '</div>'+
         '<div class="btn-row">'+
           '<button type="button" class="btn btn-in btn-small" onclick="decideOfflineLog(\''+r.id+'\',true)">✅ تایید با این ساعت</button>'+
@@ -4757,16 +4757,18 @@ function renderLogTable(){
         (function(){
           var inDefaultDate = p.inE ? p.inE.jalaliDate : (p.outE ? p.outE.jalaliDate : jalaliString(new Date()));
           var outDefaultDate = p.outE ? p.outE.jalaliDate : (p.inE ? p.inE.jalaliDate : jalaliString(new Date()));
+          var inTimeVal = p.inE ? normTimeForSubmit(p.inE.time) : '';
+          var outTimeVal = p.outE ? normTimeForSubmit(p.outE.time) : '';
           return '<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">ورود'+(p.inE?'':' <span style="font-weight:400; color:#8a5a10;">(ثبت نشده — ساعت رو پر کن تا اضافه بشه)</span>')+'</div>'+
             '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
               buildDateSelects('logEditIn', inDefaultDate)+
-              '<input type="time" id="logEditInTime" step="1" value="'+(p.inE?esc(p.inE.time):'')+'" class="field-mono" style="width:104px;">'+
+              '<input type="time" id="logEditInTime" step="1" value="'+esc(inTimeVal)+'" class="field-mono" style="width:104px;">'+
               (p.inE ? '<button type="button" class="icon-btn del" title="فقط ورود حذف شود" onclick="deleteSingleLogEntry(\''+p.inE.id+'\')">🗑</button>' : '')+
             '</div>'+
             '<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">خروج'+(p.outE?'':' <span style="font-weight:400; color:#8a5a10;">(ثبت نشده — ساعت رو پر کن تا اضافه بشه)</span>')+'</div>'+
             '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
               buildDateSelects('logEditOut', outDefaultDate)+
-              '<input type="time" id="logEditOutTime" step="1" value="'+(p.outE?esc(p.outE.time):'')+'" class="field-mono" style="width:104px;">'+
+              '<input type="time" id="logEditOutTime" step="1" value="'+esc(outTimeVal)+'" class="field-mono" style="width:104px;">'+
               (p.outE ? '<button type="button" class="icon-btn del" title="فقط خروج حذف شود" onclick="deleteSingleLogEntry(\''+p.outE.id+'\')">🗑</button>' : '')+
             '</div>';
         })()+
