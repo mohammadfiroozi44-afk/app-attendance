@@ -3167,8 +3167,6 @@ async function saveSingleBulkDay(d){
       var mStartTime = mInVal ? normTimeForSubmit(mInVal) : '';
       var mEndTime = mOutVal ? normTimeForSubmit(mOutVal) : '';
       var mUnchanged = ex.missionId && (ex.missionStartTime||'') === mStartTime && (ex.missionEndTime||'') === mEndTime;
-      if(ex.inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.inId}); });
-      if(ex.outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.outId}); });
       if(!mUnchanged){
         if(ex.missionId) await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin:adminPin, ids:[ex.missionId]}); });
         var mEntry = {date: jalaliDate, requestType:'mission', leaveType: (mStartTime && mEndTime) ? 'hourly' : 'daily'};
@@ -3178,6 +3176,44 @@ async function saveSingleBulkDay(d){
           pin: adminPin, username: username, entries: [mEntry]
         }); });
         if(!mres.ok){ statusEl.textContent = '⛔ ثبت ماموریت ناموفق بود: ' + (mres.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+      }
+      // also save the mission's start/end time as real Log entries, so it shows up in the report
+      var mToCreate = [], mToUpdate = [], mToDelete = [];
+      if(mStartTime){
+        if(ex.inId){
+          if(ex.inTime !== mStartTime || ex.inProject !== project) mToUpdate.push({id: ex.inId, jalaliDate: jalaliDate, time: mStartTime, type:'in'});
+        } else {
+          mToCreate.push({jalaliDate: jalaliDate, time: mStartTime, type:'in'});
+        }
+      } else if(ex.inId){
+        mToDelete.push(ex.inId);
+      }
+      if(mEndTime){
+        var mOutDateS = jalaliDate;
+        var mIsOvernightS = mStartTime && (timeToMinutesClient(mEndTime) < timeToMinutesClient(mStartTime));
+        if(mIsOvernightS){
+          var mndS = nextJalaliDay(d, monthIdx, year);
+          mOutDateS = mndS.day + ' ' + jMonths[mndS.monthIdx-1] + ' ' + mndS.year;
+        }
+        if(ex.outId){
+          if(ex.outTime !== mEndTime || ex.outDate !== mOutDateS || ex.outProject !== project) mToUpdate.push({id: ex.outId, jalaliDate: mOutDateS, time: mEndTime, type:'out'});
+        } else {
+          mToCreate.push({jalaliDate: mOutDateS, time: mEndTime, type:'out'});
+        }
+      } else if(ex.outId){
+        mToDelete.push(ex.outId);
+      }
+      if(mToCreate.length){
+        var mcres = await apiCall(function(){ return apiPost('adminAddLogBatch', {pin: adminPin, username: username, project: project, entries: mToCreate}); });
+        if(!mcres.ok){ statusEl.textContent = '⛔ ثبتِ ساعتِ ماموریت ناموفق بود: ' + (mcres.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+      }
+      if(mToUpdate.length){
+        var mupPayload = mToUpdate.map(function(u){ return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: project, type: u.type}; });
+        var mures = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: mupPayload}); });
+        if(!mures.ok){ statusEl.textContent = '⛔ ویرایشِ ساعتِ ماموریت ناموفق بود: ' + (mures.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+      }
+      if(mToDelete.length){
+        await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: mToDelete}); });
       }
       window._submissionInProgress = false;
       alert(d + 'ام ذخیره شد.');
@@ -3336,9 +3372,32 @@ async function submitMonthlyBulkLog(){
             startTime: mStartTime, endTime: mEndTime
           });
         }
-        if(ex.inId) toDelete.push(ex.inId);
-        if(ex.outId) toDelete.push(ex.outId);
-        continue; // mission days skip normal check-in/out handling — tracked as a leave-like record instead
+        // also save the mission's start/end time as real Log entries, so it shows up in the report — same diff logic as a normal day
+        if(mStartTime){
+          if(ex.inId){
+            if(ex.inTime !== mStartTime || ex.inProject !== project) toUpdate.push({id: ex.inId, jalaliDate: jalaliDate, time: mStartTime, type:'in'});
+          } else {
+            toCreate.push({jalaliDate: jalaliDate, time: mStartTime, type:'in'});
+          }
+        } else if(ex.inId){
+          toDelete.push(ex.inId);
+        }
+        if(mEndTime){
+          var mOutDate = jalaliDate;
+          var mIsOvernight = mStartTime && (timeToMinutesClient(mEndTime) < timeToMinutesClient(mStartTime));
+          if(mIsOvernight){
+            var mnd = nextJalaliDay(d, monthIdx, year);
+            mOutDate = mnd.day + ' ' + jMonths[mnd.monthIdx-1] + ' ' + mnd.year;
+          }
+          if(ex.outId){
+            if(ex.outTime !== mEndTime || ex.outDate !== mOutDate || ex.outProject !== project) toUpdate.push({id: ex.outId, jalaliDate: mOutDate, time: mEndTime, type:'out'});
+          } else {
+            toCreate.push({jalaliDate: mOutDate, time: mEndTime, type:'out'});
+          }
+        } else if(ex.outId){
+          toDelete.push(ex.outId);
+        }
+        continue; // mission days: time handled above (creates real log entries), plus tracked separately as a mission-status record
       }
       if(ex.missionId){
         // admin unchecked "ماموریت" for a day that had one — remove it
