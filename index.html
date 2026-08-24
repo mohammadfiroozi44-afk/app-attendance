@@ -612,6 +612,14 @@ function syncLeaveDayStatus(username, employee, startDate, endDate, leaveType, s
     }
   });
 }
+function addDaysToJalaliServer(dateStr, days){
+  var p = parseJalaliDateStrServer(dateStr);
+  var g = jalaliToGregorianServer(p.y, p.m, p.d);
+  var dt = new Date(g[0], g[1]-1, g[2]);
+  dt.setDate(dt.getDate() + days);
+  var j = toJalaali(dt.getFullYear(), dt.getMonth()+1, dt.getDate());
+  return j[2] + ' ' + J_MONTHS[j[1]-1] + ' ' + j[0];
+}
 function deleteOneLogRow(id){
   var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
   var row7 = ensureIds(lsh6, readRows(lsh6)).filter(function(r){ return r.id === id; })[0];
@@ -745,7 +753,7 @@ function doPost(e){
   var action = body.action;
 
   if(action === 'ping'){
-    return jsonOut({ok:true, version: 'v-2026-08-24-dashperf', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
+    return jsonOut({ok:true, version: 'v-2026-08-24-missionbackfill', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
   }
 
   // ---------------- login (device-locked) ----------------
@@ -1371,7 +1379,43 @@ function doPost(e){
         lshR.getRange(r._row, colIndex(lshR,'holidayReason')).setValue(holInfoR.reason);
       }
     });
-    return jsonOut({ok:true, total: rowsR.length, fixed: fixedCount});
+
+    // backfill mission-time Log entries that predate this feature (mission had start/end times but never got real Log rows)
+    var lrshBF = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
+    var missionsBF = readRows(lrshBF).filter(function(r){
+      return r.requestType === 'mission' && r.status === 'approved' && r.leaveType === 'hourly' && r.startTime && r.endTime;
+    });
+    var existingLogsBF = readRows(lshR);
+    var missionLogsAdded = 0;
+    missionsBF.forEach(function(m){
+      var startIsoBF = jalaliDateTimeToIso(m.startDate, m.startTime);
+      var hasInBF = existingLogsBF.some(function(r){ return r.username === m.username && String(r.isoTimestamp) === String(startIsoBF) && r.type === 'ورود'; });
+      if(!hasInBF && startIsoBF){
+        appendRowByHeader(lshR, {
+          id: Utilities.getUuid(), jalaliDate: m.startDate, time: m.startTime, employee: m.employee, username: m.username, project: '',
+          type: 'ورود', lat:'', lng:'', accuracy:'', isoTimestamp: startIsoBF,
+          note: 'ثبت مستقیم توسط مدیر (ماموریت) — بازیابی‌شده، پروژه رو دستی وارد کن', employeeCode: m.employeeCode || '',
+          isHoliday: '', holidayReason: '', source: 'دستی'
+        });
+        missionLogsAdded++;
+      }
+      var stMinBF = timeToMinutes(m.startTime);
+      var enMinBF = timeToMinutes(m.endTime);
+      var outDateBF = (enMinBF <= stMinBF) ? addDaysToJalaliServer(m.startDate, 1) : m.startDate;
+      var endIsoBF = jalaliDateTimeToIso(outDateBF, m.endTime);
+      var hasOutBF = existingLogsBF.some(function(r){ return r.username === m.username && String(r.isoTimestamp) === String(endIsoBF) && r.type === 'خروج'; });
+      if(!hasOutBF && endIsoBF){
+        appendRowByHeader(lshR, {
+          id: Utilities.getUuid(), jalaliDate: outDateBF, time: m.endTime, employee: m.employee, username: m.username, project: '',
+          type: 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp: endIsoBF,
+          note: 'ثبت مستقیم توسط مدیر (ماموریت) — بازیابی‌شده، پروژه رو دستی وارد کن', employeeCode: m.employeeCode || '',
+          isHoliday: '', holidayReason: '', source: 'دستی'
+        });
+        missionLogsAdded++;
+      }
+    });
+
+    return jsonOut({ok:true, total: rowsR.length, fixed: fixedCount, missionLogsAdded: missionLogsAdded});
   }
   if(action === 'backfillLogSource'){
     var lshBF = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
@@ -2029,7 +2073,7 @@ function esh_set(sheet, rowNum, headerName, value){
 
     <div class="card">
       <div class="eyebrow">تعمیر داده‌های قدیمی</div>
-      <div class="hint" style="margin-top:-4px;">ثبت‌هایی که قبل از آخرین آپدیت‌ها ویرایش یا تایید شدن، ممکنه ترتیب یا علامت تعطیلشون درست نباشه. این دکمه همه‌ی ثبت‌های گزارش رو یک‌بار بازمحاسبه می‌کنه (بر اساس تاریخ/ساعت فعلیشون) — بدون تغییر تاریخ/ساعت/پرسنل هیچ‌کدوم.</div>
+      <div class="hint" style="margin-top:-4px;">ثبت‌هایی که قبل از آخرین آپدیت‌ها ویرایش یا تایید شدن، ممکنه ترتیب یا علامت تعطیلشون درست نباشه. این دکمه همه‌ی ثبت‌های گزارش رو یک‌بار بازمحاسبه می‌کنه (بر اساس تاریخ/ساعت فعلیشون) — بدون تغییر تاریخ/ساعت/پرسنل هیچ‌کدوم. همچنین ساعتِ ماموریت‌های قدیمی که هنوز به گزارش اضافه نشده بودن رو هم پیدا و اضافه می‌کنه.</div>
       <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
       <div class="hint" style="margin-top:10px;">این دکمه ستون «source» (دستی/اتومات) رو فقط برای ثبت‌های قدیمی که این ستون خالیه پر می‌کنه — بر اساس یادداشتِ همون ردیف حدس می‌زنه. ثبت‌های جدید که قبلاً این ستون رو دارن، دست‌نخورده می‌مونن.</div>
       <button type="button" class="btn btn-ghost" onclick="backfillLogSourceBtn()">🏷️ پرکردن ستون دستی/اتومات برای داده‌های قدیمی</button>
@@ -3743,7 +3787,11 @@ async function recalcAllTimestamps(){
   btn.disabled = false; btn.textContent = '🔧 بازمحاسبه همه ثبت‌های گزارش';
   if(!res.ok){ showAdminNotice('بازمحاسبه ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
-  alert('انجام شد. از '+res.total+' ثبت، '+res.fixed+' مورد اصلاح شد.');
+  var msgParts = [(res.total+' ثبت بررسی شد، '+res.fixed+' مورد اصلاح شد.')];
+  if(res.missionLogsAdded){
+    msgParts.push(res.missionLogsAdded + ' ثبتِ ساعتِ ماموریتِ قدیمی هم به گزارش اضافه شد — چون پروژه‌شون از قبل ذخیره نشده بود، پروژه‌ی این ردیف‌ها خالیه؛ اگه لازم داری، از همون گزارش دستی پرش کن.');
+  }
+  alert('انجام شد.\n' + msgParts.join('\n'));
   refreshCurrentAdminSection();
 }
 async function backfillLogSourceBtn(){
@@ -3774,7 +3822,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-24-dashperf';
+  var expected = 'v-2026-08-24-missionbackfill';
   if(res.version === expected){
     box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
   } else {
