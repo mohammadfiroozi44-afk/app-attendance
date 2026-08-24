@@ -561,6 +561,56 @@ function jalaliToGregorianServer(jy, jm, jd){
   var gm; for(gm=0; gm<13; gm++){ var v=sal_a[gm]; if(gd<=v) break; gd-=v; }
   return [gy, gm, gd];
 }
+function parseJalaliDateStrServer(s){
+  var parts = String(s||'').trim().split(' ');
+  var d = parseInt(parts[0],10);
+  var mIdx = J_MONTHS.indexOf(parts[1]) + 1;
+  var y = parseInt(parts[parts.length-1],10);
+  return {y:y, m:mIdx, d:d};
+}
+function iterateJalaliDaysServer(startDateStr, endDateStr){
+  var sp = parseJalaliDateStrServer(startDateStr);
+  var ep = parseJalaliDateStrServer(endDateStr);
+  var sg = jalaliToGregorianServer(sp.y, sp.m, sp.d);
+  var eg = jalaliToGregorianServer(ep.y, ep.m, ep.d);
+  var curDate = new Date(sg[0], sg[1]-1, sg[2]);
+  var endDateObj = new Date(eg[0], eg[1]-1, eg[2]);
+  var result = [];
+  var guard = 0;
+  while(curDate <= endDateObj && guard < 400){
+    var j = toJalaali(curDate.getFullYear(), curDate.getMonth()+1, curDate.getDate());
+    result.push(j[2] + ' ' + J_MONTHS[j[1]-1] + ' ' + j[0]);
+    curDate.setDate(curDate.getDate() + 1);
+    guard++;
+  }
+  return result;
+}
+function syncLeaveDayStatus(username, employee, startDate, endDate, leaveType, startTime, endTime){
+  var dsmshL = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
+  var dates = iterateJalaliDaysServer(startDate, endDate);
+  var leaveHoursStr;
+  if(leaveType === 'hourly'){
+    var stMin = timeToMinutes(startTime);
+    var enMin = timeToMinutes(endTime);
+    var durMin = enMin - stMin;
+    if(durMin <= 0) durMin += 24*60;
+    leaveHoursStr = pad2(Math.floor(durMin/60)) + ':' + pad2(durMin%60);
+  } else {
+    leaveHoursStr = '7:20';
+  }
+  var tL2 = serverNow();
+  var allRows = readRows(dsmshL);
+  dates.forEach(function(dateStr){
+    var existing = allRows.filter(function(r){ return r.username === username && r.jalaliDate === dateStr; })[0];
+    if(existing){
+      esh_set(dsmshL, existing._row, 'status', 'leave');
+      esh_set(dsmshL, existing._row, 'leaveHours', leaveHoursStr);
+    } else {
+      var idL = Utilities.getUuid();
+      appendRowByHeader(dsmshL, {id:idL, username:username, employee:employee, jalaliDate:dateStr, status:'leave', leaveHours:leaveHoursStr, createdAt: tL2.jalaliDate, createdTime: tL2.time});
+    }
+  });
+}
 function deleteOneLogRow(id){
   var lsh6 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
   var row7 = ensureIds(lsh6, readRows(lsh6)).filter(function(r){ return r.id === id; })[0];
@@ -694,7 +744,7 @@ function doPost(e){
   var action = body.action;
 
   if(action === 'ping'){
-    return jsonOut({ok:true, version: 'v-2026-08-23-editpair-fix', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
+    return jsonOut({ok:true, version: 'v-2026-08-24-splitdatetime', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
   }
 
   // ---------------- login (device-locked) ----------------
@@ -920,6 +970,15 @@ function doPost(e){
     if(empL.deviceId && String(empL.deviceId) !== String(body.deviceId||'')){
       return jsonOut({ok:false, error:'device_mismatch'});
     }
+    if(body.leaveType === 'hourly'){
+      var stMin = timeToMinutes(normalizeTimeInput(body.startTime));
+      var enMin = timeToMinutes(normalizeTimeInput(body.endTime));
+      var durMin = enMin - stMin;
+      if(durMin <= 0) durMin += 24*60;
+      if(durMin > 240){
+        return jsonOut({ok:false, error:'leave_too_long'});
+      }
+    }
     var lrsh = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var tL = serverNow();
     var lrid = Utilities.getUuid();
@@ -1104,7 +1163,7 @@ function doPost(e){
     return jsonOut({ok:true});
   }
   if(action === 'getDayStatusForUser'){
-    var dsmshG = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','createdAt']);
+    var dsmshG = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
     var rowsG = readRows(dsmshG).filter(function(r){ return r.username === body.username; }).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, statuses: rowsG});
   }
@@ -1112,16 +1171,18 @@ function doPost(e){
     var eshDS = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
     var empDS = readRows(eshDS).filter(function(r){ return r.username === body.username; })[0];
     if(!empDS) return jsonOut({ok:false, error:'unknown_employee'});
-    var dsmsh2 = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','createdAt']);
+    var dsmsh2 = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
     var datesToClear = body.allDatesInMonth || [];
-    var existingRows = readRows(dsmsh2).filter(function(r){ return r.username === body.username && datesToClear.indexOf(r.jalaliDate) !== -1; });
+    var existingRows = readRows(dsmsh2).filter(function(r){
+      return r.username === body.username && datesToClear.indexOf(r.jalaliDate) !== -1 && r.status !== 'leave';
+    });
     existingRows.sort(function(a,b){ return b._row - a._row; });
     existingRows.forEach(function(r){ dsmsh2.deleteRow(r._row); });
     var tDS = serverNow();
     var newEntries = body.entries || [];
     newEntries.forEach(function(e){
       var idDS = Utilities.getUuid();
-      appendRowByHeader(dsmsh2, {id:idDS, username:empDS.username, employee:empDS.fullName, jalaliDate:e.jalaliDate, status:e.status, createdAt: tDS.jalaliDate+' '+tDS.time});
+      appendRowByHeader(dsmsh2, {id:idDS, username:empDS.username, employee:empDS.fullName, jalaliDate:e.jalaliDate, status:e.status, createdAt: tDS.jalaliDate, createdTime: tDS.time});
     });
     return jsonOut({ok:true, count: newEntries.length});
   }
@@ -1141,6 +1202,7 @@ function doPost(e){
         leaveType:'daily', startTime:'', endTime:'',
         requestType: body.requestType || 'leave', leaveCategory: body.leaveCategory || 'استحقاقی'
       });
+      syncLeaveDayStatus(empLB.username, empLB.fullName, dateStr, dateStr, 'daily', '', '');
     });
     return jsonOut({ok:true, count: days.length});
   }
@@ -1414,8 +1476,24 @@ function doPost(e){
     var lrshDel = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var idsDel2 = body.ids || [];
     var toDel2 = readRows(lrshDel).filter(function(r){ return idsDel2.indexOf(r.id) !== -1; });
+    var datesToCleanup = [];
+    var usernamesToCleanup = {};
+    toDel2.forEach(function(r){
+      if(r.status === 'approved'){
+        iterateJalaliDaysServer(r.startDate, r.endDate).forEach(function(dt){ datesToCleanup.push(dt); });
+        usernamesToCleanup[r.username] = true;
+      }
+    });
     toDel2.sort(function(a,b){ return b._row - a._row; });
     toDel2.forEach(function(r){ lrshDel.deleteRow(r._row); });
+    if(datesToCleanup.length){
+      var dsmshCleanup = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
+      var markerRows = readRows(dsmshCleanup).filter(function(r){
+        return usernamesToCleanup[r.username] && r.status === 'leave' && datesToCleanup.indexOf(r.jalaliDate) !== -1;
+      });
+      markerRows.sort(function(a,b){ return b._row - a._row; });
+      markerRows.forEach(function(r){ dsmshCleanup.deleteRow(r._row); });
+    }
     return jsonOut({ok:true, deleted: toDel2.length});
   }
   if(action === 'approveLeaveRequest' || action === 'rejectLeaveRequest'){
@@ -1423,6 +1501,9 @@ function doPost(e){
     var lrow2 = readRows(lrsh4).filter(function(r){ return r.id === body.id; })[0];
     if(!lrow2) return jsonOut({ok:false, error:'not found'});
     esh_set(lrsh4, lrow2._row, 'status', (action === 'approveLeaveRequest') ? 'approved' : 'rejected');
+    if(action === 'approveLeaveRequest' && (lrow2.requestType === 'leave' || !lrow2.requestType)){
+      syncLeaveDayStatus(lrow2.username, lrow2.employee, lrow2.startDate, lrow2.endDate, lrow2.leaveType, lrow2.startTime, lrow2.endTime);
+    }
     return jsonOut({ok:true});
   }
 
@@ -3356,7 +3437,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-23-editpair-fix';
+  var expected = 'v-2026-08-24-splitdatetime';
   if(res.version === expected){
     box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
   } else {
@@ -4623,6 +4704,9 @@ async function submitLeaveRequest(){
     startTime = document.getElementById('leaveStartTime').value;
     endTime = document.getElementById('leaveEndTime').value;
     if(!startTime || !endTime){ alert('ساعت شروع و پایان را وارد کنید'); return false; }
+    var durMinCheck = timeToMinutesClient(endTime) - timeToMinutesClient(startTime);
+    if(durMinCheck <= 0) durMinCheck += 24*60;
+    if(durMinCheck > 240){ alert('مرخصیِ ساعتی نمی‌تونه بیشتر از ۴ ساعت باشه.'); return false; }
   } else {
     endDate = readDateSelect('leaveEnd');
   }
@@ -4632,7 +4716,9 @@ async function submitLeaveRequest(){
     requestType: requestType, leaveCategory: leaveCategory
   }); });
   if(!res.ok){
-    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.' : (res.error || 'خطای شبکه');
+    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.'
+      : res.error === 'leave_too_long' ? 'مرخصیِ ساعتی نمی‌تونه بیشتر از ۴ ساعت باشه.'
+      : (res.error || 'خطای شبکه');
     alert('ارسال درخواست ناموفق بود: ' + msg);
     return false;
   }
