@@ -585,7 +585,8 @@ function iterateJalaliDaysServer(startDateStr, endDateStr){
   }
   return result;
 }
-function syncLeaveDayStatus(username, employee, startDate, endDate, leaveType, startTime, endTime){
+function syncLeaveDayStatus(username, employee, startDate, endDate, leaveType, startTime, endTime, kind){
+  var statusLabel = (kind === 'mission') ? 'ماموریت' : 'مرخصی';
   var dsmshL = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
   var dates = iterateJalaliDaysServer(startDate, endDate);
   var leaveHoursStr;
@@ -603,11 +604,11 @@ function syncLeaveDayStatus(username, employee, startDate, endDate, leaveType, s
   dates.forEach(function(dateStr){
     var existing = allRows.filter(function(r){ return r.username === username && r.jalaliDate === dateStr; })[0];
     if(existing){
-      esh_set(dsmshL, existing._row, 'status', 'leave');
+      esh_set(dsmshL, existing._row, 'status', statusLabel);
       esh_set(dsmshL, existing._row, 'leaveHours', leaveHoursStr);
     } else {
       var idL = Utilities.getUuid();
-      appendRowByHeader(dsmshL, {id:idL, username:username, employee:employee, jalaliDate:dateStr, status:'leave', leaveHours:leaveHoursStr, createdAt: tL2.jalaliDate, createdTime: tL2.time});
+      appendRowByHeader(dsmshL, {id:idL, username:username, employee:employee, jalaliDate:dateStr, status:statusLabel, leaveHours:leaveHoursStr, createdAt: tL2.jalaliDate, createdTime: tL2.time});
     }
   });
 }
@@ -639,7 +640,7 @@ function updateOneLogRow(body){
   var newIso = jalaliDateTimeToIso(body.jalaliDate, body.time);
   if(newIso) setRowField(lsh5, rowValues, 'isoTimestamp', newIso);
 
-  var eshFind = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+  var eshFind = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
   var empMatch = readRows(eshFind).filter(function(r){ return r.fullName === body.employee; })[0];
   if(empMatch){
     setRowField(lsh5, rowValues, 'username', empMatch.username);
@@ -744,18 +745,21 @@ function doPost(e){
   var action = body.action;
 
   if(action === 'ping'){
-    return jsonOut({ok:true, version: 'v-2026-08-24-splitdatetime', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
+    return jsonOut({ok:true, version: 'v-2026-08-24-mission-active-dash', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
   }
 
   // ---------------- login (device-locked) ----------------
   if(action === 'login'){
-    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var esh = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var erows = readRows(esh);
     var match = erows.filter(function(r){
       return String(r.username).toLowerCase() === String(body.username).toLowerCase() &&
              String(r.password) === String(body.password);
     })[0];
     if(!match) return jsonOut({ok:false, error:'invalid_credentials'});
+    if(String(match.active) === 'false'){
+      return jsonOut({ok:false, error:'account_disabled'});
+    }
 
     var incomingDevice = String(body.deviceId || '');
     if(!match.deviceId){
@@ -794,7 +798,7 @@ function doPost(e){
 
   // ---------------- attendance logging (server time is authoritative) ----------------
   if(action === 'addLog'){
-    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var esh2 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var emp = readRows(esh2).filter(function(r){ return r.username === body.entry.username; })[0];
     if(!emp) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp.deviceId && String(emp.deviceId) !== String(body.deviceId||'')){
@@ -918,7 +922,7 @@ function doPost(e){
 
   // ---------------- manual entry requests ----------------
   if(action === 'createRequest'){
-    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var esh3 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var emp2 = readRows(esh3).filter(function(r){ return r.username === body.username; })[0];
     if(!emp2) return jsonOut({ok:false, error:'unknown_employee'});
     if(emp2.deviceId && String(emp2.deviceId) !== String(body.deviceId||'')){
@@ -964,7 +968,7 @@ function doPost(e){
 
   // ---------------- leave requests ----------------
   if(action === 'createLeaveRequest'){
-    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var eshL = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var empL = readRows(eshL).filter(function(r){ return r.username === body.username; })[0];
     if(!empL) return jsonOut({ok:false, error:'unknown_employee'});
     if(empL.deviceId && String(empL.deviceId) !== String(body.deviceId||'')){
@@ -1008,7 +1012,7 @@ function doPost(e){
   }
   if(action === 'submitOfflineLog'){
     var d2 = body.entry;
-    var eshO = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var eshO = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var empO = readRows(eshO).filter(function(r){ return r.username === d2.username; })[0];
     if(!empO) return jsonOut({ok:false, error:'unknown_employee'});
     if(empO.deviceId && String(empO.deviceId) !== String(body.deviceId||'')){
@@ -1041,7 +1045,7 @@ function doPost(e){
 
   // ---------------- employees ----------------
   if(action === 'getEmployees'){
-    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var esh4 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var rows5 = readRows(esh4).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, employees: rows5});
   }
@@ -1049,7 +1053,7 @@ function doPost(e){
     if(!body.employeeCode || !String(body.employeeCode).trim()){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
-    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var esh5 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     if(MAX_EMPLOYEES > 0 && readRows(esh5).length >= MAX_EMPLOYEES){
       return jsonOut({ok:false, error:'employee_limit_reached'});
     }
@@ -1067,7 +1071,7 @@ function doPost(e){
     if(!body.employeeCode || !String(body.employeeCode).trim()){
       return jsonOut({ok:false, error:'employee_code_required'});
     }
-    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var esh6 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var row = readRows(esh6).filter(function(r){ return r.id === body.id; })[0];
     if(!row) return jsonOut({ok:false, error:'not found'});
     esh6.getRange(row._row, colIndex(esh6,'fullName')).setValue(body.fullName);
@@ -1088,13 +1092,20 @@ function doPost(e){
     return jsonOut({ok:true});
   }
   if(action === 'deleteEmployee'){
-    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var esh7 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var row2 = readRows(esh7).filter(function(r){ return r.id === body.id; })[0];
     if(row2) esh7.deleteRow(row2._row);
     return jsonOut({ok:true});
   }
+  if(action === 'setEmployeeActive'){
+    var eshAct = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
+    var rowAct = readRows(eshAct).filter(function(r){ return r.id === body.id; })[0];
+    if(!rowAct) return jsonOut({ok:false, error:'not found'});
+    eshAct.getRange(rowAct._row, colIndex(eshAct,'active')).setValue(body.active ? 'true' : 'false');
+    return jsonOut({ok:true});
+  }
   if(action === 'resetDevice'){
-    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var esh8 = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var row3 = readRows(esh8).filter(function(r){ return r.id === body.id; })[0];
     if(!row3) return jsonOut({ok:false, error:'not found'});
     esh8.getRange(row3._row, colIndex(esh8,'deviceId')).setValue('');
@@ -1141,7 +1152,7 @@ function doPost(e){
     return jsonOut({ok:true, logs: rows6u});
   }
   if(action === 'adminAddLog'){
-    var eshA = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var eshA = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var empA = readRows(eshA).filter(function(r){ return r.username === body.username; })[0];
     if(!empA) return jsonOut({ok:false, error:'unknown_employee'});
     var lshA = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
@@ -1168,13 +1179,13 @@ function doPost(e){
     return jsonOut({ok:true, statuses: rowsG});
   }
   if(action === 'syncDayStatusForMonth'){
-    var eshDS = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var eshDS = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var empDS = readRows(eshDS).filter(function(r){ return r.username === body.username; })[0];
     if(!empDS) return jsonOut({ok:false, error:'unknown_employee'});
     var dsmsh2 = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
     var datesToClear = body.allDatesInMonth || [];
     var existingRows = readRows(dsmsh2).filter(function(r){
-      return r.username === body.username && datesToClear.indexOf(r.jalaliDate) !== -1 && r.status !== 'leave';
+      return r.username === body.username && datesToClear.indexOf(r.jalaliDate) !== -1 && r.status !== 'مرخصی' && r.status !== 'ماموریت';
     });
     existingRows.sort(function(a,b){ return b._row - a._row; });
     existingRows.forEach(function(r){ dsmsh2.deleteRow(r._row); });
@@ -1187,27 +1198,29 @@ function doPost(e){
     return jsonOut({ok:true, count: newEntries.length});
   }
   if(action === 'adminAddLeaveBatch'){
-    var eshLB = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var eshLB = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var empLB = readRows(eshLB).filter(function(r){ return r.username === body.username; })[0];
     if(!empLB) return jsonOut({ok:false, error:'unknown_employee'});
     var lrshLB = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var tLB = serverNow();
-    var days = body.days || [];
-    days.forEach(function(dateStr){
+    var entriesLB = body.entries || (body.days||[]).map(function(d){ return {date:d, requestType: body.requestType||'leave', leaveType:'daily'}; });
+    entriesLB.forEach(function(entry){
       var lidLB = Utilities.getUuid();
+      var reqTypeLB = entry.requestType || 'leave';
+      var leaveTypeLB = entry.leaveType || 'daily';
       appendRowByHeader(lrshLB, {
         id:lidLB, username:empLB.username, employee:empLB.fullName, employeeCode: empLB.employeeCode||'',
-        startDate:dateStr, endDate:dateStr, reason: body.reason||'ثبت مستقیم توسط مدیر',
+        startDate:entry.date, endDate:entry.date, reason: body.reason||'ثبت مستقیم توسط مدیر',
         status:'approved', createdAt:tLB.jalaliDate, createdTime:tLB.time,
-        leaveType:'daily', startTime:'', endTime:'',
-        requestType: body.requestType || 'leave', leaveCategory: body.leaveCategory || 'استحقاقی'
+        leaveType:leaveTypeLB, startTime: entry.startTime||'', endTime: entry.endTime||'',
+        requestType: reqTypeLB, leaveCategory: body.leaveCategory || 'استحقاقی'
       });
-      syncLeaveDayStatus(empLB.username, empLB.fullName, dateStr, dateStr, 'daily', '', '');
+      syncLeaveDayStatus(empLB.username, empLB.fullName, entry.date, entry.date, leaveTypeLB, entry.startTime||'', entry.endTime||'', reqTypeLB);
     });
-    return jsonOut({ok:true, count: days.length});
+    return jsonOut({ok:true, count: entriesLB.length});
   }
   if(action === 'adminAddLogBatch'){
-    var eshB = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId']);
+    var eshB = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var empB = readRows(eshB).filter(function(r){ return r.username === body.username; })[0];
     if(!empB) return jsonOut({ok:false, error:'unknown_employee'});
     var entriesB = body.entries || [];
@@ -1489,7 +1502,7 @@ function doPost(e){
     if(datesToCleanup.length){
       var dsmshCleanup = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
       var markerRows = readRows(dsmshCleanup).filter(function(r){
-        return usernamesToCleanup[r.username] && r.status === 'leave' && datesToCleanup.indexOf(r.jalaliDate) !== -1;
+        return usernamesToCleanup[r.username] && (r.status === 'مرخصی' || r.status === 'ماموریت') && datesToCleanup.indexOf(r.jalaliDate) !== -1;
       });
       markerRows.sort(function(a,b){ return b._row - a._row; });
       markerRows.forEach(function(r){ dsmshCleanup.deleteRow(r._row); });
@@ -1501,8 +1514,8 @@ function doPost(e){
     var lrow2 = readRows(lrsh4).filter(function(r){ return r.id === body.id; })[0];
     if(!lrow2) return jsonOut({ok:false, error:'not found'});
     esh_set(lrsh4, lrow2._row, 'status', (action === 'approveLeaveRequest') ? 'approved' : 'rejected');
-    if(action === 'approveLeaveRequest' && (lrow2.requestType === 'leave' || !lrow2.requestType)){
-      syncLeaveDayStatus(lrow2.username, lrow2.employee, lrow2.startDate, lrow2.endDate, lrow2.leaveType, lrow2.startTime, lrow2.endTime);
+    if(action === 'approveLeaveRequest' && (lrow2.requestType === 'leave' || lrow2.requestType === 'mission' || !lrow2.requestType)){
+      syncLeaveDayStatus(lrow2.username, lrow2.employee, lrow2.startDate, lrow2.endDate, lrow2.leaveType, lrow2.startTime, lrow2.endTime, lrow2.requestType);
     }
     return jsonOut({ok:true});
   }
@@ -1852,7 +1865,7 @@ function esh_set(sheet, rowNum, headerName, value){
         </div>
         <div style="background:#e7f7ef; border-radius:11px; padding:14px; text-align:center;">
           <div style="font-size:26px; font-weight:800; color:#1f7a4d;" id="dashPresent">—</div>
-          <div style="font-size:12px; color:#7a7360;">🟢 حاضرین امروز</div>
+          <div style="font-size:12px; color:#7a7360;">🟢 حاضرِ الان</div>
         </div>
         <div style="background:#fdeaea; border-radius:11px; padding:14px; text-align:center;">
           <div style="font-size:26px; font-weight:800; color:#a32a2a;" id="dashAbsent">—</div>
@@ -1861,6 +1874,10 @@ function esh_set(sheet, rowNum, headerName, value){
         <div style="background:#fff4e2; border-radius:11px; padding:14px; text-align:center;">
           <div style="font-size:26px; font-weight:800; color:#8a5a10;" id="dashLeave">—</div>
           <div style="font-size:12px; color:#7a7360;">🏖 مرخصی/ماموریت امروز</div>
+        </div>
+        <div style="background:#eef3fb; border-radius:11px; padding:14px; text-align:center;">
+          <div style="font-size:26px; font-weight:800; color:#3b4a8f;" id="dashLeftToday">—</div>
+          <div style="font-size:12px; color:#7a7360;">🚪 خروج‌زده‌های امروز</div>
         </div>
       </div>
       <div class="divider"></div>
@@ -2469,6 +2486,7 @@ async function employeeLogin(){
   if(!res.ok){
     var msg = 'نام کاربری یا رمز عبور اشتباه است.';
     if(res.error === 'device_mismatch') msg = '⛔ این حساب قبلاً روی یک گوشی دیگر فعال شده. برای تغییر گوشی، از مدیر بخواهید دستگاه این حساب را ریست کند.';
+    else if(res.error === 'account_disabled') msg = '⛔ این حساب غیرفعال شده. با مدیر تماس بگیرید.';
     else if(res.error && res.error !== 'invalid_credentials') msg = 'خطا: ' + res.error;
     document.getElementById('empLoginHint').textContent = msg;
     document.getElementById('empLoginHint').style.color = '#a32a2a';
@@ -2848,6 +2866,9 @@ async function loadMonthDaysForBulkEntry(){
     var empLeaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){
       return l.status === 'approved' && l.leaveType !== 'hourly' && (l.requestType === 'leave' || !l.requestType);
     }) : [];
+    var empMissions = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){
+      return l.status === 'approved' && l.requestType === 'mission';
+    }) : [];
 
     var statusRes = await apiCall(function(){ return apiPost('getDayStatusForUser', {pin:adminPin, username:username}); });
     var dayStatusMap = {};
@@ -2888,33 +2909,46 @@ async function loadMonthDaysForBulkEntry(){
         return dateKey >= sKey && dateKey <= eKey;
       })[0] || null;
       var leaveIsMultiDay = matchingLeave && (jalaliDateSortKeyClient(matchingLeave.startDate) !== jalaliDateSortKeyClient(matchingLeave.endDate));
+      var matchingMission = empMissions.filter(function(l){
+        var sKey = jalaliDateSortKeyClient(l.startDate);
+        var eKey = jalaliDateSortKeyClient(l.endDate);
+        return dateKey >= sKey && dateKey <= eKey;
+      })[0] || null;
 
       window._bulkExisting[d] = {
         inId: inE ? inE.id : null, inTime: inTimeNorm, inProject: inE ? inE.project : null,
         outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null, outProject: outE ? outE.project : null,
-        leaveId: matchingLeave ? matchingLeave.id : null, leaveIsMultiDay: leaveIsMultiDay
+        leaveId: matchingLeave ? matchingLeave.id : null, leaveIsMultiDay: leaveIsMultiDay,
+        missionId: matchingMission ? matchingMission.id : null,
+        missionStartTime: matchingMission ? matchingMission.startTime : null, missionEndTime: matchingMission ? matchingMission.endTime : null
       };
       var hasData = inE || outE;
-      var persistedStatus = dayStatusMap[dateStr] || null; // 'absence' | 'off' | null, from a previous save
+      var persistedStatus = dayStatusMap[dateStr] || null; // 'غیبت' | 'off' | null, from a previous save
       var isOffChecked = persistedStatus ? (persistedStatus === 'off') : (isHol && !hasData);
-      var isAbsenceChecked = persistedStatus === 'absence';
+      var isAbsenceChecked = persistedStatus === 'غیبت';
       var autoOff = isOffChecked; // kept for the disabled-inputs logic below
       var hasLeave = !!matchingLeave;
-      var timeLocked = autoOff || isAbsenceChecked || hasLeave;
-      var inNote = (inE && (!outE || outIsCarryover)) ? '<div style="font-size:10px; color:#3b4a8f;">🌙 خروج ← فردا</div>' : '';
-      var outNote = outIsCarryover ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
+      var hasMission = !!matchingMission;
+      var timeLocked = (autoOff || isAbsenceChecked || hasLeave) && !hasMission;
+      // if this is a mission day, pre-fill the time fields with the mission's own start/end (not a regular check-in/out)
+      var displayInTime = hasMission ? (matchingMission.startTime||'') : (inTimeNorm?inTimeNorm.slice(0,5):'');
+      var displayOutTime = hasMission ? (matchingMission.endTime||'') : (outTimeNorm?outTimeNorm.slice(0,5):'');
+      var inNote = (!hasMission && inE && (!outE || outIsCarryover)) ? '<div style="font-size:10px; color:#3b4a8f;">🌙 خروج ← فردا</div>' : '';
+      var outNote = (!hasMission && outIsCarryover) ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
       var leaveNote = leaveIsMultiDay ? '<div style="font-size:10px; color:#8a5a10;">بخشی از مرخصیِ چندروزه — از تب «درخواست‌ها» ویرایش کن</div>' : '';
       rows.push(
         '<div class="date-row" id="bulkRow'+d+'" style="align-items:center; margin-bottom:2px;'+(hasData?' background:#eaf3ec; border-radius:8px 8px 0 0; padding:4px;':'')+'">'+
           '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+(inTimeNorm?esc(inTimeNorm.slice(0,5)):'')+'" '+(timeLocked?'disabled':'')+'>'+inNote+'</div>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+(outTimeNorm?esc(outTimeNorm.slice(0,5)):'')+'" '+(timeLocked?'disabled':'')+'>'+outNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+esc(displayInTime)+'" '+(timeLocked?'disabled':'')+'>'+inNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+esc(displayOutTime)+'" '+(timeLocked?'disabled':'')+'>'+outNote+'</div>'+
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
+          '<button type="button" class="icon-btn" title="فقط همین روز رو ذخیره کن" onclick="saveSingleBulkDay('+d+')" style="flex-shrink:0;">💾</button>'+
         '</div>'+
         '<div class="date-row" style="margin-bottom:8px; padding:0 4px 4px; font-size:12px;'+(hasData?' background:#eaf3ec; border-radius:0 0 8px 8px;':'')+'">'+
           '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Leave" onchange="onBulkDayStatusChange('+d+',\'leave\')" '+(hasLeave?'checked':'')+' '+(leaveIsMultiDay?'disabled':'')+'> 🏖 مرخصی'+leaveNote+'</label>'+
           '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Absence" onchange="onBulkDayStatusChange('+d+',\'absence\')" '+(isAbsenceChecked?'checked':'')+'> ❌ غیبت</label>'+
           '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Off" onchange="onBulkDayStatusChange('+d+',\'off\')" '+(isOffChecked?'checked':'')+'> 🏠 Off</label>'+
+          '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Mission" onchange="onBulkDayStatusChange('+d+',\'mission\')" '+(hasMission?'checked':'')+'> 🚗 ماموریت</label>'+
         '</div>'
       );
     }
@@ -2937,13 +2971,16 @@ function onBulkDayStatusChange(d, kind){
   var leaveChk = document.getElementById('bulkDay'+d+'Leave');
   var absenceChk = document.getElementById('bulkDay'+d+'Absence');
   var offChk = document.getElementById('bulkDay'+d+'Off');
+  var missionChk = document.getElementById('bulkDay'+d+'Mission');
   var inEl = document.getElementById('bulkDay'+d+'In');
   var outEl = document.getElementById('bulkDay'+d+'Out');
-  if(kind === 'leave' && leaveChk.checked){ absenceChk.checked = false; offChk.checked = false; }
-  if(kind === 'absence' && absenceChk.checked){ leaveChk.checked = false; offChk.checked = false; }
-  if(kind === 'off' && offChk.checked){ leaveChk.checked = false; absenceChk.checked = false; }
-  var locked = leaveChk.checked || absenceChk.checked || offChk.checked;
+  if(kind === 'leave' && leaveChk.checked){ absenceChk.checked = false; offChk.checked = false; missionChk.checked = false; }
+  if(kind === 'absence' && absenceChk.checked){ leaveChk.checked = false; offChk.checked = false; missionChk.checked = false; }
+  if(kind === 'off' && offChk.checked){ leaveChk.checked = false; absenceChk.checked = false; missionChk.checked = false; }
+  if(kind === 'mission' && missionChk.checked){ leaveChk.checked = false; absenceChk.checked = false; offChk.checked = false; }
+  var locked = leaveChk.checked || absenceChk.checked || offChk.checked; // mission never locks — it can optionally take a time range
   if(locked){ inEl.value = ''; outEl.value = ''; }
+  if(kind === 'mission' && !missionChk.checked){ inEl.value = ''; outEl.value = ''; } // unchecking mission clears its times too
   inEl.disabled = locked;
   outEl.disabled = locked;
 }
@@ -2956,6 +2993,7 @@ function clearBulkDay(d){
   document.getElementById('bulkDay'+d+'Leave').checked = false;
   document.getElementById('bulkDay'+d+'Absence').checked = false;
   document.getElementById('bulkDay'+d+'Off').checked = false;
+  document.getElementById('bulkDay'+d+'Mission').checked = false;
 }
 function toggleBulkPasteBox(){
   var box = document.getElementById('bulkPasteBox');
@@ -3035,6 +3073,171 @@ function hideBulkProgress(){
   var bar = document.getElementById('bulkProgressBar');
   if(bar) bar.style.display = 'none';
 }
+async function saveSingleBulkDay(d){
+  var statusEl = document.getElementById('bulkSubmitStatus');
+  statusEl.style.display = 'none';
+  try {
+    var username = document.getElementById('adminLogEmp').value;
+    var project = document.getElementById('adminLogProj').value;
+    if(!username){ alert('یک پرسنل انتخاب کن'); return; }
+    var empObj = employees.filter(function(e){ return e.username === username; })[0];
+    var employeeFullName = empObj ? empObj.fullName : '';
+    var monthName = document.getElementById('adminLogMonthlyMonth').value;
+    var year = parseInt(document.getElementById('adminLogMonthlyYear').value, 10);
+    var monthIdx = jMonths.indexOf(monthName) + 1;
+    var jalaliDate = d + ' ' + monthName + ' ' + year;
+    var existing = window._bulkExisting || {};
+    var ex = existing[d] || {};
+
+    var leaveChk = document.getElementById('bulkDay'+d+'Leave');
+    var absenceChk = document.getElementById('bulkDay'+d+'Absence');
+    var offChk = document.getElementById('bulkDay'+d+'Off');
+    var missionChk = document.getElementById('bulkDay'+d+'Mission');
+
+    window._submissionInProgress = true;
+
+    if(leaveChk && leaveChk.checked){
+      if(ex.inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.inId}); });
+      if(ex.outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.outId}); });
+      if(!ex.leaveId){
+        var leaveCategory = document.getElementById('bulkLeaveCategory').value;
+        var lres = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
+          pin: adminPin, username: username, entries: [{date: jalaliDate, requestType:'leave', leaveType:'daily'}], leaveCategory: leaveCategory
+        }); });
+        if(!lres.ok){ statusEl.textContent = '⛔ ثبت مرخصی ناموفق بود: ' + (lres.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+      }
+      window._submissionInProgress = false;
+      alert(d + 'ام ذخیره شد.');
+      await loadMonthDaysForBulkEntry();
+      return;
+    }
+    if(ex.leaveId && !ex.leaveIsMultiDay){
+      await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin:adminPin, ids:[ex.leaveId]}); });
+    }
+
+    if(missionChk && missionChk.checked){
+      var mInVal = document.getElementById('bulkDay'+d+'In').value;
+      var mOutVal = document.getElementById('bulkDay'+d+'Out').value;
+      var mStartTime = mInVal ? normTimeForSubmit(mInVal) : '';
+      var mEndTime = mOutVal ? normTimeForSubmit(mOutVal) : '';
+      var mUnchanged = ex.missionId && (ex.missionStartTime||'') === mStartTime && (ex.missionEndTime||'') === mEndTime;
+      if(ex.inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.inId}); });
+      if(ex.outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.outId}); });
+      if(!mUnchanged){
+        if(ex.missionId) await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin:adminPin, ids:[ex.missionId]}); });
+        var mEntry = {date: jalaliDate, requestType:'mission', leaveType: (mStartTime && mEndTime) ? 'hourly' : 'daily'};
+        if(mStartTime) mEntry.startTime = mStartTime;
+        if(mEndTime) mEntry.endTime = mEndTime;
+        var mres = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
+          pin: adminPin, username: username, entries: [mEntry]
+        }); });
+        if(!mres.ok){ statusEl.textContent = '⛔ ثبت ماموریت ناموفق بود: ' + (mres.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+      }
+      window._submissionInProgress = false;
+      alert(d + 'ام ذخیره شد.');
+      await loadMonthDaysForBulkEntry();
+      return;
+    }
+    if(ex.missionId){
+      await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin:adminPin, ids:[ex.missionId]}); });
+    }
+
+    if((absenceChk && absenceChk.checked) || (offChk && offChk.checked)){
+      if(ex.inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.inId}); });
+      if(ex.outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.outId}); });
+      var statusVal = absenceChk.checked ? 'غیبت' : 'off';
+      await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
+        pin: adminPin, username: username, allDatesInMonth: [jalaliDate], entries: [{jalaliDate: jalaliDate, status: statusVal}]
+      }); });
+      window._submissionInProgress = false;
+      alert(d + 'ام ذخیره شد.');
+      await loadMonthDaysForBulkEntry();
+      return;
+    }
+
+    var inVal = document.getElementById('bulkDay'+d+'In').value;
+    var outVal = document.getElementById('bulkDay'+d+'Out').value;
+    var toCreateS = [], toUpdateS = [], toDeleteS = [];
+
+    if(inVal){
+      var inTimeS = normTimeForSubmit(inVal);
+      if(ex.inId){
+        if(ex.inTime !== inTimeS || ex.inProject !== project) toUpdateS.push({id: ex.inId, jalaliDate: jalaliDate, time: inTimeS, type:'in'});
+      } else {
+        toCreateS.push({jalaliDate: jalaliDate, time: inTimeS, type:'in'});
+      }
+    } else if(ex.inId){
+      toDeleteS.push(ex.inId);
+    }
+
+    if(outVal){
+      var outTimeS = normTimeForSubmit(outVal);
+      var outDateS = jalaliDate;
+      var isOvernightS = inVal && (timeToMinutesClient(outTimeS) < timeToMinutesClient(normTimeForSubmit(inVal)));
+      if(isOvernightS){
+        var ndS = nextJalaliDay(d, monthIdx, year);
+        outDateS = ndS.day + ' ' + jMonths[ndS.monthIdx-1] + ' ' + ndS.year;
+      }
+      if(ex.outId){
+        if(ex.outTime !== outTimeS || ex.outDate !== outDateS || ex.outProject !== project) toUpdateS.push({id: ex.outId, jalaliDate: outDateS, time: outTimeS, type:'out'});
+      } else {
+        toCreateS.push({jalaliDate: outDateS, time: outTimeS, type:'out'});
+      }
+    } else if(ex.outId){
+      toDeleteS.push(ex.outId);
+    }
+
+    await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
+      pin: adminPin, username: username, allDatesInMonth: [jalaliDate], entries: []
+    }); });
+
+    if(toCreateS.length===0 && toUpdateS.length===0 && toDeleteS.length===0){
+      window._submissionInProgress = false;
+      alert('هیچ تغییری برای این روز وجود نداره.');
+      return;
+    }
+
+    if(toCreateS.length){
+      var resS = await apiCall(function(){ return apiPost('adminAddLogBatch', {
+        pin: adminPin, username: username, project: project, entries: toCreateS
+      }); });
+      if(!resS.ok){
+        var msgS = resS.error === 'must_be_after_last_entry'
+          ? 'ترتیب ساعت‌ها به‌هم ریخته — دور ساعت (' + (resS.at||'') + ') رو چک کن.'
+          : resS.error === 'duplicate_entry'
+          ? 'یه ثبت دقیقاً با همین تاریخ/ساعت از قبل موجوده.'
+          : (resS.error || 'خطای شبکه');
+        statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msgS;
+        statusEl.style.display = 'block';
+        window._submissionInProgress = false;
+        return;
+      }
+    }
+    if(toUpdateS.length){
+      var updatesPayloadS = toUpdateS.map(function(u){
+        return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: project, type: u.type};
+      });
+      var uresS = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: updatesPayloadS}); });
+      if(!uresS.ok){
+        statusEl.textContent = '⛔ ویرایش ناموفق بود: ' + (uresS.error||'');
+        statusEl.style.display = 'block';
+        window._submissionInProgress = false;
+        return;
+      }
+    }
+    if(toDeleteS.length){
+      await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDeleteS}); });
+    }
+
+    window._submissionInProgress = false;
+    alert(d + 'ام ذخیره شد.');
+    await loadMonthDaysForBulkEntry();
+  } catch(err){
+    statusEl.textContent = '⛔ خطای غیرمنتظره: ' + (err && err.message ? err.message : String(err));
+    statusEl.style.display = 'block';
+    window._submissionInProgress = false;
+  }
+}
 async function submitMonthlyBulkLog(){
   var statusEl = document.getElementById('bulkSubmitStatus');
   statusEl.style.display = 'none';
@@ -3053,7 +3256,7 @@ async function submitMonthlyBulkLog(){
     var toCreate = [];
     var toUpdate = [];
     var toDelete = [];
-    var leaveDays = [];
+    var leaveEntries = [];
     var leaveIdsToDelete = [];
 
     for(var d=1; d<=daysCount; d++){
@@ -3062,8 +3265,9 @@ async function submitMonthlyBulkLog(){
       var leaveChk = document.getElementById('bulkDay'+d+'Leave');
       var absenceChk = document.getElementById('bulkDay'+d+'Absence');
       var offChk = document.getElementById('bulkDay'+d+'Off');
+      var missionChk = document.getElementById('bulkDay'+d+'Mission');
       if(leaveChk && leaveChk.checked){
-        if(!ex.leaveId){ leaveDays.push(jalaliDate); } // only create if it didn't already exist
+        if(!ex.leaveId){ leaveEntries.push({date: jalaliDate, requestType:'leave', leaveType:'daily'}); } // only create if it didn't already exist
         if(ex.inId) toDelete.push(ex.inId);
         if(ex.outId) toDelete.push(ex.outId);
         continue; // leave days skip normal time handling entirely
@@ -3071,6 +3275,28 @@ async function submitMonthlyBulkLog(){
       if(ex.leaveId && !ex.leaveIsMultiDay){
         // admin unchecked "مرخصی" for a day that had a single-day leave record — remove it
         leaveIdsToDelete.push(ex.leaveId);
+      }
+      if(missionChk && missionChk.checked){
+        var mInVal = document.getElementById('bulkDay'+d+'In').value;
+        var mOutVal = document.getElementById('bulkDay'+d+'Out').value;
+        var mStartTime = mInVal ? normTimeForSubmit(mInVal) : '';
+        var mEndTime = mOutVal ? normTimeForSubmit(mOutVal) : '';
+        var mUnchanged = ex.missionId && (ex.missionStartTime||'') === mStartTime && (ex.missionEndTime||'') === mEndTime;
+        if(!mUnchanged){
+          if(ex.missionId) leaveIdsToDelete.push(ex.missionId); // replace with updated entry
+          leaveEntries.push({
+            date: jalaliDate, requestType:'mission',
+            leaveType: (mStartTime && mEndTime) ? 'hourly' : 'daily',
+            startTime: mStartTime, endTime: mEndTime
+          });
+        }
+        if(ex.inId) toDelete.push(ex.inId);
+        if(ex.outId) toDelete.push(ex.outId);
+        continue; // mission days skip normal check-in/out handling — tracked as a leave-like record instead
+      }
+      if(ex.missionId){
+        // admin unchecked "ماموریت" for a day that had one — remove it
+        leaveIdsToDelete.push(ex.missionId);
       }
       if((absenceChk && absenceChk.checked) || (offChk && offChk.checked)){
         if(ex.inId) toDelete.push(ex.inId);
@@ -3116,7 +3342,7 @@ async function submitMonthlyBulkLog(){
       allDatesInMonth.push(sDateStr);
       var sAbsenceChk = document.getElementById('bulkDay'+sd+'Absence');
       var sOffChk = document.getElementById('bulkDay'+sd+'Off');
-      if(sAbsenceChk && sAbsenceChk.checked) statusEntries.push({jalaliDate: sDateStr, status:'absence'});
+      if(sAbsenceChk && sAbsenceChk.checked) statusEntries.push({jalaliDate: sDateStr, status:'غیبت'});
       else if(sOffChk && sOffChk.checked) statusEntries.push({jalaliDate: sDateStr, status:'off'});
     }
     var originalStatus = window._bulkOriginalDayStatus || {};
@@ -3127,18 +3353,18 @@ async function submitMonthlyBulkLog(){
       if((originalStatus[dt]||null) !== (newStatusMap[dt]||null)) statusChanged = true;
     });
 
-    if(toCreate.length===0 && toUpdate.length===0 && toDelete.length===0 && leaveDays.length===0 && leaveIdsToDelete.length===0 && !statusChanged){ alert('هیچ تغییری نسبت به قبل وجود نداره.'); return; }
+    if(toCreate.length===0 && toUpdate.length===0 && toDelete.length===0 && leaveEntries.length===0 && leaveIdsToDelete.length===0 && !statusChanged){ alert('هیچ تغییری نسبت به قبل وجود نداره.'); return; }
     var summary = [];
     if(toCreate.length) summary.push(toCreate.length+' ثبت جدید');
     if(toUpdate.length) summary.push(toUpdate.length+' ویرایش');
-    if(toDelete.length) summary.push(toDelete.length+' حذف (روزهایی که خالی/مرخصی/غیبت کردی)');
-    if(leaveDays.length) summary.push(leaveDays.length+' روز مرخصی جدید');
-    if(leaveIdsToDelete.length) summary.push(leaveIdsToDelete.length+' مرخصیِ حذف‌شده');
+    if(toDelete.length) summary.push(toDelete.length+' حذف (روزهایی که خالی/مرخصی/غیبت/ماموریت کردی)');
+    if(leaveEntries.length) summary.push(leaveEntries.length+' روز مرخصی/ماموریتِ جدید');
+    if(leaveIdsToDelete.length) summary.push(leaveIdsToDelete.length+' مرخصی/ماموریتِ حذف‌شده');
     if(statusChanged) summary.push('علامت‌های غیبت/Off به‌روزرسانی می‌شن');
     if(!confirm(summary.join('، ') + ' — اعمال بشه؟')) return;
 
     window._submissionInProgress = true;
-    var totalSteps = (leaveIdsToDelete.length?1:0) + (leaveDays.length?1:0) + (toCreate.length?1:0) + (toUpdate.length?1:0) + (toDelete.length?1:0) + (statusChanged?1:0);
+    var totalSteps = (leaveIdsToDelete.length?1:0) + (leaveEntries.length?1:0) + (toCreate.length?1:0) + (toUpdate.length?1:0) + (toDelete.length?1:0) + (statusChanged?1:0);
     var stepsDone = 0;
     function stepProgress(label){
       stepsDone++;
@@ -3148,21 +3374,27 @@ async function submitMonthlyBulkLog(){
 
     if(leaveIdsToDelete.length){
       await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin: adminPin, ids: leaveIdsToDelete}); });
-      stepProgress('حذف مرخصی‌های قدیمی...');
+      stepProgress('حذف مرخصی‌ها/ماموریت‌های قدیمی...');
     }
-    if(leaveDays.length){
+    if(leaveEntries.length){
       var leaveCategory = document.getElementById('bulkLeaveCategory').value;
+      var leaveEntriesPayload = leaveEntries.map(function(e){
+        var out = {date: e.date, requestType: e.requestType, leaveType: e.leaveType};
+        if(e.startTime) out.startTime = e.startTime;
+        if(e.endTime) out.endTime = e.endTime;
+        return out;
+      });
       var lres = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
-        pin: adminPin, username: username, days: leaveDays, leaveCategory: leaveCategory
+        pin: adminPin, username: username, entries: leaveEntriesPayload, leaveCategory: leaveCategory
       }); });
       if(!lres.ok){
-        statusEl.textContent = '⛔ ثبت مرخصی ناموفق بود: ' + (lres.error||'');
+        statusEl.textContent = '⛔ ثبت مرخصی/ماموریت ناموفق بود: ' + (lres.error||'');
         statusEl.style.display = 'block';
         window._submissionInProgress = false;
         hideBulkProgress();
         return;
       }
-      stepProgress('ثبت مرخصی‌ها...');
+      stepProgress('ثبت مرخصی‌ها/ماموریت‌ها...');
     }
     if(toCreate.length){
       var res = await apiCall(function(){ return apiPost('adminAddLogBatch', {
@@ -3437,7 +3669,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-24-splitdatetime';
+  var expected = 'v-2026-08-24-mission-active-dash';
   if(res.version === expected){
     box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
   } else {
@@ -3507,15 +3739,18 @@ function renderEmpList(){
       : '<span class="badge badge-unbound">📱 دستگاه ثبت‌نشده</span>';
     var freeZoneBadge = emp.freeZone ? '<span class="badge badge-bound">🌍 منطقه آزاد</span>' : '';
     var fpBadge = emp.fingerprintRequired ? '<span class="badge badge-bound">👆 اثر انگشت</span>' : '';
+    var isActive = String(emp.active) !== 'false';
+    var activeBadge = isActive ? '' : '<span class="badge badge-unbound" style="background:#fdeaea; color:#a32a2a;">⛔ غیرفعال</span>';
     var scopeText = (!emp.allowedProjects || emp.allowedProjects==='ALL') ? 'همه پروژه‌ها' : (emp.allowedProjects.split(',').length + ' پروژه محدود');
     var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
     var jobText = emp.jobTitle ? (' · '+esc(emp.jobTitle)) : '';
     var groupText = emp.jobGroup ? (' · '+esc(emp.jobGroup)) : '';
-    var photoHtml = emp.photoUrl ? '<img src="'+emp.photoUrl+'" style="width:34px; height:34px; border-radius:50%; object-fit:cover; margin-inline-end:8px; vertical-align:middle;">' : '';
-    return '<div class="list-item"><div style="display:flex; align-items:center;">'+photoHtml+'<div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+
+    var photoHtml = emp.photoUrl ? '<img src="'+emp.photoUrl+'" style="width:34px; height:34px; border-radius:50%; object-fit:cover; margin-inline-end:8px; vertical-align:middle;'+(isActive?'':' opacity:0.5;')+'">' : '';
+    return '<div class="list-item" style="'+(isActive?'':'opacity:0.6;')+'"><div style="display:flex; align-items:center;">'+photoHtml+'<div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+activeBadge+
       '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+jobText+groupText+'</div></div></div>'+
       '<div class="actions">'+
         (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
+        '<button class="icon-btn" title="'+(isActive?'غیرفعال کردن':'فعال کردن')+'" onclick="toggleEmployeeActive(\''+emp.id+'\', '+(!isActive)+')">'+(isActive?'⛔':'✅')+'</button>'+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditEmp(\''+emp.id+'\')">✏️</button>'+
         '<button class="icon-btn del" title="حذف" onclick="deleteEmployee(\''+emp.id+'\')">✕</button>'+
       '</div></div>';
@@ -3641,6 +3876,14 @@ async function resetDevice(id){
   if(!confirm('دستگاه ثبت‌شده این پرسنل ریست شود؟ (دفعه بعد از هر گوشی‌ای بتونه لاگین کنه و همون گوشی جدید قفل می‌شه)')) return;
   var res = await apiCall(function(){ return apiPost('resetDevice', {pin:adminPin, id:id}); });
   if(!res.ok){ showAdminNotice('ریست دستگاه ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadEmployeesAdmin();
+}
+async function toggleEmployeeActive(id, makeActive){
+  var msg = makeActive ? 'این پرسنل دوباره فعال بشه؟ (بتونه لاگین کنه)' : 'این پرسنل غیرفعال بشه؟ (دیگه نتونه لاگین کنه، ولی سوابقش می‌مونه)';
+  if(!confirm(msg)) return;
+  var res = await apiCall(function(){ return apiPost('setEmployeeActive', {pin:adminPin, id:id, active:makeActive}); });
+  if(!res.ok){ showAdminNotice('تغییر وضعیت ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   await loadEmployeesAdmin();
 }
@@ -4578,11 +4821,22 @@ async function loadDashboard(){
   var isTodayHoliday = holidaySet[todayStr] || isFridayJalali(tj[0], tj[1], tj[2]);
 
   var logs = logsRes.ok ? (logsRes.logs||[]) : [];
-  var todayLogs = logs.filter(function(e){ return e.jalaliDate === todayStr; })
+  var todayLogsAllUsers = logs.filter(function(e){ return e.jalaliDate === todayStr; })
     .sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
-  var presentUsersToday = {}; // anyone who checked in at least once today — stays "present" even after checking out
-  todayLogs.forEach(function(e){ if(e.type === 'ورود') presentUsersToday[e.username] = true; });
-  var presentCount = Object.keys(presentUsersToday).length;
+  var hadAttendanceTodayUsers = {}; // checked in at least once today (may have already left)
+  todayLogsAllUsers.forEach(function(e){ if(e.type === 'ورود') hadAttendanceTodayUsers[e.username] = true; });
+  var byUserLogs = {};
+  logs.forEach(function(e){ (byUserLogs[e.username] = byUserLogs[e.username] || []).push(e); });
+  var presentNowUsers = {}; // currently checked in — latest log entry overall is ورود, with no خروج after it yet
+  Object.keys(hadAttendanceTodayUsers).forEach(function(username){
+    var userLogs = (byUserLogs[username] || []).slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    var latest = userLogs[userLogs.length-1];
+    if(latest && latest.type === 'ورود') presentNowUsers[username] = true;
+  });
+  var todayLogs = todayLogsAllUsers;
+  var presentUsersToday = presentNowUsers;
+  var presentCount = Object.keys(presentNowUsers).length;
+  var hadAttendanceCount = Object.keys(hadAttendanceTodayUsers).length;
 
   var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved' && (l.requestType==='leave' || l.requestType==='mission' || !l.requestType); }) : [];
   var todayKey = jalaliDateSortKeyClient(todayStr);
@@ -4593,11 +4847,13 @@ async function loadDashboard(){
     if(todayKey >= sKey && todayKey <= eKey) onLeaveUsers[l.username] = true;
   });
   var leaveCount = Object.keys(onLeaveUsers).length;
-  var absentCount = isTodayHoliday ? 0 : Math.max(0, emps.length - presentCount - leaveCount);
+  var absentCount = isTodayHoliday ? 0 : Math.max(0, emps.length - hadAttendanceCount - leaveCount);
 
   document.getElementById('dashPresent').textContent = presentCount;
   document.getElementById('dashLeave').textContent = leaveCount;
   document.getElementById('dashAbsent').textContent = isTodayHoliday ? '🎌' : absentCount;
+  var leftEl = document.getElementById('dashLeftToday');
+  if(leftEl) leftEl.textContent = Math.max(0, hadAttendanceCount - presentCount);
 
   var pendingReq = reqRes.ok ? (reqRes.requests||[]).filter(function(r){return r.status==='pending';}) : [];
   var pendingLeave = leavesRes.ok ? leaves.length!==undefined ? (leavesRes.leaves||[]).filter(function(r){return r.status==='pending';}) : [] : [];
