@@ -745,7 +745,7 @@ function doPost(e){
   var action = body.action;
 
   if(action === 'ping'){
-    return jsonOut({ok:true, version: 'v-2026-08-24-mission-active-dash', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
+    return jsonOut({ok:true, version: 'v-2026-08-24-dashperf', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
   }
 
   // ---------------- login (device-locked) ----------------
@@ -1145,6 +1145,37 @@ function doPost(e){
     var lsh4 = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var rows6 = ensureIds(lsh4, readRows(lsh4)).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6});
+  }
+  if(action === 'getDashboardData'){
+    var eshDD = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
+    var empsDD = readRows(eshDD).map(function(r){ delete r._row; return r; });
+
+    var lshDD = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
+    var daysBackDD = body.daysBack || 3;
+    var cutoffDD = new Date();
+    cutoffDD.setDate(cutoffDD.getDate() - daysBackDD);
+    var cutoffIsoDD = cutoffDD.toISOString();
+    var recentLogsDD = readRows(lshDD).filter(function(r){ return String(r.isoTimestamp) >= cutoffIsoDD; }).map(function(r){ delete r._row; return r; });
+
+    var lrshDD = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
+    var allLeavesDD = readRows(lrshDD).map(function(r){ delete r._row; return r; });
+
+    var rshDD = getSheet('Requests', ['id','username','employee','employeeCode','project','type','reason','status','createdAt','createdTime','requestedDate','requestedTime']);
+    var pendingReqDD = readRows(rshDD).filter(function(r){ return r.status === 'pending'; }).map(function(r){ delete r._row; return r; });
+
+    var hshDD = getSheet('Holidays', ['id','jalaliDate','reason','status']);
+    var holidaysDD = readRows(hshDD).map(function(r){ delete r._row; return r; });
+
+    return jsonOut({ok:true, employees: empsDD, logs: recentLogsDD, leaves: allLeavesDD, requests: pendingReqDD, holidays: holidaysDD});
+  }
+  if(action === 'getRecentLogs'){
+    var lsh4r = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
+    var daysBack = body.daysBack || 3;
+    var cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysBack);
+    var cutoffIso = cutoff.toISOString();
+    var rows6r = readRows(lsh4r).filter(function(r){ return String(r.isoTimestamp) >= cutoffIso; }).map(function(r){ delete r._row; return r; });
+    return jsonOut({ok:true, logs: rows6r});
   }
   if(action === 'getLogsForUser'){
     var lsh4u = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
@@ -2371,12 +2402,27 @@ function confirmLeaveIfBusy(){
   if(!window._submissionInProgress) return true;
   return confirm('یه عملیات هنوز در حال ثبته — اگه الان خارج بشی ممکنه بخشی از اطلاعات ثبت نشه. مطمئنی؟');
 }
+async function parseJsonResponse(res){
+  var text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch(e){
+    var isHtml = text.trim().indexOf('<') === 0;
+    return {
+      ok:false,
+      error: isHtml
+        ? 'سرور یه پاسخ نامعتبر برگردوند (احتمالاً قطعیِ موقتِ گوگل‌اسکریپت یا محدودیتِ درخواست) — چند ثانیه صبر کن و دوباره امتحان کن.'
+        : 'پاسخ سرور قابل‌خوندن نبود — دوباره امتحان کن.',
+      serverError: true
+    };
+  }
+}
 async function apiGet(action, params){
   var qs = new URLSearchParams(Object.assign({action:action}, params||{})).toString();
   var wasWrite = beginApiTracking(action);
   try {
     var res = await fetch(API_URL + '?' + qs, {method:'GET'});
-    return await res.json();
+    return await parseJsonResponse(res);
   } finally {
     endApiTracking(wasWrite);
   }
@@ -2389,7 +2435,7 @@ async function apiPost(action, payload){
       headers:{'Content-Type':'text/plain;charset=utf-8'}, // avoids CORS preflight
       body: JSON.stringify(Object.assign({action:action}, payload||{}))
     });
-    return await res.json();
+    return await parseJsonResponse(res);
   } finally {
     endApiTracking(wasWrite);
   }
@@ -3669,7 +3715,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-24-mission-active-dash';
+  var expected = 'v-2026-08-24-dashperf';
   if(res.version === expected){
     box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
   } else {
@@ -4804,11 +4850,8 @@ function readDateSelect(prefix){
 
 // ---------- Holidays ----------
 async function loadDashboard(){
-  var empRes = await apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); });
-  var logsRes = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
-  var leavesRes = await apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); });
-  var reqRes = await apiCall(function(){ return apiPost('getRequests', {pin:adminPin}); });
-  var holRes = await apiCall(function(){ return apiPost('getHolidays', {pin:adminPin}); });
+  var ddRes = await apiCall(function(){ return apiPost('getDashboardData', {pin:adminPin, daysBack:3}); });
+  var empRes = ddRes, logsRes = ddRes, leavesRes = ddRes, reqRes = ddRes, holRes = ddRes;
   if(!empRes.ok){ showAdminNotice('دریافت داشبورد ناموفق بود: ' + (empRes.error||'')); return; }
   var emps = empRes.employees || [];
   document.getElementById('dashTotal').textContent = emps.length;
