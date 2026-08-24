@@ -753,7 +753,7 @@ function doPost(e){
   var action = body.action;
 
   if(action === 'ping'){
-    return jsonOut({ok:true, version: 'v-2026-08-24-missionbackfill', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
+    return jsonOut({ok:true, version: 'v-2026-08-24-perfsplit', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
   }
 
   // ---------------- login (device-locked) ----------------
@@ -1364,58 +1364,98 @@ function doPost(e){
   }
   if(action === 'recalcAllLogTimestamps'){
     var lshR = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
-    var rowsR = readRows(lshR);
+    var lastRowR = lshR.getLastRow();
+    var lastColR = lshR.getLastColumn();
+    if(lastRowR < 2) return jsonOut({ok:true, total:0, fixed:0});
+    var headerRowR = lshR.getRange(1,1,1,lastColR).getValues()[0];
+    var idxMapR = {};
+    headerRowR.forEach(function(h,i){ idxMapR[h] = i; });
+
+    var hshR2 = getSheet('Holidays', ['id','jalaliDate','reason','status']);
+    var holidayMapR = {};
+    readRows(hshR2).forEach(function(h){ holidayMapR[h.jalaliDate] = h.reason || 'تعطیل رسمی'; });
+    function getHolidayInfoFast(jalaliDateStr){
+      if(isFridayFromJalaliDateStr(jalaliDateStr)) return {isHoliday:true, reason:'جمعه'};
+      if(holidayMapR.hasOwnProperty(jalaliDateStr)) return {isHoliday:true, reason: holidayMapR[jalaliDateStr]};
+      return {isHoliday:false, reason:''};
+    }
+
+    var dataRangeR = lshR.getRange(2,1,lastRowR-1,lastColR);
+    var valuesR = dataRangeR.getValues();
     var fixedCount = 0;
-    rowsR.forEach(function(r){
-      var newIsoR = jalaliDateTimeToIso(r.jalaliDate, r.time);
-      var holInfoR = getHolidayInfo(r.jalaliDate);
-      if(newIsoR && newIsoR !== r.isoTimestamp){
-        lshR.getRange(r._row, colIndex(lshR,'isoTimestamp')).setValue(newIsoR);
+    for(var ri=0; ri<valuesR.length; ri++){
+      var rowV = valuesR[ri];
+      var jalaliDateV = rowV[idxMapR['jalaliDate']];
+      var timeV = rowV[idxMapR['time']];
+      var newIsoR = jalaliDateTimeToIso(jalaliDateV, timeV);
+      var holInfoR = getHolidayInfoFast(jalaliDateV);
+      var curIso = rowV[idxMapR['isoTimestamp']];
+      if(newIsoR && newIsoR !== curIso){
+        rowV[idxMapR['isoTimestamp']] = newIsoR;
         fixedCount++;
       }
       var wantHoliday = holInfoR.isHoliday ? 'تعطیل' : '';
-      if(String(r.isHoliday||'') !== wantHoliday || String(r.holidayReason||'') !== holInfoR.reason){
-        lshR.getRange(r._row, colIndex(lshR,'isHoliday')).setValue(wantHoliday);
-        lshR.getRange(r._row, colIndex(lshR,'holidayReason')).setValue(holInfoR.reason);
+      if(String(rowV[idxMapR['isHoliday']]||'') !== wantHoliday || String(rowV[idxMapR['holidayReason']]||'') !== holInfoR.reason){
+        rowV[idxMapR['isHoliday']] = wantHoliday;
+        rowV[idxMapR['holidayReason']] = holInfoR.reason;
       }
-    });
-
-    // backfill mission-time Log entries that predate this feature (mission had start/end times but never got real Log rows)
+    }
+    dataRangeR.setValues(valuesR);
+    return jsonOut({ok:true, total: valuesR.length, fixed: fixedCount});
+  }
+  if(action === 'backfillMissionLogs'){
+    var lshBF = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var lrshBF = getSheet('LeaveRequests', ['id','username','employee','employeeCode','startDate','endDate','reason','status','createdAt','createdTime','leaveType','startTime','endTime','requestType','leaveCategory']);
     var missionsBF = readRows(lrshBF).filter(function(r){
       return r.requestType === 'mission' && r.status === 'approved' && r.leaveType === 'hourly' && r.startTime && r.endTime;
     });
-    var existingLogsBF = readRows(lshR);
+    if(missionsBF.length === 0) return jsonOut({ok:true, missionLogsAdded: 0});
+
+    var existingLogsBF = readRows(lshBF);
+    var existingIndexBF = {};
+    existingLogsBF.forEach(function(r){ existingIndexBF[r.username+'|'+r.isoTimestamp+'|'+r.type] = true; });
+
     var missionLogsAdded = 0;
+    var newRowsToAppend = [];
     missionsBF.forEach(function(m){
       var startIsoBF = jalaliDateTimeToIso(m.startDate, m.startTime);
-      var hasInBF = existingLogsBF.some(function(r){ return r.username === m.username && String(r.isoTimestamp) === String(startIsoBF) && r.type === 'ورود'; });
-      if(!hasInBF && startIsoBF){
-        appendRowByHeader(lshR, {
+      var keyIn = m.username+'|'+startIsoBF+'|ورود';
+      if(startIsoBF && !existingIndexBF[keyIn]){
+        newRowsToAppend.push({
           id: Utilities.getUuid(), jalaliDate: m.startDate, time: m.startTime, employee: m.employee, username: m.username, project: '',
           type: 'ورود', lat:'', lng:'', accuracy:'', isoTimestamp: startIsoBF,
           note: 'ثبت مستقیم توسط مدیر (ماموریت) — بازیابی‌شده، پروژه رو دستی وارد کن', employeeCode: m.employeeCode || '',
           isHoliday: '', holidayReason: '', source: 'دستی'
         });
+        existingIndexBF[keyIn] = true;
         missionLogsAdded++;
       }
       var stMinBF = timeToMinutes(m.startTime);
       var enMinBF = timeToMinutes(m.endTime);
       var outDateBF = (enMinBF <= stMinBF) ? addDaysToJalaliServer(m.startDate, 1) : m.startDate;
       var endIsoBF = jalaliDateTimeToIso(outDateBF, m.endTime);
-      var hasOutBF = existingLogsBF.some(function(r){ return r.username === m.username && String(r.isoTimestamp) === String(endIsoBF) && r.type === 'خروج'; });
-      if(!hasOutBF && endIsoBF){
-        appendRowByHeader(lshR, {
+      var keyOut = m.username+'|'+endIsoBF+'|خروج';
+      if(endIsoBF && !existingIndexBF[keyOut]){
+        newRowsToAppend.push({
           id: Utilities.getUuid(), jalaliDate: outDateBF, time: m.endTime, employee: m.employee, username: m.username, project: '',
           type: 'خروج', lat:'', lng:'', accuracy:'', isoTimestamp: endIsoBF,
           note: 'ثبت مستقیم توسط مدیر (ماموریت) — بازیابی‌شده، پروژه رو دستی وارد کن', employeeCode: m.employeeCode || '',
           isHoliday: '', holidayReason: '', source: 'دستی'
         });
+        existingIndexBF[keyOut] = true;
         missionLogsAdded++;
       }
     });
 
-    return jsonOut({ok:true, total: rowsR.length, fixed: fixedCount, missionLogsAdded: missionLogsAdded});
+    if(newRowsToAppend.length){
+      var headersBF = lshBF.getRange(1,1,1,lshBF.getLastColumn()).getValues()[0];
+      var rowsAsArraysBF = newRowsToAppend.map(function(obj){
+        return headersBF.map(function(h){ return obj.hasOwnProperty(h) ? obj[h] : ''; });
+      });
+      lshBF.getRange(lshBF.getLastRow()+1, 1, rowsAsArraysBF.length, headersBF.length).setValues(rowsAsArraysBF);
+    }
+
+    return jsonOut({ok:true, missionLogsAdded: missionLogsAdded});
   }
   if(action === 'backfillLogSource'){
     var lshBF = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
@@ -2073,10 +2113,12 @@ function esh_set(sheet, rowNum, headerName, value){
 
     <div class="card">
       <div class="eyebrow">تعمیر داده‌های قدیمی</div>
-      <div class="hint" style="margin-top:-4px;">ثبت‌هایی که قبل از آخرین آپدیت‌ها ویرایش یا تایید شدن، ممکنه ترتیب یا علامت تعطیلشون درست نباشه. این دکمه همه‌ی ثبت‌های گزارش رو یک‌بار بازمحاسبه می‌کنه (بر اساس تاریخ/ساعت فعلیشون) — بدون تغییر تاریخ/ساعت/پرسنل هیچ‌کدوم. همچنین ساعتِ ماموریت‌های قدیمی که هنوز به گزارش اضافه نشده بودن رو هم پیدا و اضافه می‌کنه.</div>
+      <div class="hint" style="margin-top:-4px;">ثبت‌هایی که قبل از آخرین آپدیت‌ها ویرایش یا تایید شدن، ممکنه ترتیب یا علامت تعطیلشون درست نباشه. این دکمه همه‌ی ثبت‌های گزارش رو یک‌بار بازمحاسبه می‌کنه (بر اساس تاریخ/ساعت فعلیشون) — بدون تغییر تاریخ/ساعت/پرسنل هیچ‌کدوم.</div>
       <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
       <div class="hint" style="margin-top:10px;">این دکمه ستون «source» (دستی/اتومات) رو فقط برای ثبت‌های قدیمی که این ستون خالیه پر می‌کنه — بر اساس یادداشتِ همون ردیف حدس می‌زنه. ثبت‌های جدید که قبلاً این ستون رو دارن، دست‌نخورده می‌مونن.</div>
       <button type="button" class="btn btn-ghost" onclick="backfillLogSourceBtn()">🏷️ پرکردن ستون دستی/اتومات برای داده‌های قدیمی</button>
+      <div class="hint" style="margin-top:10px;">این دکمه ماموریت‌های تاییدشده‌ی قدیمی رو که ساعتِ ورود/خروجشون هنوز به گزارش اضافه نشده بود پیدا و اضافه می‌کنه (بدون تکراری‌سازی اگه دوباره بزنیش).</div>
+      <button type="button" class="btn btn-ghost" onclick="backfillMissionLogsBtn()">🚗 اضافه‌کردن ساعتِ ماموریت‌های قدیمی به گزارش</button>
       <div class="hint" style="margin-top:10px;">این دکمه یه فیلتر (فلش‌های بالای ستون‌ها) به همه‌ی شیت‌های اصلی گوگل‌شیت اضافه می‌کنه. شیت Logs هم بر اساس تاریخ/ساعت واقعی (نه متن فارسی) مرتب می‌شه؛ بقیه‌ی شیت‌ها فقط فیلتر می‌گیرن (چون تاریخ فارسیِ متنی قابل مرتب‌سازی درست نیست، خودت از فلش فیلتر می‌تونی مرتب کنی).</div>
       <button type="button" class="btn btn-ghost" onclick="setupSheetFiltersBtn()">📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها</button>
     </div>
@@ -3787,11 +3829,22 @@ async function recalcAllTimestamps(){
   btn.disabled = false; btn.textContent = '🔧 بازمحاسبه همه ثبت‌های گزارش';
   if(!res.ok){ showAdminNotice('بازمحاسبه ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
-  var msgParts = [(res.total+' ثبت بررسی شد، '+res.fixed+' مورد اصلاح شد.')];
+  alert('انجام شد. از '+res.total+' ثبت، '+res.fixed+' مورد اصلاح شد.');
+  refreshCurrentAdminSection();
+}
+async function backfillMissionLogsBtn(){
+  if(!confirm('این کار ماموریت‌های تاییدشده‌ی قدیمی رو که ساعتشون هنوز تو گزارش نبود، پیدا و اضافه می‌کنه. ادامه بدم؟')) return;
+  var btn = event.target;
+  btn.disabled = true; btn.textContent = 'در حال بررسی...';
+  var res = await apiCall(function(){ return apiPost('backfillMissionLogs', {pin:adminPin}); });
+  btn.disabled = false; btn.textContent = '🚗 اضافه‌کردن ساعتِ ماموریت‌های قدیمی به گزارش';
+  if(!res.ok){ showAdminNotice('این عملیات ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
   if(res.missionLogsAdded){
-    msgParts.push(res.missionLogsAdded + ' ثبتِ ساعتِ ماموریتِ قدیمی هم به گزارش اضافه شد — چون پروژه‌شون از قبل ذخیره نشده بود، پروژه‌ی این ردیف‌ها خالیه؛ اگه لازم داری، از همون گزارش دستی پرش کن.');
+    alert(res.missionLogsAdded + ' ثبتِ ساعتِ ماموریت اضافه شد. چون پروژه‌شون از قبل ذخیره نشده بود، ستونِ پروژه‌ی این ردیف‌ها خالیه — از گزارش، با ✏️ می‌تونی پرش کنی.');
+  } else {
+    alert('چیزی برای اضافه‌کردن پیدا نشد — همه‌چیز از قبل به‌روز بود.');
   }
-  alert('انجام شد.\n' + msgParts.join('\n'));
   refreshCurrentAdminSection();
 }
 async function backfillLogSourceBtn(){
@@ -3822,7 +3875,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-24-missionbackfill';
+  var expected = 'v-2026-08-24-perfsplit';
   if(res.version === expected){
     box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
   } else {
