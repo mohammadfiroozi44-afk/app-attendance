@@ -753,7 +753,7 @@ function doPost(e){
   var action = body.action;
 
   if(action === 'ping'){
-    return jsonOut({ok:true, version: 'v-2026-08-24-perfsplit', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
+    return jsonOut({ok:true, version: 'v-2026-08-24-opensessions', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
   }
 
   // ---------------- login (device-locked) ----------------
@@ -1189,6 +1189,58 @@ function doPost(e){
     var lsh4u = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var rows6u = ensureIds(lsh4u, readRows(lsh4u)).filter(function(r){ return r.username === body.username; }).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6u});
+  }
+  if(action === 'getOpenSessions'){
+    var lshOS = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
+    var allLogsOS = readRows(lshOS);
+    var byUserOS = {};
+    allLogsOS.forEach(function(r){ (byUserOS[r.username] = byUserOS[r.username] || []).push(r); });
+    var openList = [];
+    Object.keys(byUserOS).forEach(function(username){
+      var userLogsOS = byUserOS[username].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+      var latestOS = userLogsOS[userLogsOS.length-1];
+      if(latestOS && latestOS.type === 'ورود'){
+        openList.push({
+          id: latestOS.id, username: latestOS.username, employee: latestOS.employee, employeeCode: latestOS.employeeCode||'',
+          project: latestOS.project, jalaliDate: latestOS.jalaliDate, time: latestOS.time, isoTimestamp: latestOS.isoTimestamp
+        });
+      }
+    });
+    openList.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    return jsonOut({ok:true, openSessions: openList});
+  }
+  if(action === 'adminCloseOpenSession'){
+    var lshCS = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
+    var allRowsCS = readRows(lshCS);
+    var openRowCS = allRowsCS.filter(function(r){ return r.id === body.id; })[0];
+    if(!openRowCS) return jsonOut({ok:false, error:'not found'});
+    if(openRowCS.type !== 'ورود') return jsonOut({ok:false, error:'not_an_open_checkin'});
+
+    var newIsoCS = jalaliDateTimeToIso(body.jalaliDate, body.time);
+    if(!newIsoCS) return jsonOut({ok:false, error:'invalid_date_time'});
+    if(String(newIsoCS) <= String(openRowCS.isoTimestamp)){
+      return jsonOut({ok:false, error:'must_be_after_checkin'});
+    }
+    // only real restriction: no OTHER log entry for this employee may fall strictly between the open check-in and this new checkout —
+    // that would mean the employee already did something else in between (e.g. checked in again), a genuine conflict
+    var conflictCS = allRowsCS.filter(function(r){
+      return r.username === openRowCS.username && r.id !== openRowCS.id &&
+        String(r.isoTimestamp) > String(openRowCS.isoTimestamp) && String(r.isoTimestamp) < String(newIsoCS);
+    })[0];
+    if(conflictCS){
+      return jsonOut({ok:false, error:'conflict', at: conflictCS.jalaliDate + ' ' + conflictCS.time + ' (' + conflictCS.type + ')'});
+    }
+
+    var holInfoCS = getHolidayInfo(body.jalaliDate);
+    var lidCS = Utilities.getUuid();
+    appendRowByHeader(lshCS, {
+      id:lidCS, jalaliDate:body.jalaliDate, time:body.time, employee:openRowCS.employee, username:openRowCS.username, project:body.project||openRowCS.project,
+      type:'خروج', lat:'', lng:'', accuracy:'', isoTimestamp:newIsoCS,
+      note: 'ثبت مستقیم توسط مدیر (تکمیل تردد ناقص)' + (body.reason ? (' — ' + body.reason) : ''),
+      employeeCode: openRowCS.employeeCode || '',
+      isHoliday: holInfoCS.isHoliday ? 'تعطیل' : '', holidayReason: holInfoCS.reason, source:'دستی'
+    });
+    return jsonOut({ok:true});
   }
   if(action === 'adminAddLog'){
     var eshA = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
@@ -2179,6 +2231,12 @@ function esh_set(sheet, rowNum, headerName, value){
       <input type="text" id="pendingOfflineFilter" placeholder="فیلتر با نام یا کد پرسنلی" oninput="renderPendingOffline()">
       <button type="button" class="btn btn-ghost btn-small" style="margin-top:8px;" onclick="rejectAllPendingOffline()">🚫 رد همه (طبق فیلتر فعلی)</button>
       <div id="pendingOfflineList" style="margin-top:10px;"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">🕐 ورود بدون خروج (یادش رفته بزنه)</div>
+      <div class="hint" style="margin-top:-4px;">پرسنلی که آخرین ثبتشون «ورود»ه و هنوز خروج نزدن — چه امروز، چه روزهای قبل. اینجا می‌تونی مستقیم ساعتِ خروجِ فراموش‌شده رو وارد کنی؛ محدودیتِ «باید بعد از آخرین ثبت باشه» نداره، فقط اگه با یه ثبتِ بعدیِ واقعی تداخل داشته باشه بهت می‌گه.</div>
+      <input type="text" id="openSessionsFilter" placeholder="فیلتر با نام یا کد پرسنلی" oninput="renderOpenSessions()">
+      <div id="openSessionsList" style="margin-top:10px;"><div class="empty">در حال بارگذاری...</div></div>
     </div>
     </div><!-- /admSec-offline -->
 
@@ -3779,7 +3837,7 @@ function showAdminSection(name){
 }
 async function refreshAdminSection(name){
   if(name === 'dashboard') await loadDashboard();
-  else if(name === 'offline') await loadPendingOffline();
+  else if(name === 'offline'){ await loadPendingOffline(); await loadOpenSessions(); }
   else if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
   else if(name === 'requests'){ await loadAdminRequests(); await loadAdminLeaves(); }
@@ -3876,7 +3934,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-24-perfsplit';
+  var expected = 'v-2026-08-24-opensessions';
   if(res.version === expected){
     box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
   } else {
@@ -4119,6 +4177,59 @@ async function rejectAllPendingOffline(){
   clearAdminNotice();
   editingOfflineId = null;
   await loadPendingOffline();
+}
+async function loadOpenSessions(){
+  var box = document.getElementById('openSessionsList');
+  var res = await apiCall(function(){ return apiPost('getOpenSessions', {pin:adminPin}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت ناموفق بود</div>'; return; }
+  window._openSessions = res.openSessions || [];
+  renderOpenSessions();
+}
+function renderOpenSessions(){
+  var box = document.getElementById('openSessionsList');
+  var all = window._openSessions || [];
+  var filterEl = document.getElementById('openSessionsFilter');
+  var filter = filterEl ? filterEl.value.trim().toLowerCase() : '';
+  var list = filter ? all.filter(function(r){
+    return String(r.employee||'').toLowerCase().indexOf(filter) !== -1 || String(r.employeeCode||'').toLowerCase().indexOf(filter) !== -1;
+  }) : all;
+  if(list.length === 0){ box.innerHTML = '<div class="empty">'+(filter ? 'با این فیلتر موردی نیست' : 'همه خروج زدن — موردی نیست')+'</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    return '<div class="list-item"><div>'+
+      '<b>'+esc(r.employee)+'</b>'+(r.employeeCode?(' (کد '+esc(r.employeeCode)+')'):'')+' · '+esc(r.project)+
+      '<div class="meta">ورود: <bdi dir="ltr" style="unicode-bidi:isolate;">'+esc(r.jalaliDate)+' '+esc(r.time)+'</bdi> — هنوز خروج نزده</div>'+
+      '<div class="date-row" style="margin-top:8px; align-items:center;">'+
+        buildDateSelects('openClose'+r.id, r.jalaliDate)+
+        '<input type="time" id="openCloseTime'+r.id+'" step="1" class="field-mono" style="width:104px;">'+
+        '<button type="button" class="btn btn-primary btn-small" onclick="submitOpenSessionClose(\''+r.id+'\')">💾 ثبت خروج</button>'+
+      '</div>'+
+      '<div id="openCloseStatus'+r.id+'" style="display:none; color:#a32a2a; font-size:12px; margin-top:6px;"></div>'+
+    '</div></div>';
+  }).join('');
+}
+async function submitOpenSessionClose(id){
+  var timeVal = document.getElementById('openCloseTime'+id).value;
+  var statusBox = document.getElementById('openCloseStatus'+id);
+  statusBox.style.display = 'none';
+  if(!timeVal){ alert('ساعت خروج را وارد کن'); return; }
+  var timeParts = timeVal.split(':');
+  var hh = timeParts[0]||'00'; if(hh.length<2) hh='0'+hh;
+  var mm = timeParts[1]||'00'; if(mm.length<2) mm='0'+mm;
+  var ss = timeParts[2]||'00'; if(ss.length<2) ss='0'+ss;
+  var jalaliDate = readDateSelect('openClose'+id);
+  var res = await apiCall(function(){ return apiPost('adminCloseOpenSession', {
+    pin: adminPin, id: id, jalaliDate: jalaliDate, time: hh+':'+mm+':'+ss
+  }); });
+  if(!res.ok){
+    var msg = res.error === 'must_be_after_checkin' ? 'ساعتِ خروج باید بعد از ساعتِ ورود باشه.'
+      : res.error === 'conflict' ? 'تداخل داره — یه ثبتِ دیگه (' + (res.at||'') + ') بینِ این ورود و خروجی که وارد کردی وجود داره. اول اون رو بررسی کن.'
+      : (res.error || 'خطای شبکه');
+    statusBox.textContent = '⛔ ' + msg;
+    statusBox.style.display = 'block';
+    return;
+  }
+  alert('خروج ثبت شد.');
+  await loadOpenSessions();
 }
 function renderPendingOffline(){
   var box = document.getElementById('pendingOfflineList');
