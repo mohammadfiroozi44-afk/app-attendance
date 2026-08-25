@@ -2206,6 +2206,7 @@ function esh_set(sheet, rowNum, headerName, value){
       <div class="eyebrow">گزارش کامل تردد</div>
       <input type="text" id="logFilterCode" placeholder="فیلتر با نام یا کد پرسنلی" class="field-mono" oninput="renderLogTable()">
       <div class="date-row">
+        <select id="logFilterDay" onchange="renderLogTable()"><option value="">همه روزها</option></select>
         <select id="logFilterMonth" onchange="renderLogTable()"><option value="">همه ماه‌ها</option></select>
         <select id="logFilterYear" onchange="renderLogTable()"><option value="">همه سال‌ها</option></select>
       </div>
@@ -5253,8 +5254,13 @@ function pairLogEntriesForDisplay(entries){
 function renderLogTable(){
   var tbody = document.getElementById('logTableBody');
   populateMonthYearFilter('logFilterMonth','logFilterYear', true);
+  var dayFilterSel = document.getElementById('logFilterDay');
+  if(dayFilterSel.options.length <= 1){
+    for(var dd2=1; dd2<=31; dd2++){ dayFilterSel.innerHTML += '<option value="'+dd2+'">'+dd2+'</option>'; }
+  }
   var all = window._allEntries || [];
   var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
+  var dayFilter = document.getElementById('logFilterDay').value;
   var monthFilter = document.getElementById('logFilterMonth').value;
   var yearFilter = document.getElementById('logFilterYear').value;
   // filter by employee code/name only here — this never splits a pair apart, since it's per-person
@@ -5263,16 +5269,16 @@ function renderLogTable(){
     return true;
   });
   // pair FIRST (using every entry for the matched employee(s)), so a pair that spans two months
-  // (an overnight shift) always stays together — THEN filter the resulting pairs by month/year
+  // (an overnight shift) always stays together — THEN filter the resulting pairs by day/month/year
   var allPairs = pairLogEntriesForDisplay(codeFiltered);
   var pairs = allPairs.filter(function(p){
-    if(!monthFilter && !yearFilter) return true;
-    var inMatch = p.inE && matchesMonthYear(p.inE.jalaliDate, monthFilter, yearFilter);
-    var outMatch = p.outE && matchesMonthYear(p.outE.jalaliDate, monthFilter, yearFilter);
+    if(!dayFilter && !monthFilter && !yearFilter) return true;
+    var inMatch = p.inE && matchesMonthYear(p.inE.jalaliDate, monthFilter, yearFilter, dayFilter);
+    var outMatch = p.outE && matchesMonthYear(p.outE.jalaliDate, monthFilter, yearFilter, dayFilter);
     return inMatch || outMatch;
   });
   if(pairs.length===0){
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">'+((codeFilter||monthFilter||yearFilter) ? 'با این فیلتر ثبتی یافت نشد' : 'هنوز ثبتی وجود ندارد')+'</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">'+((codeFilter||dayFilter||monthFilter||yearFilter) ? 'با این فیلتر ثبتی یافت نشد' : 'هنوز ثبتی وجود ندارد')+'</td></tr>';
     return;
   }
 
@@ -5429,6 +5435,7 @@ async function deleteSingleLogEntry(id){
 function exportCSV(){
   var all = window._allEntries || [];
   var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
+  var dayFilter = document.getElementById('logFilterDay').value;
   var monthFilter = document.getElementById('logFilterMonth').value;
   var yearFilter = document.getElementById('logFilterYear').value;
   var codeFiltered = all.filter(function(e){
@@ -5439,9 +5446,9 @@ function exportCSV(){
   // so a cross-month overnight pair is exported completely, not split/truncated
   var allPairs = pairLogEntriesForDisplay(codeFiltered);
   var matchingPairs = allPairs.filter(function(p){
-    if(!monthFilter && !yearFilter) return true;
-    var inMatch = p.inE && matchesMonthYear(p.inE.jalaliDate, monthFilter, yearFilter);
-    var outMatch = p.outE && matchesMonthYear(p.outE.jalaliDate, monthFilter, yearFilter);
+    if(!dayFilter && !monthFilter && !yearFilter) return true;
+    var inMatch = p.inE && matchesMonthYear(p.inE.jalaliDate, monthFilter, yearFilter, dayFilter);
+    var outMatch = p.outE && matchesMonthYear(p.outE.jalaliDate, monthFilter, yearFilter, dayFilter);
     return inMatch || outMatch;
   });
   var entries = [];
@@ -5704,10 +5711,11 @@ function parseJalaliDateStr(s){
   if(parts.length < 3) return null;
   return { day: parts[0], month: parts[1], year: parts[parts.length-1] };
 }
-function matchesMonthYear(dateStr, monthFilter, yearFilter){
-  if(!monthFilter && !yearFilter) return true;
+function matchesMonthYear(dateStr, monthFilter, yearFilter, dayFilter){
+  if(!monthFilter && !yearFilter && !dayFilter) return true;
   var p = parseJalaliDateStr(dateStr);
   if(!p) return false;
+  if(dayFilter && String(parseInt(p.day,10)) !== String(parseInt(dayFilter,10))) return false;
   if(monthFilter && p.month !== monthFilter) return false;
   if(yearFilter && p.year !== yearFilter) return false;
   return true;
