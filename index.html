@@ -5409,16 +5409,6 @@ function renderLogTable(){
       var refE = p.inE || p.outE;
       var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===refE.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
       var prOpts = projects.map(function(pr){ return '<option'+(pr.name===refE.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
-      var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
-      function buildDateSelects(prefix, dateStr){
-        var dp = parseJalaliDateStr(dateStr);
-        var dOpts = ''; for(var dd=1; dd<=31; dd++){ dOpts += '<option value="'+dd+'"'+(dp && String(dd)===dp.day?' selected':'')+'>'+dd+'</option>'; }
-        var mOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(dp && m===dp.month?' selected':'')+'>'+m+'</option>'; }).join('');
-        var yOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yOpts += '<option value="'+yy+'"'+(dp && String(yy)===dp.year?' selected':'')+'>'+yy+'</option>'; }
-        return '<select id="'+prefix+'Day" style="width:60px;">'+dOpts+'</select>'+
-               '<select id="'+prefix+'Month" style="width:96px;">'+mOpts+'</select>'+
-               '<select id="'+prefix+'Year" style="width:76px;">'+yOpts+'</select>';
-      }
       return '<tr class="edit-row"><td colspan="6">'+
         '<div class="hint" style="margin:0 0 6px;">در حال ویرایش — '+esc(refE.employee)+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
@@ -5808,6 +5798,16 @@ function jalaliToGregorian(jy, jm, jd){
   var sal_a=[0,31,((gy%4===0&&gy%100!==0)||(gy%400===0))?29:28,31,30,31,30,31,31,30,31,30,31];
   var gm; for(gm=0; gm<13; gm++){ var v=sal_a[gm]; if(gd<=v) break; gd-=v; }
   return [gy, gm, gd];
+}
+function buildDateSelects(prefix, dateStr){
+  var dp = parseJalaliDateStr(dateStr);
+  var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
+  var dOpts = ''; for(var dd=1; dd<=31; dd++){ dOpts += '<option value="'+dd+'"'+(dp && String(dd)===dp.day?' selected':'')+'>'+dd+'</option>'; }
+  var mOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(dp && m===dp.month?' selected':'')+'>'+m+'</option>'; }).join('');
+  var yOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yOpts += '<option value="'+yy+'"'+(dp && String(yy)===dp.year?' selected':'')+'>'+yy+'</option>'; }
+  return '<select id="'+prefix+'Day" style="width:60px;">'+dOpts+'</select>'+
+         '<select id="'+prefix+'Month" style="width:96px;">'+mOpts+'</select>'+
+         '<select id="'+prefix+'Year" style="width:76px;">'+yOpts+'</select>';
 }
 function jalaliWeekdayName(jy, jm, jd){
   var g = jalaliToGregorian(jy, jm, jd);
