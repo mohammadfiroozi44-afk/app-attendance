@@ -4204,11 +4204,11 @@ function renderOpenSessions(){
       return '<div class="list-item"><div>'+
         '<b>'+esc(r.employee)+'</b>'+(r.employeeCode?(' (کد '+esc(r.employeeCode)+')'):'')+' · '+esc(r.project)+
         '<div class="meta">ورود: <bdi dir="ltr" style="unicode-bidi:isolate;">'+esc(r.jalaliDate)+' '+esc(r.time)+'</bdi> — هنوز خروج نزده</div>'+
-        '<div class="date-row" style="margin-top:8px; align-items:center;">'+
+        '<div class="date-row" style="margin-top:8px; align-items:center; flex-wrap:wrap;">'+
           buildDateSelects('openClose'+r.id, r.jalaliDate)+
           '<input type="time" id="openCloseTime'+r.id+'" step="1" class="field-mono" style="width:104px;">'+
-          '<button type="button" class="btn btn-primary btn-small" onclick="submitOpenSessionClose(\''+r.id+'\')">💾 ثبت خروج</button>'+
         '</div>'+
+        '<button type="button" class="btn btn-primary btn-small" style="width:100%; margin-top:4px;" onclick="submitOpenSessionClose(\''+r.id+'\')">💾 ثبت خروج</button>'+
         '<div id="openCloseStatus'+r.id+'" style="display:none; color:#a32a2a; font-size:12px; margin-top:6px;"></div>'+
       '</div></div>';
     }).join('');
