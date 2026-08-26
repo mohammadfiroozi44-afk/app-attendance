@@ -2318,7 +2318,7 @@ function esh_set(sheet, rowNum, headerName, value){
     </div>
 
     <div id="adminLogMonthlySection" style="display:none;">
-      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد یا ویرایش کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده و با همون تاریخ ذخیره می‌شه. زیر «خروج» اگه نوشته «⬅️ ادامه دیشب» یعنی این خروج مال ورودِ روز قبله، نه ورود همین ردیف. زیر «ورود» اگه نوشته «🌙 خروج ← فردا» یعنی خروج این ورود تو ردیف روز بعد میاد. ردیف‌های سبزرنگ یعنی از قبل داده دارن — می‌تونی ویرایششون کنی. جمعه‌ها و تعطیلیِ تعریف‌شده، خودکار «🏠 Off» می‌خورن (اگه واقعاً کار کرده، تیکش رو بردار و ساعت بزن).</div>
+      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد یا ویرایش کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده و با همون تاریخ ذخیره می‌شه. زیر «خروج» اگه نوشته «⬅️ ادامه دیشب» یعنی این خروج مال ورودِ روز قبله، نه ورود همین ردیف. زیر «ورود» اگه نوشته «🌙 خروج ← فردا» یعنی خروج این ورود تو ردیف روز بعد میاد؛ اگه نوشته «⏳ هنوز خروج نزده» یعنی این ورود اصلاً هیچ خروجی (نه امروز نه فردا) نداره — یه ورودِ بازِ ساده‌ست، نه شیفتِ شب. ردیف‌های سبزرنگ یعنی از قبل داده دارن — می‌تونی ویرایششون کنی. جمعه‌ها و تعطیلیِ تعریف‌شده، خودکار «🏠 Off» می‌خورن (اگه واقعاً کار کرده، تیکش رو بردار و ساعت بزن).</div>
       <label>ماه و سال</label>
       <div class="date-row">
         <select id="adminLogMonthlyMonth" onchange="onBulkMonthYearChanged()"></select><select id="adminLogMonthlyYear" onchange="onBulkMonthYearChanged()"></select>
@@ -3070,14 +3070,23 @@ async function loadMonthDaysForBulkEntry(){
     // Pair the raw entries EXACTLY the way the report table does — this is the single source of truth,
     // so the edit form can never disagree with what's shown in the report.
     var allPairs = pairLogEntriesForDisplay(empLogs);
+    function normDateKey(dateStr){
+      var p = parseJalaliDateStr(dateStr);
+      if(!p) return dateStr;
+      return parseInt(p.day,10) + '|' + p.month + '|' + parseInt(p.year,10);
+    }
     var dayInMap = {};
     var dayOutMap = {};
     var outCarryoverMap = {};
+    var inPairOutDateMap = {}; // dateKey -> the jalaliDate of THIS SAME pair's own outE, or null if genuinely no outE at all
     allPairs.forEach(function(p){
-      if(p.inE) dayInMap[p.inE.jalaliDate] = p.inE;
+      if(p.inE){
+        dayInMap[normDateKey(p.inE.jalaliDate)] = p.inE;
+        inPairOutDateMap[normDateKey(p.inE.jalaliDate)] = p.outE ? p.outE.jalaliDate : null;
+      }
       if(p.outE){
-        dayOutMap[p.outE.jalaliDate] = p.outE;
-        outCarryoverMap[p.outE.jalaliDate] = !p.inE || (p.inE.jalaliDate !== p.outE.jalaliDate);
+        dayOutMap[normDateKey(p.outE.jalaliDate)] = p.outE;
+        outCarryoverMap[normDateKey(p.outE.jalaliDate)] = !p.inE || (normDateKey(p.inE.jalaliDate) !== normDateKey(p.outE.jalaliDate));
       }
     });
 
@@ -3089,11 +3098,12 @@ async function loadMonthDaysForBulkEntry(){
       var isHol = isFridayJalali(year, monthIdx, d) || holidaySet.hasOwnProperty(dateStr);
       var weekdayColor = isHol ? '#a32a2a' : '#1f7a4d';
 
-      var inE = dayInMap[dateStr] || null;
-      var outE = dayOutMap[dateStr] || null;
+      var dateKeyNorm = d + '|' + monthName + '|' + year;
+      var inE = dayInMap[dateKeyNorm] || null;
+      var outE = dayOutMap[dateKeyNorm] || null;
       var inTimeNorm = inE ? normTimeForSubmit(inE.time) : null;
       var outTimeNorm = outE ? normTimeForSubmit(outE.time) : null;
-      var outIsCarryover = !!outCarryoverMap[dateStr];
+      var outIsCarryover = !!outCarryoverMap[dateKeyNorm];
       var dateKey = year*10000 + monthIdx*100 + d;
       var matchingLeave = empLeaves.filter(function(l){
         var sKey = jalaliDateSortKeyClient(l.startDate);
@@ -3125,7 +3135,15 @@ async function loadMonthDaysForBulkEntry(){
       // if this is a mission day, pre-fill the time fields with the mission's own start/end (not a regular check-in/out)
       var displayInTime = hasMission ? (matchingMission.startTime||'') : (inTimeNorm?inTimeNorm.slice(0,5):'');
       var displayOutTime = hasMission ? (matchingMission.endTime||'') : (outTimeNorm?outTimeNorm.slice(0,5):'');
-      var inNote = (!hasMission && inE && (!outE || outIsCarryover)) ? '<div style="font-size:10px; color:#3b4a8f;">🌙 خروج ← فردا</div>' : '';
+      var thisPairOutDate = inPairOutDateMap.hasOwnProperty(dateKeyNorm) ? inPairOutDateMap[dateKeyNorm] : undefined;
+      var inNote = '';
+      if(!hasMission && inE){
+        if(thisPairOutDate && thisPairOutDate !== dateStr){
+          inNote = '<div style="font-size:10px; color:#3b4a8f;">🌙 خروج ← فردا</div>';
+        } else if(!thisPairOutDate){
+          inNote = '<div style="font-size:10px; color:#8a7a5a;">⏳ هنوز خروج نزده</div>';
+        }
+      }
       var outNote = (!hasMission && outIsCarryover) ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
       var leaveNote = leaveIsMultiDay ? '<div style="font-size:10px; color:#8a5a10;">بخشی از مرخصیِ چندروزه — از تب «درخواست‌ها» ویرایش کن</div>' : '';
       rows.push(
