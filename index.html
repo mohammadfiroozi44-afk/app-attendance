@@ -585,9 +585,9 @@ function iterateJalaliDaysServer(startDateStr, endDateStr){
   }
   return result;
 }
-function syncLeaveDayStatus(username, employee, startDate, endDate, leaveType, startTime, endTime, kind){
+function syncLeaveDayStatus(username, employee, startDate, endDate, leaveType, startTime, endTime, kind, employeeCode){
   var statusLabel = (kind === 'mission') ? 'ماموریت' : 'مرخصی';
-  var dsmshL = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
+  var dsmshL = getSheet('DayStatusMarkers', ['id','username','employee','employeeCode','jalaliDate','status','leaveHours','createdAt','createdTime']);
   var dates = iterateJalaliDaysServer(startDate, endDate);
   var leaveHoursStr;
   if(leaveType === 'hourly'){
@@ -608,7 +608,7 @@ function syncLeaveDayStatus(username, employee, startDate, endDate, leaveType, s
       esh_set(dsmshL, existing._row, 'leaveHours', leaveHoursStr);
     } else {
       var idL = Utilities.getUuid();
-      appendRowByHeader(dsmshL, {id:idL, username:username, employee:employee, jalaliDate:dateStr, status:statusLabel, leaveHours:leaveHoursStr, createdAt: tL2.jalaliDate, createdTime: tL2.time});
+      appendRowByHeader(dsmshL, {id:idL, username:username, employee:employee, employeeCode: employeeCode||'', jalaliDate:dateStr, status:statusLabel, leaveHours:leaveHoursStr, createdAt: tL2.jalaliDate, createdTime: tL2.time});
     }
   });
 }
@@ -753,7 +753,7 @@ function doPost(e){
   var action = body.action;
 
   if(action === 'ping'){
-    return jsonOut({ok:true, version: 'v-2026-08-24-opensessions-fix', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
+    return jsonOut({ok:true, version: 'v-2026-08-25-empcode-namefallback', hasUpdateOneLogRow: (typeof updateOneLogRow === 'function'), hasGetLeaveRequestsForUser: true});
   }
 
   // ---------------- login (device-locked) ----------------
@@ -1187,7 +1187,9 @@ function doPost(e){
   }
   if(action === 'getLogsForUser'){
     var lsh4u = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
-    var rows6u = ensureIds(lsh4u, readRows(lsh4u)).filter(function(r){ return r.username === body.username; }).map(function(r){ delete r._row; return r; });
+    var rows6u = ensureIds(lsh4u, readRows(lsh4u)).filter(function(r){
+      return r.username === body.username || (body.employeeName && r.employee === body.employeeName);
+    }).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, logs: rows6u});
   }
   if(action === 'getOpenSessions'){
@@ -1266,7 +1268,7 @@ function doPost(e){
     return jsonOut({ok:true});
   }
   if(action === 'getDayStatusForUser'){
-    var dsmshG = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
+    var dsmshG = getSheet('DayStatusMarkers', ['id','username','employee','employeeCode','jalaliDate','status','leaveHours','createdAt','createdTime']);
     var rowsG = readRows(dsmshG).filter(function(r){ return r.username === body.username; }).map(function(r){ delete r._row; return r; });
     return jsonOut({ok:true, statuses: rowsG});
   }
@@ -1274,7 +1276,7 @@ function doPost(e){
     var eshDS = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
     var empDS = readRows(eshDS).filter(function(r){ return r.username === body.username; })[0];
     if(!empDS) return jsonOut({ok:false, error:'unknown_employee'});
-    var dsmsh2 = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
+    var dsmsh2 = getSheet('DayStatusMarkers', ['id','username','employee','employeeCode','jalaliDate','status','leaveHours','createdAt','createdTime']);
     var datesToClear = body.allDatesInMonth || [];
     var existingRows = readRows(dsmsh2).filter(function(r){
       return r.username === body.username && datesToClear.indexOf(r.jalaliDate) !== -1 && r.status !== 'مرخصی' && r.status !== 'ماموریت';
@@ -1285,7 +1287,7 @@ function doPost(e){
     var newEntries = body.entries || [];
     newEntries.forEach(function(e){
       var idDS = Utilities.getUuid();
-      appendRowByHeader(dsmsh2, {id:idDS, username:empDS.username, employee:empDS.fullName, jalaliDate:e.jalaliDate, status:e.status, createdAt: tDS.jalaliDate, createdTime: tDS.time});
+      appendRowByHeader(dsmsh2, {id:idDS, username:empDS.username, employee:empDS.fullName, employeeCode: empDS.employeeCode||'', jalaliDate:e.jalaliDate, status:e.status, createdAt: tDS.jalaliDate, createdTime: tDS.time});
     });
     return jsonOut({ok:true, count: newEntries.length});
   }
@@ -1307,7 +1309,7 @@ function doPost(e){
         leaveType:leaveTypeLB, startTime: entry.startTime||'', endTime: entry.endTime||'',
         requestType: reqTypeLB, leaveCategory: body.leaveCategory || 'استحقاقی'
       });
-      syncLeaveDayStatus(empLB.username, empLB.fullName, entry.date, entry.date, leaveTypeLB, entry.startTime||'', entry.endTime||'', reqTypeLB);
+      syncLeaveDayStatus(empLB.username, empLB.fullName, entry.date, entry.date, leaveTypeLB, entry.startTime||'', entry.endTime||'', reqTypeLB, empLB.employeeCode);
     });
     return jsonOut({ok:true, count: entriesLB.length});
   }
@@ -1668,7 +1670,7 @@ function doPost(e){
     toDel2.sort(function(a,b){ return b._row - a._row; });
     toDel2.forEach(function(r){ lrshDel.deleteRow(r._row); });
     if(datesToCleanup.length){
-      var dsmshCleanup = getSheet('DayStatusMarkers', ['id','username','employee','jalaliDate','status','leaveHours','createdAt','createdTime']);
+      var dsmshCleanup = getSheet('DayStatusMarkers', ['id','username','employee','employeeCode','jalaliDate','status','leaveHours','createdAt','createdTime']);
       var markerRows = readRows(dsmshCleanup).filter(function(r){
         return usernamesToCleanup[r.username] && (r.status === 'مرخصی' || r.status === 'ماموریت') && datesToCleanup.indexOf(r.jalaliDate) !== -1;
       });
@@ -1683,7 +1685,7 @@ function doPost(e){
     if(!lrow2) return jsonOut({ok:false, error:'not found'});
     esh_set(lrsh4, lrow2._row, 'status', (action === 'approveLeaveRequest') ? 'approved' : 'rejected');
     if(action === 'approveLeaveRequest' && (lrow2.requestType === 'leave' || lrow2.requestType === 'mission' || !lrow2.requestType)){
-      syncLeaveDayStatus(lrow2.username, lrow2.employee, lrow2.startDate, lrow2.endDate, lrow2.leaveType, lrow2.startTime, lrow2.endTime, lrow2.requestType);
+      syncLeaveDayStatus(lrow2.username, lrow2.employee, lrow2.startDate, lrow2.endDate, lrow2.leaveType, lrow2.startTime, lrow2.endTime, lrow2.requestType, lrow2.employeeCode);
     }
     return jsonOut({ok:true});
   }
@@ -3046,11 +3048,12 @@ async function loadMonthDaysForBulkEntry(){
   var box = document.getElementById('bulkDaysContainer');
   box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
   try {
+    var empObjLoad = employees.filter(function(e){ return e.username === username; })[0];
     var holRes = await apiCall(function(){ return apiGet('holidaysPublic'); });
     var holidaySet = {};
     if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate] = h.reason || 'تعطیل'; });
 
-    var logsRes = await apiCall(function(){ return apiPost('getLogsForUser', {pin:adminPin, username:username}); });
+    var logsRes = await apiCall(function(){ return apiPost('getLogsForUser', {pin:adminPin, username:username, employeeName: empObjLoad ? empObjLoad.fullName : ''}); });
     if(!logsRes.ok){ box.innerHTML = '<div class="empty">دریافت اطلاعات ناموفق بود: '+(logsRes.error||'')+'</div>'; return; }
     var empLogs = logsRes.logs || [];
 
@@ -3953,7 +3956,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-24-opensessions-fix';
+  var expected = 'v-2026-08-25-empcode-namefallback';
   if(res.version === expected){
     box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
   } else {
