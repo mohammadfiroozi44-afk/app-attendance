@@ -394,11 +394,25 @@ function readRows(sheet){
   var rows = [];
   for(var i=1;i<values.length;i++){
     var obj = {};
-    for(var j=0;j<headers.length;j++){ obj[headers[j]] = values[i][j]; }
+    for(var j=0;j<headers.length;j++){
+      var v = values[i][j];
+      // A handful of older cells may have gotten auto-converted by Sheets into its own
+      // internal date/time type before this sheet was reliably kept as plain text —
+      // normalize those back into a sane string instead of leaking a raw
+      // "1899-12-30T17:34:16.000Z" value out to the app.
+      if(v instanceof Date) v = normalizeLegacyDateCell(v);
+      obj[headers[j]] = v;
+    }
     obj._row = i+1;
     rows.push(obj);
   }
   return rows;
+}
+function normalizeLegacyDateCell(d){
+  function pad(n){ return (n<10?'0':'')+n; }
+  var isTimeOnly = d.getFullYear() === 1899 && d.getMonth() === 11 && d.getDate() === 30;
+  if(isTimeOnly) return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm:ss");
 }
 
 var _colIndexCache = {};
@@ -421,6 +435,13 @@ function appendRowByHeader(sheet, dataObj){
   var lastCol = Math.max(sheet.getLastColumn(), 1);
   var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var row = headers.map(function(h){ return dataObj.hasOwnProperty(h) ? dataObj[h] : ''; });
+  var targetRow = sheet.getLastRow() + 1;
+  // Plain-text format on just this new row BEFORE writing — prevents Sheets from auto-
+  // converting strings like "17:34:16" into its own internal date/time type (which then
+  // comes back from the API as a garbled 1899-12-30T...Z value). Formatting only the one
+  // row being written is cheap, unlike reformatting the whole sheet on every read, and
+  // correctly covers rows beyond whatever range got pre-formatted when the sheet was made.
+  sheet.getRange(targetRow, 1, 1, lastCol).setNumberFormat('@');
   sheet.appendRow(row);
 }
 
@@ -688,6 +709,9 @@ function updateOneLogRow(body){
     noteStr = (noteStr ? noteStr + ' | ' : '') + 'ویرایش‌شده توسط مدیر (1)';
   }
   setRowField(lsh5, rowValues, 'note', noteStr);
+  rowRange.setNumberFormat('@'); // plain text — prevents Sheets from auto-converting the
+  // time/date strings we're about to write into its own internal date/time type, which
+  // would otherwise come back from the API as a garbled 1899-12-30T...Z value.
   rowRange.setValues([rowValues]);
   return {ok:true};
 }
@@ -1527,6 +1551,7 @@ function doPost(e){
         rowV[idxMapR['holidayReason']] = holInfoR.reason;
       }
     }
+    dataRangeR.setNumberFormat('@'); // keep everything plain text before writing back
     dataRangeR.setValues(valuesR);
     return jsonOut({ok:true, total: valuesR.length, fixed: fixedCount});
   }
@@ -1579,7 +1604,9 @@ function doPost(e){
       var rowsAsArraysBF = newRowsToAppend.map(function(obj){
         return headersBF.map(function(h){ return obj.hasOwnProperty(h) ? obj[h] : ''; });
       });
-      lshBF.getRange(lshBF.getLastRow()+1, 1, rowsAsArraysBF.length, headersBF.length).setValues(rowsAsArraysBF);
+      var targetRangeBF = lshBF.getRange(lshBF.getLastRow()+1, 1, rowsAsArraysBF.length, headersBF.length);
+      targetRangeBF.setNumberFormat('@'); // plain text before writing — see note in appendRowByHeader
+      targetRangeBF.setValues(rowsAsArraysBF);
     }
 
     return jsonOut({ok:true, missionLogsAdded: missionLogsAdded});
