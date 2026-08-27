@@ -1197,10 +1197,13 @@ function doPost(e){
     var allLogsOS = readRows(lshOS);
     var todayStrOS = serverNow().jalaliDate;
     var byUserOS = {};
-    allLogsOS.forEach(function(r){ (byUserOS[r.username] = byUserOS[r.username] || []).push(r); });
+    // Group by username+project (not username alone) — otherwise an employee who
+    // already checked out on a DIFFERENT project ends up with that check-out as
+    // their overall "latest" log, which was hiding a genuinely open session here.
+    allLogsOS.forEach(function(r){ var kOS = r.username+'|'+(r.project||''); (byUserOS[kOS] = byUserOS[kOS] || []).push(r); });
     var openList = [];
-    Object.keys(byUserOS).forEach(function(username){
-      var userLogsOS = byUserOS[username].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    Object.keys(byUserOS).forEach(function(groupKeyOS){
+      var userLogsOS = byUserOS[groupKeyOS].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
       var latestOS = userLogsOS[userLogsOS.length-1];
       if(latestOS && latestOS.type === 'ورود' && latestOS.jalaliDate !== todayStrOS){
         openList.push({
@@ -5369,7 +5372,11 @@ async function loadFullLog(){
 function pairLogEntriesForDisplay(entries){
   var byUser = {};
   entries.forEach(function(e){
-    var k = e.username || e.employee;
+    // Key by username+project, not username alone — otherwise an open check-in on
+    // one project gets separated from its check-out by entries logged on a DIFFERENT
+    // project in between (since everything is sorted together by time), and the
+    // check-out ends up rendered as its own orphan row instead of pairing correctly.
+    var k = (e.username || e.employee) + '|' + (e.project || '');
     byUser[k] = byUser[k] || [];
     byUser[k].push(e);
   });
