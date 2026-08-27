@@ -1194,8 +1194,11 @@ function doPost(e){
   }
   if(action === 'getOpenSessions'){
     var lshOS = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
+    var eshOS = getSheet('Employees', ['id','fullName','username','password','deviceId','allowedProjects','employeeCode','freeZone','fingerprintRequired','jobTitle','shiftType','shiftStart','shiftEnd','nationalId','jobGroup','photoUrl','shiftId','active']);
+    var empByUserOS = {};
+    readRows(eshOS).forEach(function(e){ empByUserOS[e.username] = e; });
     var allLogsOS = readRows(lshOS);
-    var todayStrOS = serverNow().jalaliDate;
+    var nowMsOS = new Date().getTime();
     var byUserOS = {};
     // Group by username+project (not username alone) — otherwise an employee who
     // already checked out on a DIFFERENT project ends up with that check-out as
@@ -1205,7 +1208,26 @@ function doPost(e){
     Object.keys(byUserOS).forEach(function(groupKeyOS){
       var userLogsOS = byUserOS[groupKeyOS].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
       var latestOS = userLogsOS[userLogsOS.length-1];
-      if(latestOS && latestOS.type === 'ورود' && latestOS.jalaliDate !== todayStrOS){
+      if(!latestOS || latestOS.type !== 'ورود') return;
+      // Judge by elapsed TIME since the check-in, not by calendar date. A plain date
+      // comparison ("checked in today = not open yet") breaks for night shifts: an
+      // employee who checks in this evening and is due to check out tomorrow morning
+      // would wrongly look "still today" — and stay hidden — for hours after they
+      // were actually already overdue. Instead we compare against how long their
+      // actual assigned shift runs (handles overnight shifts, since shiftEnd < shiftStart
+      // just means the duration wraps past midnight), plus a grace buffer.
+      var hoursSinceOS = (nowMsOS - new Date(latestOS.isoTimestamp).getTime()) / 3600000;
+      var expectedHoursOS = 16; // fallback if the employee has no configured shift
+      var empOS = empByUserOS[latestOS.username];
+      if(empOS){
+        var effShiftOS = getEffectiveShift(latestOS.username, latestOS.jalaliDate, empOS);
+        if(effShiftOS.shiftStart && effShiftOS.shiftEnd){
+          var durMinOS = timeToMinutes(effShiftOS.shiftEnd) - timeToMinutes(effShiftOS.shiftStart);
+          if(durMinOS <= 0) durMinOS += 24*60; // overnight shift: end time is on the next day
+          expectedHoursOS = (durMinOS/60) + 2; // +2h grace before flagging as overdue
+        }
+      }
+      if(hoursSinceOS > expectedHoursOS){
         openList.push({
           id: latestOS.id, username: latestOS.username, employee: latestOS.employee, employeeCode: latestOS.employeeCode||'',
           project: latestOS.project, jalaliDate: latestOS.jalaliDate, time: latestOS.time, isoTimestamp: latestOS.isoTimestamp
@@ -1258,6 +1280,12 @@ function doPost(e){
     var lastA = empRowsA.length ? empRowsA.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsA.length-1] : null;
     if(lastA && String(isoA) <= String(lastA.isoTimestamp)){
       return jsonOut({ok:false, error:'must_be_after_last_entry'});
+    }
+    // Types must alternate — can't add a second check-in in a row (or a check-out with
+    // no open check-in before it), even if it lands on a later calendar date.
+    var newTypeA = body.type === 'in' ? 'ورود' : 'خروج';
+    if(lastA && lastA.type === newTypeA){
+      return jsonOut({ok:false, error: newTypeA === 'ورود' ? 'expected_checkout_first' : 'expected_checkin_first'});
     }
     var holInfoA = getHolidayInfo(body.jalaliDate);
     var lidA = Utilities.getUuid();
@@ -1351,6 +1379,7 @@ function doPost(e){
     computedB.sort(function(a,c){ return String(a.iso).localeCompare(String(c.iso)); });
 
     var runningLast = null;
+    var runningLastType = null;
     for(var bj=0; bj<computedB.length; bj++){
       if(runningLast && String(computedB[bj].iso) === String(runningLast)){
         return jsonOut({ok:false, error:'duplicate_entry', at: computedB[bj].jalaliDate + ' ' + computedB[bj].time});
@@ -1358,7 +1387,15 @@ function doPost(e){
       if(runningLast && String(computedB[bj].iso) < String(runningLast)){
         return jsonOut({ok:false, error:'must_be_after_last_entry', at: computedB[bj].jalaliDate + ' ' + computedB[bj].time});
       }
+      // Types must alternate (in, out, in, out, ...) — a new check-in can't come before
+      // the check-out that should close the previous one, even if it lands on a later
+      // calendar date (e.g. a night-shift check-in the same day an earlier shift's
+      // check-out was recorded).
+      if(runningLastType && runningLastType === computedB[bj].type){
+        return jsonOut({ok:false, error: computedB[bj].type === 'in' ? 'expected_checkout_first' : 'expected_checkin_first', at: computedB[bj].jalaliDate + ' ' + computedB[bj].time});
+      }
       runningLast = computedB[bj].iso;
+      runningLastType = computedB[bj].type;
     }
 
     var t5 = serverNow();
@@ -3458,6 +3495,10 @@ async function saveSingleBulkDay(d){
           ? 'ترتیب ساعت‌ها به‌هم ریخته — دور ساعت (' + (resS.at||'') + ') رو چک کن.'
           : resS.error === 'duplicate_entry'
           ? 'یه ثبت دقیقاً با همین تاریخ/ساعت از قبل موجوده.'
+          : resS.error === 'expected_checkout_first'
+          ? 'دو ورود پشت‌سرهم بدون خروج بینشون — دور ساعت (' + (resS.at||'') + ') یه خروج قبلش کم داره.'
+          : resS.error === 'expected_checkin_first'
+          ? 'خروج بدون ورودِ باز قبلش — دور ساعت (' + (resS.at||'') + ') یه ورود قبلش کم داره.'
           : (resS.error || 'خطای شبکه');
         statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msgS;
         statusEl.style.display = 'block';
@@ -3680,6 +3721,10 @@ async function submitMonthlyBulkLog(){
           ? 'ترتیب ساعت‌ها تو همین فرم به‌هم ریخته — دور ساعت (' + (res.at||'') + ') رو با روزهای کناریش چک کن.'
           : res.error === 'duplicate_entry'
           ? 'یه ثبت دقیقاً با همین تاریخ/ساعت (' + (res.at||'') + ') از قبل موجوده.'
+          : res.error === 'expected_checkout_first'
+          ? 'دو ورود پشت‌سرهم بدون خروج بینشون — دور ساعت (' + (res.at||'') + ') یه خروج قبلش کم داره (مثلاً برای شیفت شب، خروج روز بعد رو هم پر کن).'
+          : res.error === 'expected_checkin_first'
+          ? 'خروج بدون ورودِ باز قبلش — دور ساعت (' + (res.at||'') + ') یه ورود قبلش کم داره.'
           : (res.error || 'خطای شبکه');
         statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msg;
         statusEl.style.display = 'block';
@@ -5525,7 +5570,9 @@ async function saveEditLogPair(inId, outId){
       pin: adminPin, username: username, project: project, type: 'in', jalaliDate: newInDate, time: inTime
     }); });
     if(!inCreateRes.ok){
-      var inMsg = inCreateRes.error === 'must_be_after_last_entry' ? 'این ساعتِ ورود زودتر از آخرین ثبت موجوده — ترتیب رو چک کن.' : (inCreateRes.error||'خطای شبکه');
+      var inMsg = inCreateRes.error === 'must_be_after_last_entry' ? 'این ساعتِ ورود زودتر از آخرین ثبت موجوده — ترتیب رو چک کن.'
+        : inCreateRes.error === 'expected_checkout_first' ? 'آخرین ثبتِ این پرسنل هم یه «ورود» بوده — قبل از این ورودِ جدید باید یه خروج ثبت بشه.'
+        : (inCreateRes.error||'خطای شبکه');
       showAdminNotice('ثبت ورود ناموفق بود: ' + inMsg);
       return;
     }
@@ -5543,7 +5590,9 @@ async function saveEditLogPair(inId, outId){
       pin: adminPin, username: username, project: project, type: 'out', jalaliDate: newOutDate, time: outTime
     }); });
     if(!outCreateRes.ok){
-      var outMsg = outCreateRes.error === 'must_be_after_last_entry' ? 'این ساعتِ خروج زودتر از آخرین ثبت موجوده — ترتیب رو چک کن.' : (outCreateRes.error||'خطای شبکه');
+      var outMsg = outCreateRes.error === 'must_be_after_last_entry' ? 'این ساعتِ خروج زودتر از آخرین ثبت موجوده — ترتیب رو چک کن.'
+        : outCreateRes.error === 'expected_checkin_first' ? 'آخرین ثبتِ این پرسنل هم یه «خروج» بوده — این خروجِ جدید بدون یه ورودِ باز قبلش معنی نداره.'
+        : (outCreateRes.error||'خطای شبکه');
       showAdminNotice('ثبت خروج ناموفق بود: ' + outMsg);
       return;
     }
