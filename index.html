@@ -5288,10 +5288,10 @@ async function loadDashboard(){
     trafficBox.innerHTML = '<div class="empty">هنوز تردی ثبت نشده</div>';
   } else {
     trafficBox.innerHTML = todayPairs.map(function(p){
-      var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(p.inE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
-      var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(p.outE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'):'')) : '<span style="color:#b5ae98;">هنوز حاضر</span>';
+      var inHtml = p.inE ? ('<bdi style="unicode-bidi:isolate;"><span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(p.inE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">بدون ورود</span>';
+      var outHtml = p.outE ? ('<bdi style="unicode-bidi:isolate;"><span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(p.outE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">هنوز حاضر</span>';
       return '<div class="list-item"><div><b>'+esc(p.employee)+'</b> · '+esc(p.project)+
-        '<div class="meta">'+inHtml+' &nbsp; '+outHtml+'</div></div></div>';
+        '<div class="meta" style="display:flex; gap:14px; flex-wrap:wrap;">'+inHtml+outHtml+'</div></div></div>';
     }).join('');
   }
 }
