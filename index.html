@@ -2667,7 +2667,7 @@ var lastOpenCheckinIso = null; // timestamp of the current open check-in (if any
 var lastOpenCheckinDate = null; // jalali date string of that check-in
 var editingEmpId = null;
 var editingProjId = null;
-var editingPairIds = null; // {inId, outId} when editing a paired row
+var editingEntry = null; // {pairKey, side} where side is 'in' or 'out' — edits ONE side of a pair independently
 
 // ---------- Tabs ----------
 function switchTab(which){
@@ -5498,73 +5498,67 @@ function renderLogTable(){
 
   tbody.innerHTML = pairs.map(function(p){
     var pairKey = (p.inE?p.inE.id:'') + '|' + (p.outE?p.outE.id:'');
-    var isEditing = editingPairIds && ((editingPairIds.inId||'')+'|'+(editingPairIds.outId||'')) === pairKey;
-    if(isEditing){
+    var isEditingIn = editingEntry && editingEntry.pairKey === pairKey && editingEntry.side === 'in';
+    var isEditingOut = editingEntry && editingEntry.pairKey === pairKey && editingEntry.side === 'out';
+    if(isEditingIn || isEditingOut){
+      var side = isEditingIn ? 'in' : 'out';
+      var sideLabel = isEditingIn ? 'ورود' : 'خروج';
+      var sideE = isEditingIn ? p.inE : p.outE;
+      var existingId = sideE ? sideE.id : null;
       var refE = p.inE || p.outE;
       var empOpts = employees.map(function(emp){ return '<option'+(emp.fullName===refE.employee?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
       var prOpts = projects.map(function(pr){ return '<option'+(pr.name===refE.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
+      var defaultDate = sideE ? sideE.jalaliDate : (refE ? refE.jalaliDate : jalaliString(new Date()));
+      var timeVal = sideE ? normTimeForSubmit(sideE.time) : '';
       return '<tr class="edit-row"><td colspan="6">'+
-        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش — '+esc(refE.employee)+'</div>'+
+        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش '+sideLabel+' — '+esc(refE.employee)+(existingId?'':' (ثبت نشده — با ذخیره اضافه می‌شه)')+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
           '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
           '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
         '</div>'+
-        (function(){
-          var inDefaultDate = p.inE ? p.inE.jalaliDate : (p.outE ? p.outE.jalaliDate : jalaliString(new Date()));
-          var outDefaultDate = p.outE ? p.outE.jalaliDate : (p.inE ? p.inE.jalaliDate : jalaliString(new Date()));
-          var inTimeVal = p.inE ? normTimeForSubmit(p.inE.time) : '';
-          var outTimeVal = p.outE ? normTimeForSubmit(p.outE.time) : '';
-          return '<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">ورود'+(p.inE?'':' <span style="font-weight:400; color:#8a5a10;">(ثبت نشده — ساعت رو پر کن تا اضافه بشه)</span>')+'</div>'+
-            '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
-              buildDateSelects('logEditIn', inDefaultDate)+
-              '<input type="time" id="logEditInTime" step="1" value="'+esc(inTimeVal)+'" class="field-mono" style="width:104px;">'+
-              (p.inE ? '<button type="button" class="icon-btn del" title="فقط ورود حذف شود" onclick="deleteSingleLogEntry(\''+p.inE.id+'\')">🗑</button>' : '')+
-            '</div>'+
-            '<div style="font-size:12px; font-weight:700; margin:6px 0 4px;">خروج'+(p.outE?'':' <span style="font-weight:400; color:#8a5a10;">(ثبت نشده — ساعت رو پر کن تا اضافه بشه)</span>')+'</div>'+
-            '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
-              buildDateSelects('logEditOut', outDefaultDate)+
-              '<input type="time" id="logEditOutTime" step="1" value="'+esc(outTimeVal)+'" class="field-mono" style="width:104px;">'+
-              (p.outE ? '<button type="button" class="icon-btn del" title="فقط خروج حذف شود" onclick="deleteSingleLogEntry(\''+p.outE.id+'\')">🗑</button>' : '')+
-            '</div>';
-        })()+
+        '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center;">'+
+          buildDateSelects('logEdit', defaultDate)+
+          '<input type="time" id="logEditTime" step="1" value="'+esc(timeVal)+'" class="field-mono" style="width:104px;">'+
+          (existingId ? '<button type="button" class="icon-btn del" title="حذف این ثبت" onclick="deleteSingleLogEntry(\''+existingId+'\')">🗑</button>' : '')+
+        '</div>'+
         '<div class="btn-row">'+
-          '<button type="button" class="btn btn-in btn-small" onclick="saveEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">💾 ذخیره</button>'+
+          '<button type="button" class="btn btn-in btn-small" onclick="saveEditLogSingle(\''+pairKey+'\',\''+side+'\',\''+(existingId||'')+'\')">💾 ذخیره</button>'+
           '<button type="button" class="btn btn-ghost btn-small" onclick="cancelEditLog()">لغو</button>'+
         '</div></td></tr>';
     }
     var holHtml = isHolidayEntry(p.inE||p.outE) ? '<br><span style="color:#1f7a4d; font-size:10px;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
     var isOvernight = p.inE && p.outE && timeToMinutesClient(p.outE.time) < timeToMinutesClient(p.inE.time);
     var nightHtml = isOvernight ? '<br><span style="color:#3b4a8f; font-size:10px;">🌙 شیفت شبانه</span>' : '';
-    function cellFor(e){
-      if(!e) return '<span style="color:#b5ae98;">—</span>';
+    function cellFor(e, side){
+      var editBtn = '<button class="icon-btn edit" title="ویرایش '+(side==='in'?'ورود':'خروج')+'" style="padding:2px 5px; font-size:11px;" onclick="startEditLogSingle(\''+pairKey+'\',\''+side+'\')">✏️</button>';
+      if(!e) return '<span style="color:#b5ae98;">—</span> '+editBtn;
       var noteDisp2 = displayNote(e.note);
       var noteHtml = noteDisp2 ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(noteDisp2)+'</span>' : '';
       var dateHtml = '<br><bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+e.jalaliDate+')</bdi>';
-      return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi>'+dateHtml+noteHtml;
+      return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi> '+editBtn+dateHtml+noteHtml;
     }
-    var pairActions = '<button class="icon-btn edit" title="ویرایش" onclick="startEditLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✏️</button>'+
-      '<button class="icon-btn del" title="حذف" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
+    var pairActions = '<button class="icon-btn del" title="حذف کل ردیف (ورود و خروج)" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
     return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+nightHtml+'</td>'+
       '<td>'+esc(p.employee)+'</td><td>'+esc(p.project)+'</td>'+
-      '<td>'+cellFor(p.inE)+'</td><td>'+cellFor(p.outE)+'</td>'+
+      '<td>'+cellFor(p.inE,'in')+'</td><td>'+cellFor(p.outE,'out')+'</td>'+
       '<td style="white-space:nowrap;">'+pairActions+'</td></tr>';
   }).join('');
 }
-function startEditLogPair(inId, outId){ editingPairIds = {inId: inId||null, outId: outId||null}; renderLogTable(); }
-function cancelEditLog(){ editingPairIds = null; renderLogTable(); }
+function startEditLogSingle(pairKey, side){ editingEntry = {pairKey: pairKey, side: side}; renderLogTable(); }
+function cancelEditLog(){ editingEntry = null; renderLogTable(); }
 async function saveOneLogEntry(id, jalaliDate, time, employee, project, type){
   var res = await apiCall(function(){ return apiPost('updateLog', {
     pin: adminPin, id: id, jalaliDate: jalaliDate, time: time, employee: employee, project: project, type: type
   }); });
   return res;
 }
-async function saveEditLogPair(inId, outId){
+async function saveEditLogSingle(pairKey, side, existingId){
   var employee = document.getElementById('logEditEmp').value;
   var project = document.getElementById('logEditProj').value;
   var empObj = employees.filter(function(e){ return e.fullName === employee; })[0];
   var username = empObj ? empObj.username : null;
   function normTime(raw){
-    if(!raw || !raw.trim()){ return null; } // empty means "leave it blank" — never silently becomes 00:00:00
+    if(!raw || !raw.trim()){ return null; }
     var p = raw.split(':');
     var hh = p[0]||'00'; if(hh.length<2) hh='0'+hh;
     var mm = p[1]||'00'; if(mm.length<2) mm='0'+mm;
@@ -5577,54 +5571,28 @@ async function saveEditLogPair(inId, outId){
     var y = document.getElementById(prefix+'Year').value;
     return d + ' ' + jMonths[m-1] + ' ' + y;
   }
-  var inTime = normTime(document.getElementById('logEditInTime').value);
-  if(inId){
-    if(inTime === null){ showAdminNotice('ساعت ورود نمی‌تونه خالی باشه. اگه می‌خوای کلاً حذفش کنی، از دکمه 🗑 کنارش استفاده کن.'); return; }
-    var inDate = readDate('logEditIn');
-    var inUpdRes = await saveOneLogEntry(inId, inDate, inTime, employee, project, 'in');
-    if(!inUpdRes.ok){
-      var inUpdMsg = inUpdRes.error === 'time_conflict' ? 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (inUpdRes.at||'') + ') — یه ثانیه فرق بذار.' : (inUpdRes.error||'خطای شبکه');
-      showAdminNotice('ذخیره‌ی ورود ناموفق بود: ' + inUpdMsg);
-      return;
-    }
-  } else if(inTime !== null){
-    if(!username){ showAdminNotice('کاربریِ این پرسنل پیدا نشد.'); return; }
-    var newInDate = readDate('logEditIn');
-    var inCreateRes = await apiCall(function(){ return apiPost('adminAddLog', {
-      pin: adminPin, username: username, project: project, type: 'in', jalaliDate: newInDate, time: inTime, relaxedOrder: true
-    }); });
-    if(!inCreateRes.ok){
-      var inMsg = inCreateRes.error === 'time_conflict' ? 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (inCreateRes.at||'') + ') — یه ثانیه فرق بذار.' : (inCreateRes.error||'خطای شبکه');
-      showAdminNotice('ثبت ورود ناموفق بود: ' + inMsg);
-      return;
-    }
+  var timeVal = normTime(document.getElementById('logEditTime').value);
+  if(timeVal === null){ showAdminNotice('ساعت نمی‌تونه خالی باشه. اگه می‌خوای این ثبت رو کلاً حذف کنی، از دکمه 🗑 استفاده کن.'); return; }
+  var dateVal = readDate('logEdit');
+
+  function friendlyErr(err, at){
+    if(err === 'time_conflict') return 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (at||'') + ') — یه ثانیه فرق بذار.';
+    return err || 'خطای شبکه';
   }
 
-  var outTime = normTime(document.getElementById('logEditOutTime').value);
-  if(outId){
-    if(outTime === null){ showAdminNotice('ساعت خروج نمی‌تونه خالی باشه. اگه می‌خوای کلاً حذفش کنی، از دکمه 🗑 کنارش استفاده کن.'); return; }
-    var outDate = readDate('logEditOut');
-    var outUpdRes = await saveOneLogEntry(outId, outDate, outTime, employee, project, 'out');
-    if(!outUpdRes.ok){
-      var outUpdMsg = outUpdRes.error === 'time_conflict' ? 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (outUpdRes.at||'') + ') — یه ثانیه فرق بذار.' : (outUpdRes.error||'خطای شبکه');
-      showAdminNotice('ذخیره‌ی خروج ناموفق بود: ' + outUpdMsg);
-      return;
-    }
-  } else if(outTime !== null){
+  if(existingId){
+    var updRes = await saveOneLogEntry(existingId, dateVal, timeVal, employee, project, side);
+    if(!updRes.ok){ showAdminNotice((side==='in'?'ذخیره‌ی ورود':'ذخیره‌ی خروج')+' ناموفق بود: ' + friendlyErr(updRes.error, updRes.at)); return; }
+  } else {
     if(!username){ showAdminNotice('کاربریِ این پرسنل پیدا نشد.'); return; }
-    var newOutDate = readDate('logEditOut');
-    var outCreateRes = await apiCall(function(){ return apiPost('adminAddLog', {
-      pin: adminPin, username: username, project: project, type: 'out', jalaliDate: newOutDate, time: outTime, relaxedOrder: true
+    var createRes = await apiCall(function(){ return apiPost('adminAddLog', {
+      pin: adminPin, username: username, project: project, type: side, jalaliDate: dateVal, time: timeVal, relaxedOrder: true
     }); });
-    if(!outCreateRes.ok){
-      var outMsg = outCreateRes.error === 'time_conflict' ? 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (outCreateRes.at||'') + ') — یه ثانیه فرق بذار.' : (outCreateRes.error||'خطای شبکه');
-      showAdminNotice('ثبت خروج ناموفق بود: ' + outMsg);
-      return;
-    }
+    if(!createRes.ok){ showAdminNotice((side==='in'?'ثبت ورود':'ثبت خروج')+' ناموفق بود: ' + friendlyErr(createRes.error, createRes.at)); return; }
   }
 
   clearAdminNotice();
-  editingPairIds = null;
+  editingEntry = null;
   await loadFullLog();
   alert('ذخیره شد.');
 }
@@ -5640,7 +5608,7 @@ async function deleteSingleLogEntry(id){
   var res = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:id}); });
   if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
-  editingPairIds = null;
+  editingEntry = null;
   await loadFullLog();
 }
 function exportCSV(){
