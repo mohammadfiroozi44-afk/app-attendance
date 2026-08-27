@@ -636,6 +636,16 @@ function updateOneLogRow(body){
   var row6 = rows7.filter(function(r){ return r.id === body.id; })[0];
   if(!row6) return {ok:false, error:'not found'};
 
+  var newIsoCheck = jalaliDateTimeToIso(body.jalaliDate, body.time);
+  if(newIsoCheck){
+    // Fully free-form editing (any date/time, any order) — the only real requirement is that
+    // it doesn't land at the exact same instant as another existing entry for this employee.
+    var conflictRow = rows7.filter(function(r){ return r.id !== body.id && r.username === row6.username && String(r.isoTimestamp) === String(newIsoCheck); })[0];
+    if(conflictRow){
+      return {ok:false, error:'time_conflict', at: conflictRow.jalaliDate + ' ' + conflictRow.time};
+    }
+  }
+
   var lastCol = lsh5.getLastColumn();
   var rowRange = lsh5.getRange(row6._row, 1, 1, lastCol);
   var rowValues = rowRange.getValues()[0];
@@ -1277,15 +1287,26 @@ function doPost(e){
     var lshA = getSheet('Logs', ['id','jalaliDate','time','employee','username','project','type','lat','lng','accuracy','isoTimestamp','note','employeeCode','isHoliday','holidayReason','source']);
     var isoA = jalaliDateTimeToIso(body.jalaliDate, body.time) || serverNow().isoTimestamp;
     var empRowsA = readRows(lshA).filter(function(r){ return r.username === empA.username; });
-    var lastA = empRowsA.length ? empRowsA.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsA.length-1] : null;
-    if(lastA && String(isoA) <= String(lastA.isoTimestamp)){
-      return jsonOut({ok:false, error:'must_be_after_last_entry'});
-    }
-    // Types must alternate — can't add a second check-in in a row (or a check-out with
-    // no open check-in before it), even if it lands on a later calendar date.
-    var newTypeA = body.type === 'in' ? 'ورود' : 'خروج';
-    if(lastA && lastA.type === newTypeA){
-      return jsonOut({ok:false, error: newTypeA === 'ورود' ? 'expected_checkout_first' : 'expected_checkin_first'});
+    if(body.relaxedOrder){
+      // Used from the report's ✏️ edit view — that view exists specifically to fix/backfill
+      // older records, so we don't require strict "after last entry" ordering or in/out
+      // alternation here. The only real requirement left is that it doesn't land at the exact
+      // same instant as another existing entry for this employee — a genuine time conflict.
+      var conflictA = empRowsA.filter(function(r){ return String(r.isoTimestamp) === String(isoA); })[0];
+      if(conflictA){
+        return jsonOut({ok:false, error:'time_conflict', at: conflictA.jalaliDate + ' ' + conflictA.time});
+      }
+    } else {
+      var lastA = empRowsA.length ? empRowsA.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); })[empRowsA.length-1] : null;
+      if(lastA && String(isoA) <= String(lastA.isoTimestamp)){
+        return jsonOut({ok:false, error:'must_be_after_last_entry'});
+      }
+      // Types must alternate — can't add a second check-in in a row (or a check-out with
+      // no open check-in before it), even if it lands on a later calendar date.
+      var newTypeA = body.type === 'in' ? 'ورود' : 'خروج';
+      if(lastA && lastA.type === newTypeA){
+        return jsonOut({ok:false, error: newTypeA === 'ورود' ? 'expected_checkout_first' : 'expected_checkin_first'});
+      }
     }
     var holInfoA = getHolidayInfo(body.jalaliDate);
     var lidA = Utilities.getUuid();
@@ -5535,7 +5556,7 @@ async function saveOneLogEntry(id, jalaliDate, time, employee, project, type){
   var res = await apiCall(function(){ return apiPost('updateLog', {
     pin: adminPin, id: id, jalaliDate: jalaliDate, time: time, employee: employee, project: project, type: type
   }); });
-  return res.ok;
+  return res;
 }
 async function saveEditLogPair(inId, outId){
   var employee = document.getElementById('logEditEmp').value;
@@ -5556,23 +5577,24 @@ async function saveEditLogPair(inId, outId){
     var y = document.getElementById(prefix+'Year').value;
     return d + ' ' + jMonths[m-1] + ' ' + y;
   }
-  var ok = true;
-
   var inTime = normTime(document.getElementById('logEditInTime').value);
   if(inId){
     if(inTime === null){ showAdminNotice('ساعت ورود نمی‌تونه خالی باشه. اگه می‌خوای کلاً حذفش کنی، از دکمه 🗑 کنارش استفاده کن.'); return; }
     var inDate = readDate('logEditIn');
-    ok = ok && await saveOneLogEntry(inId, inDate, inTime, employee, project, 'in');
+    var inUpdRes = await saveOneLogEntry(inId, inDate, inTime, employee, project, 'in');
+    if(!inUpdRes.ok){
+      var inUpdMsg = inUpdRes.error === 'time_conflict' ? 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (inUpdRes.at||'') + ') — یه ثانیه فرق بذار.' : (inUpdRes.error||'خطای شبکه');
+      showAdminNotice('ذخیره‌ی ورود ناموفق بود: ' + inUpdMsg);
+      return;
+    }
   } else if(inTime !== null){
     if(!username){ showAdminNotice('کاربریِ این پرسنل پیدا نشد.'); return; }
     var newInDate = readDate('logEditIn');
     var inCreateRes = await apiCall(function(){ return apiPost('adminAddLog', {
-      pin: adminPin, username: username, project: project, type: 'in', jalaliDate: newInDate, time: inTime
+      pin: adminPin, username: username, project: project, type: 'in', jalaliDate: newInDate, time: inTime, relaxedOrder: true
     }); });
     if(!inCreateRes.ok){
-      var inMsg = inCreateRes.error === 'must_be_after_last_entry' ? 'این ساعتِ ورود زودتر از آخرین ثبت موجوده — ترتیب رو چک کن.'
-        : inCreateRes.error === 'expected_checkout_first' ? 'آخرین ثبتِ این پرسنل هم یه «ورود» بوده — قبل از این ورودِ جدید باید یه خروج ثبت بشه.'
-        : (inCreateRes.error||'خطای شبکه');
+      var inMsg = inCreateRes.error === 'time_conflict' ? 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (inCreateRes.at||'') + ') — یه ثانیه فرق بذار.' : (inCreateRes.error||'خطای شبکه');
       showAdminNotice('ثبت ورود ناموفق بود: ' + inMsg);
       return;
     }
@@ -5582,23 +5604,25 @@ async function saveEditLogPair(inId, outId){
   if(outId){
     if(outTime === null){ showAdminNotice('ساعت خروج نمی‌تونه خالی باشه. اگه می‌خوای کلاً حذفش کنی، از دکمه 🗑 کنارش استفاده کن.'); return; }
     var outDate = readDate('logEditOut');
-    ok = ok && await saveOneLogEntry(outId, outDate, outTime, employee, project, 'out');
+    var outUpdRes = await saveOneLogEntry(outId, outDate, outTime, employee, project, 'out');
+    if(!outUpdRes.ok){
+      var outUpdMsg = outUpdRes.error === 'time_conflict' ? 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (outUpdRes.at||'') + ') — یه ثانیه فرق بذار.' : (outUpdRes.error||'خطای شبکه');
+      showAdminNotice('ذخیره‌ی خروج ناموفق بود: ' + outUpdMsg);
+      return;
+    }
   } else if(outTime !== null){
     if(!username){ showAdminNotice('کاربریِ این پرسنل پیدا نشد.'); return; }
     var newOutDate = readDate('logEditOut');
     var outCreateRes = await apiCall(function(){ return apiPost('adminAddLog', {
-      pin: adminPin, username: username, project: project, type: 'out', jalaliDate: newOutDate, time: outTime
+      pin: adminPin, username: username, project: project, type: 'out', jalaliDate: newOutDate, time: outTime, relaxedOrder: true
     }); });
     if(!outCreateRes.ok){
-      var outMsg = outCreateRes.error === 'must_be_after_last_entry' ? 'این ساعتِ خروج زودتر از آخرین ثبت موجوده — ترتیب رو چک کن.'
-        : outCreateRes.error === 'expected_checkin_first' ? 'آخرین ثبتِ این پرسنل هم یه «خروج» بوده — این خروجِ جدید بدون یه ورودِ باز قبلش معنی نداره.'
-        : (outCreateRes.error||'خطای شبکه');
+      var outMsg = outCreateRes.error === 'time_conflict' ? 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (outCreateRes.at||'') + ') — یه ثانیه فرق بذار.' : (outCreateRes.error||'خطای شبکه');
       showAdminNotice('ثبت خروج ناموفق بود: ' + outMsg);
       return;
     }
   }
 
-  if(!ok){ showAdminNotice('ویرایش ثبت ناموفق بود.'); return; }
   clearAdminNotice();
   editingPairIds = null;
   await loadFullLog();
