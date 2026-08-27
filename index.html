@@ -1210,13 +1210,13 @@ function doPost(e){
     var allLogsOS = readRows(lshOS);
     var nowMsOS = new Date().getTime();
     var byUserOS = {};
-    // Group by username+project (not username alone) — otherwise an employee who
-    // already checked out on a DIFFERENT project ends up with that check-out as
-    // their overall "latest" log, which was hiding a genuinely open session here.
-    allLogsOS.forEach(function(r){ var kOS = r.username+'|'+(r.project||''); (byUserOS[kOS] = byUserOS[kOS] || []).push(r); });
+    // Group by username only (not project) — an employee can check in on one project and
+    // check out on a different one (e.g. moved sites mid-shift); that check-out should
+    // still count as closing the session, not leave it "still open" for the first project.
+    allLogsOS.forEach(function(r){ (byUserOS[r.username] = byUserOS[r.username] || []).push(r); });
     var openList = [];
-    Object.keys(byUserOS).forEach(function(groupKeyOS){
-      var userLogsOS = byUserOS[groupKeyOS].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    Object.keys(byUserOS).forEach(function(usernameOS){
+      var userLogsOS = byUserOS[usernameOS].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
       var latestOS = userLogsOS[userLogsOS.length-1];
       if(!latestOS || latestOS.type !== 'ورود') return;
       // Judge by elapsed TIME since the check-in, not by calendar date. A plain date
@@ -5438,29 +5438,38 @@ async function loadFullLog(){
 function pairLogEntriesForDisplay(entries){
   var byUser = {};
   entries.forEach(function(e){
-    // Key by username+project, not username alone — otherwise an open check-in on
-    // one project gets separated from its check-out by entries logged on a DIFFERENT
-    // project in between (since everything is sorted together by time), and the
-    // check-out ends up rendered as its own orphan row instead of pairing correctly.
-    var k = (e.username || e.employee) + '|' + (e.project || '');
+    // Key by username only — pairing happens across the employee's whole timeline. An
+    // employee can check in on one project and check out on a different one (e.g. moved
+    // sites mid-shift); that check-out should still close THIS check-in, shown together
+    // as one row, rather than being treated as unrelated to a different project's group.
+    var k = e.username || e.employee;
     byUser[k] = byUser[k] || [];
     byUser[k].push(e);
   });
+  function projectLabel(inE, outE){
+    if(inE && outE) return (inE.project === outE.project) ? inE.project : (inE.project + ' → ' + outE.project);
+    return (inE || outE).project;
+  }
+  function makePair(inE, outE){
+    var ref = inE || outE;
+    return {inE:inE, outE:outE, jalaliDate: ref.jalaliDate, employee: ref.employee, project: projectLabel(inE, outE), sortKey: ref.isoTimestamp};
+  }
   var pairs = [];
   Object.keys(byUser).forEach(function(k){
     var list = byUser[k].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
-    var i = 0;
-    while(i < list.length){
-      if(list[i].type === 'ورود'){
-        var inE = list[i];
-        var outE = (list[i+1] && list[i+1].type === 'خروج') ? list[i+1] : null;
-        pairs.push({inE:inE, outE:outE, jalaliDate:inE.jalaliDate, employee:inE.employee, project:inE.project, sortKey:inE.isoTimestamp});
-        i += outE ? 2 : 1;
+    var openIn = null;
+    list.forEach(function(e){
+      if(e.type === 'ورود'){
+        // A check-in with no closing check-out before the next check-in is left as its
+        // own orphan row — this only shows up if a checkout was genuinely never recorded.
+        if(openIn) pairs.push(makePair(openIn, null));
+        openIn = e;
       } else {
-        pairs.push({inE:null, outE:list[i], jalaliDate:list[i].jalaliDate, employee:list[i].employee, project:list[i].project, sortKey:list[i].isoTimestamp});
-        i += 1;
+        if(openIn){ pairs.push(makePair(openIn, e)); openIn = null; }
+        else pairs.push(makePair(null, e));
       }
-    }
+    });
+    if(openIn) pairs.push(makePair(openIn, null));
   });
   pairs.sort(function(a,b){ return String(a.sortKey).localeCompare(String(b.sortKey)); });
   return pairs;
