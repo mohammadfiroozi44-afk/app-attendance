@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
 <style>
   :root{
     --navy:#0f2a43;
@@ -358,22 +358,33 @@ var MAX_EMPLOYEES = 0; // 0 = بدون محدودیت. برای محدود کر�
 function getSheet(name, headers){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
+  var justCreated = false;
+  var justAddedCols = false;
   if(!sh){
     sh = ss.insertSheet(name);
     sh.appendRow(headers);
+    justCreated = true;
   } else {
     var lastCol = Math.max(sh.getLastColumn(), 1);
     var existing = sh.getRange(1, 1, 1, lastCol).getValues()[0];
     var missing = headers.filter(function(h){ return existing.indexOf(h) === -1; });
     if(missing.length > 0){
       sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+      justAddedCols = true;
     }
   }
   // Force plain-text formatting on the whole working area. Without this, Sheets
   // silently reinterprets strings like "14:00:00" as its own internal time type,
   // which then comes back from the API as a garbled 1899-12-30T...Z value.
-  var wideCols = Math.max(headers.length, sh.getLastColumn(), 20);
-  sh.getRange(1, 1, 1000, wideCols).setNumberFormat('@');
+  // This is a fairly expensive write (up to 1000x20 cells), and the format sticks once
+  // applied — so it only needs to run the FIRST time a sheet is created or gains new
+  // columns, not on every single read. Running it unconditionally on every getSheet()
+  // call (as before) meant every action — even plain reads — paid this cost once per
+  // sheet it touched, which was the single biggest drag on the whole site's speed.
+  if(justCreated || justAddedCols){
+    var wideCols = Math.max(headers.length, sh.getLastColumn(), 20);
+    sh.getRange(1, 1, 1000, wideCols).setNumberFormat('@');
+  }
   return sh;
 }
 
@@ -3926,17 +3937,25 @@ function showAdminSection(name){
   refreshAdminSection(name);
   closeDrawer();
 }
-async function refreshAdminSection(name){
-  // Always make sure we have the current employee list (fresh names) before rendering
-  // anything that displays employee names pulled from log rows — those rows only store
-  // a snapshot of the name at logging time, so a rename in "پرسنل" needs this refreshed
-  // to show correctly in the report/dashboard/requests/etc.
+var _employeesLastFetch = 0;
+async function ensureEmployeesFresh(){
+  // Cache for a few seconds so bouncing between tabs doesn't refire the same request —
+  // but still catches a rename made moments ago (e.g. in another browser tab).
+  if(Date.now() - _employeesLastFetch < 5000 && employees.length) return;
   await loadEmployeesAdmin();
-  if(name === 'dashboard') await loadDashboard();
-  else if(name === 'offline'){ await loadPendingOffline(); await loadOpenSessions(); }
+  _employeesLastFetch = Date.now();
+}
+async function refreshAdminSection(name){
+  // Sections that show employee names pulled from log rows need the current employee
+  // list (a rename in "پرسنل" only takes effect once this is refreshed) — fetched in
+  // PARALLEL with that section's own data instead of before it, so it adds no extra
+  // wait time on top of the round-trip the section needed anyway.
+  if(name === 'dashboard') await Promise.all([ensureEmployeesFresh(), loadDashboard()]);
+  else if(name === 'offline') await Promise.all([ensureEmployeesFresh(), loadPendingOffline(), loadOpenSessions()]);
+  else if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
-  else if(name === 'requests'){ await loadAdminRequests(); await loadAdminLeaves(); }
-  else if(name === 'report'){ await loadHolidays(); await loadFullLog(); }
+  else if(name === 'requests') await Promise.all([ensureEmployeesFresh(), loadAdminRequests(), loadAdminLeaves()]);
+  else if(name === 'report') await Promise.all([ensureEmployeesFresh(), loadHolidays(), loadFullLog()]);
   else if(name === 'settings'){
     var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
     if(emailRes.ok){
@@ -4057,6 +4076,7 @@ async function loadEmployeesAdmin(){
   if(!res.ok){ showAdminNotice('دریافت لیست پرسنل ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   employees = res.employees || [];
+  _employeesLastFetch = Date.now();
   renderEmpList();
 }
 var pendingPhotoDataUrl = null;
