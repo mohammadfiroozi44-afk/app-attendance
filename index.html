@@ -3927,9 +3927,13 @@ function showAdminSection(name){
   closeDrawer();
 }
 async function refreshAdminSection(name){
+  // Always make sure we have the current employee list (fresh names) before rendering
+  // anything that displays employee names pulled from log rows — those rows only store
+  // a snapshot of the name at logging time, so a rename in "پرسنل" needs this refreshed
+  // to show correctly in the report/dashboard/requests/etc.
+  await loadEmployeesAdmin();
   if(name === 'dashboard') await loadDashboard();
   else if(name === 'offline'){ await loadPendingOffline(); await loadOpenSessions(); }
-  else if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
   else if(name === 'requests'){ await loadAdminRequests(); await loadAdminLeaves(); }
   else if(name === 'report'){ await loadHolidays(); await loadFullLog(); }
@@ -4292,7 +4296,7 @@ function renderOpenSessions(){
   try {
     box.innerHTML = list.map(function(r){
       return '<div class="list-item"><div>'+
-        '<b>'+esc(r.employee)+'</b>'+(r.employeeCode?(' (کد '+esc(r.employeeCode)+')'):'')+' · '+esc(r.project)+
+        '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b>'+(r.employeeCode?(' (کد '+esc(r.employeeCode)+')'):'')+' · '+esc(r.project)+
         '<div class="meta">ورود: <bdi dir="ltr" style="unicode-bidi:isolate;">'+esc(r.jalaliDate)+' '+esc(r.time)+'</bdi> — هنوز خروج نزده</div>'+
         '<div class="date-row" style="margin-top:8px; align-items:center; flex-wrap:wrap;">'+
           buildDateSelects('openClose'+r.id, r.jalaliDate)+
@@ -4347,7 +4351,7 @@ function renderPendingOffline(){
       var monthOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(edp && m===edp.month?' selected':'')+'>'+m+'</option>'; }).join('');
       var yearOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
       return '<div class="list-item"><div style="width:100%;">'+
-        '<b>'+esc(r.employee)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+        '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
         '<div class="hint" style="margin:4px 0;">ادعای گوشی: '+r.jalaliDate+' — '+r.time+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin:6px 0;">'+
           '<select id="offEditDay-'+r.id+'" style="width:64px;">'+dayOpts+'</select>'+
@@ -4361,7 +4365,7 @@ function renderPendingOffline(){
         '</div></div></div>';
     }
     return '<div class="list-item"><div>'+
-      '<b>'+esc(r.employee)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+      '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
       '<div class="meta">ادعای گوشی: '+r.jalaliDate+' — '+r.time+'</div></div>'+
       '<div class="btn-row" style="width:auto;">'+
         '<button type="button" class="btn btn-in btn-small" onclick="editingOfflineId=\''+r.id+'\'; renderPendingOffline();">✏️ بررسی</button>'+
@@ -4433,7 +4437,7 @@ function renderReqAdminList(){
     return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
       '<label style="display:flex; align-items:center; gap:6px; flex:1;">'+
         '<input type="checkbox" class="req-chk" value="'+r.id+'" style="width:auto; margin:0;">'+
-        '<b>'+esc(r.employee)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+        '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
       '</label>'+
       '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
       '<div class="meta">'+r.createdAt+' — '+r.createdTime+(r.requestedDate?(' · زمان درخواستی: '+r.requestedDate+' '+r.requestedTime):'')+'</div>'+
@@ -4502,7 +4506,7 @@ function renderLeaveAdminList(){
     return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
       '<label style="display:flex; align-items:center; gap:6px; flex:1;">'+
         '<input type="checkbox" class="leave-chk" value="'+r.id+'" style="width:auto; margin:0;">'+
-        '<b>'+esc(r.employee)+'</b> · '+formatLeaveRange(r)+
+        '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b> · '+formatLeaveRange(r)+
       '</label>'+
       '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
       (r.reason ? '<div style="margin:6px 0; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
@@ -5290,7 +5294,7 @@ async function loadDashboard(){
     trafficBox.innerHTML = todayPairs.map(function(p){
       var inHtml = p.inE ? ('<bdi style="unicode-bidi:isolate;"><span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(p.inE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">بدون ورود</span>';
       var outHtml = p.outE ? ('<bdi style="unicode-bidi:isolate;"><span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(p.outE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">هنوز حاضر</span>';
-      return '<div class="list-item"><div><b>'+esc(p.employee)+'</b> · '+esc(p.project)+
+      return '<div class="list-item"><div><b>'+esc(currentEmployeeName(p.username, p.employee))+'</b> · '+esc(p.project)+
         '<div class="meta" style="display:flex; gap:14px; flex-wrap:wrap;">'+inHtml+outHtml+'</div></div></div>';
     }).join('');
   }
@@ -5435,8 +5439,18 @@ async function loadFullLog(){
   window._allEntries = entries;
   renderLogTable();
 }
-function pairLogEntriesForDisplay(entries){
-  var byUser = {};
+// Log rows store a snapshot of the employee's name at the time they were logged. If the
+// admin later renames someone in "پرسنل", old report rows would otherwise keep showing the
+// old name. This looks up the CURRENT name from the live employee list by username, falling
+// back to the stored snapshot only if that username no longer exists (e.g. deleted employee).
+function currentEmployeeName(username, fallbackName){
+  if(username){
+    var emp = (employees||[]).filter(function(e){ return e.username === username; })[0];
+    if(emp && emp.fullName) return emp.fullName;
+  }
+  return fallbackName;
+}
+function pairLogEntriesForDisplay(entries){  var byUser = {};
   entries.forEach(function(e){
     // Key by username only — pairing happens across the employee's whole timeline. An
     // employee can check in on one project and check out on a different one (e.g. moved
@@ -5452,7 +5466,7 @@ function pairLogEntriesForDisplay(entries){
   }
   function makePair(inE, outE){
     var ref = inE || outE;
-    return {inE:inE, outE:outE, jalaliDate: ref.jalaliDate, employee: ref.employee, project: projectLabel(inE, outE), sortKey: ref.isoTimestamp};
+    return {inE:inE, outE:outE, jalaliDate: ref.jalaliDate, employee: ref.employee, username: ref.username, project: projectLabel(inE, outE), sortKey: ref.isoTimestamp};
   }
   var pairs = [];
   Object.keys(byUser).forEach(function(k){
@@ -5520,7 +5534,7 @@ function renderLogTable(){
       var defaultDate = sideE ? sideE.jalaliDate : (refE ? refE.jalaliDate : jalaliString(new Date()));
       var timeVal = sideE ? normTimeForSubmit(sideE.time) : '';
       return '<tr class="edit-row"><td colspan="6">'+
-        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش '+sideLabel+' — '+esc(refE.employee)+(existingId?'':' (ثبت نشده — با ذخیره اضافه می‌شه)')+'</div>'+
+        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش '+sideLabel+' — '+esc(currentEmployeeName(refE.username, refE.employee))+(existingId?'':' (ثبت نشده — با ذخیره اضافه می‌شه)')+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
           '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
           '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
@@ -5548,7 +5562,7 @@ function renderLogTable(){
     }
     var pairActions = '<button class="icon-btn del" title="حذف کل ردیف (ورود و خروج)" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
     return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+nightHtml+'</td>'+
-      '<td>'+esc(p.employee)+'</td><td>'+esc(p.project)+'</td>'+
+      '<td>'+esc(currentEmployeeName(p.username, p.employee))+'</td><td>'+esc(p.project)+'</td>'+
       '<td>'+cellFor(p.inE,'in')+'</td><td>'+cellFor(p.outE,'out')+'</td>'+
       '<td style="white-space:nowrap;">'+pairActions+'</td></tr>';
   }).join('');
