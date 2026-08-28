@@ -2640,7 +2640,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-25-empcode-namefallback';
+  var expected = 'v-2026-08-28-iso-sort-fix';
   if(res.version === expected){
     box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
   } else {
@@ -3770,6 +3770,19 @@ async function submitEntry(type){
     (type==='in' ? '✅ ورود ثبت شد' : '✅ خروج ثبت شد'),
     (loggedInEmployee.fullName||'') + ' — ساعت ' + (res.time||'')
   );
+  // Trust this confirmed response immediately for button/state updates, instead of only
+  // waiting on the loadMyLogs() re-fetch below — avoids any chance of a stale button state
+  // (e.g. still allowing a second check-in) if that re-fetch is delayed for any reason.
+  todayLastType = (type === 'in') ? 'ورود' : 'خروج';
+  lastOpenCheckinIso = (type === 'in') ? res.isoTimestamp || new Date().toISOString() : null;
+  lastOpenCheckinDate = (type === 'in') ? (res.jalaliDate || serverTodayStr) : null;
+  updateTodayStatusHint();
+  updateNightShiftCheckbox();
+  // Location was already verified for this submission, so keep both buttons reflecting the
+  // now-current state (rather than leaving them both disabled from the submit-in-progress step).
+  document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
+  document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
+  if(window.refreshSwipeState) refreshSwipeState();
   loadMyLogs();
 }
 
@@ -3783,7 +3796,7 @@ async function loadMyLogs(){
   updateOfflineQueueBanner();
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
   var entries = res.ok ? (res.logs || []) : [];
-  entries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); }); // ascending: oldest first
+  entries.sort(function(a,b){ return new Date(a.isoTimestamp).getTime() - new Date(b.isoTimestamp).getTime(); }); // ascending: oldest first
   if(res.ok && res.today) serverTodayStr = res.today;
   hasPendingOffline = res.ok && res.pendingOffline && res.pendingOffline.length > 0;
   updatePendingOfflineNotice();
@@ -3974,14 +3987,14 @@ async function loadDashboard(){
 
   var logs = logsRes.ok ? (logsRes.logs||[]) : [];
   var todayLogsAllUsers = logs.filter(function(e){ return e.jalaliDate === todayStr; })
-    .sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    .sort(function(a,b){ return new Date(a.isoTimestamp).getTime() - new Date(b.isoTimestamp).getTime(); });
   var hadAttendanceTodayUsers = {}; // checked in at least once today (may have already left)
   todayLogsAllUsers.forEach(function(e){ if(e.type === 'ورود') hadAttendanceTodayUsers[e.username] = true; });
   var byUserLogs = {};
   logs.forEach(function(e){ (byUserLogs[e.username] = byUserLogs[e.username] || []).push(e); });
   var presentNowUsers = {}; // currently checked in — latest log entry overall is ورود, with no خروج after it yet
   Object.keys(hadAttendanceTodayUsers).forEach(function(username){
-    var userLogs = (byUserLogs[username] || []).slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    var userLogs = (byUserLogs[username] || []).slice().sort(function(a,b){ return new Date(a.isoTimestamp).getTime() - new Date(b.isoTimestamp).getTime(); });
     var latest = userLogs[userLogs.length-1];
     if(latest && latest.type === 'ورود') presentNowUsers[username] = true;
   });
@@ -4169,7 +4182,7 @@ async function loadFullLog(){
     return;
   }
   var entries = res.logs || [];
-  entries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); }); // ascending: oldest first
+  entries.sort(function(a,b){ return new Date(a.isoTimestamp).getTime() - new Date(b.isoTimestamp).getTime(); }); // ascending: oldest first
   window._allEntries = entries;
   renderLogTable();
 }
@@ -4204,7 +4217,7 @@ function pairLogEntriesForDisplay(entries){  var byUser = {};
   }
   var pairs = [];
   Object.keys(byUser).forEach(function(k){
-    var list = byUser[k].slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+    var list = byUser[k].slice().sort(function(a,b){ return new Date(a.isoTimestamp).getTime() - new Date(b.isoTimestamp).getTime(); });
     var openIn = null;
     list.forEach(function(e){
       if(e.type === 'ورود'){
@@ -4449,7 +4462,7 @@ function formatMinutesHHMM(mins){
   return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
 }
 function pairSessions(logs){
-  var sorted = logs.slice().sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); });
+  var sorted = logs.slice().sort(function(a,b){ return new Date(a.isoTimestamp).getTime() - new Date(b.isoTimestamp).getTime(); });
   var sessions = [];
   var openIn = null;
   sorted.forEach(function(e){
