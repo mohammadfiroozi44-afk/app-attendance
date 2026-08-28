@@ -3647,8 +3647,8 @@ async function checkRealConnectivity(){
   setConnBadge('checking');
   try{
     var ctrl = new AbortController();
-    var timeoutId = setTimeout(function(){ ctrl.abort(); }, 5000);
-    var res = await fetch(API_URL, {method:'POST', body: JSON.stringify({action:'ping'}), signal: ctrl.signal});
+    var timeoutId = setTimeout(function(){ ctrl.abort(); }, 12000); // generous — Apps Script cold starts can be slow; this is just a display badge, not a gate for real submissions
+    var res = await fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'ping'}), signal: ctrl.signal});
     clearTimeout(timeoutId);
     isReallyOnline = !!res.ok;
   } catch(e){
@@ -3704,7 +3704,13 @@ async function submitEntry(type){
   document.getElementById('checkOutBtn').disabled = true;
   if(window.refreshSwipeState) refreshSwipeState();
 
-  if(!navigator.onLine || isReallyOnline === false){
+  // NOTE: submission routing only depends on navigator.onLine (device-level) plus an ACTUAL
+  // failed request below — never on the periodic background ping (isReallyOnline). That ping
+  // has a short timeout and can occasionally time out even while genuinely online (e.g. a slow
+  // Apps Script cold start), and gating real submissions on it caused check-ins to wrongly get
+  // queued offline (and then get stuck waiting on admin approval) even with a fine connection.
+  // The connectivity badge stays purely informational.
+  if(!navigator.onLine){
     var guard1 = canQueueOffline();
     if(!guard1.ok){
       setStatus('⛔ ' + guard1.msg, 'err');
