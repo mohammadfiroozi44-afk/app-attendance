@@ -1043,7 +1043,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-28-nodailycap"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-28-todaysync-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2655,7 +2655,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-28-nodailycap'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-28-todaysync-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3795,6 +3795,9 @@ async function submitEntry(type){
   lastOpenCheckinDate = (type === 'in') ? (res.jalaliDate || serverTodayStr) : null;
   myLastKnownIso = res.isoTimestamp || new Date().toISOString();
   myLastKnownType = todayLastType;
+  myLastKnownDate = res.jalaliDate || serverTodayStr;
+  myLastKnownTime = res.time || '';
+  myLastKnownProject = entry.project;
   updateTodayStatusHint();
   updateNightShiftCheckbox();
   // Location was already verified for this submission, so keep both buttons reflecting the
@@ -3818,6 +3821,9 @@ var serverTodayStr = null; // authoritative "today" from the server — using th
 // several check-ins in a row before the first one is ever visible in a fresh fetch.
 var myLastKnownIso = null;
 var myLastKnownType = null; // 'ورود' or 'خروج'
+var myLastKnownDate = null; // jalaliDate string
+var myLastKnownTime = null;
+var myLastKnownProject = null;
 
 // ---------- Debug helper (shows exactly what the app received, for troubleshooting) ----------
 async function showMyLogsDebug(){
@@ -3876,9 +3882,23 @@ async function loadMyLogs(){
   // Guard against Sheets read-after-write lag: if this fetch's newest entry is OLDER than a
   // submission we personally just got confirmed by the server, trust our own recent result
   // instead — otherwise a slightly-delayed read could silently flip state back and let
-  // check-in be pressed again before the real data has caught up.
+  // check-in be pressed again before the real data has caught up. This must also patch the
+  // DISPLAY list (entries), not just the button state — otherwise the same stale read leaves
+  // "تردد‌های امروز" empty even though the button state is correct, which is just as confusing.
+  var usedLocalGuard = false;
   if(myLastKnownIso && (!lastServerEntry || new Date(myLastKnownIso).getTime() > new Date(lastServerEntry.isoTimestamp).getTime())){
     lastServerType = myLastKnownType;
+    usedLocalGuard = true;
+  }
+  if(usedLocalGuard && myLastKnownDate){
+    var alreadyPresent = entries.some(function(e){ return e.isoTimestamp === myLastKnownIso; });
+    if(!alreadyPresent){
+      entries.push({
+        jalaliDate: myLastKnownDate, time: myLastKnownTime, employee: loggedInEmployee.fullName,
+        username: loggedInEmployee.username, project: myLastKnownProject, type: myLastKnownType,
+        isoTimestamp: myLastKnownIso, note: ''
+      });
+    }
   }
   var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
   todayLastType = lastQueuedType || lastServerType; // a still-pending queued entry takes priority over server state
