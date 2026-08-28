@@ -403,6 +403,11 @@
     </div>
 
     <div class="card" style="border-radius:0 0 14px 14px; margin-top:-1px;">
+      <div id="connStatusBadge" style="display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; margin-bottom:12px; padding:7px 11px; border-radius:20px; width:fit-content;">
+        <span id="connStatusDot" style="width:8px; height:8px; border-radius:50%; display:inline-block;"></span>
+        <span id="connStatusText">در حال بررسی اتصال...</span>
+      </div>
+      <div id="pendingOfflineNotice" style="display:none; background:#fff4e2; border:1px solid #f2e0bd; border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:12.5px; color:#8a5a10; line-height:1.8;"></div>
       <label>پروژه</label>
       <select id="empProject" onchange="onProjectPicked()"><option value="">در حال بارگذاری...</option></select>
       <div class="hint" id="todayStatusHint" style="margin-top:-8px;">📍 در حال بررسی وضعیت امروز...</div>
@@ -1311,6 +1316,7 @@ function enterEmployeeSession(empData){
   if(window.refreshSwipeState) refreshSwipeState();
   checkGpsPermissionHint();
   requestNotificationPermission(); // best-effort, no-op if already asked/denied
+  startConnectivityWatcher();
 }
 async function employeeLogin(){
   var username = document.getElementById('empUsername').value.trim();
@@ -3546,11 +3552,15 @@ async function syncOfflineQueue(){
   var remaining = [];
   var submittedCount = 0;
   var failMessages = [];
+  var waitingOnApproval = false;
   for(var i=0;i<q.length;i++){
     var item = q[i];
     var res = await apiCall(function(){ return apiPost('submitOfflineLog', {entry:item.entry, deviceId:item.deviceId, project_id:item.project_id}); });
     if(!res.ok && res.networkError){
       remaining.push(item); // still offline — try again next time
+    } else if(!res.ok && res.error === 'pending_offline_exists'){
+      remaining.push(item); // keep it queued — it'll go through once the admin resolves the earlier one
+      waitingOnApproval = true;
     } else if(!res.ok){
       // real server-side rejection (e.g. device_mismatch, unknown_employee) — don't silently lose it, tell the user
       failMessages.push((res.error||'خطای نامشخص') + ' — ثبت ' + (item.entry.type==='in'?'ورود':'خروج') + ' حذف شد، دوباره امتحان کن.');
@@ -3562,12 +3572,94 @@ async function syncOfflineQueue(){
   if(submittedCount > 0){
     setStatus('✅ '+submittedCount+' ثبت آفلاین برای بررسی مدیر ارسال شد.', 'ok');
   }
+  if(waitingOnApproval){
+    setStatus('⏳ یک ثبتِ آفلاینِ قبلیِ شما هنوز منتظرِ بررسیِ مدیره — این ثبتِ جدید رو نگه داشتیم و به‌محض تاییدِ اون یکی، خودکار ارسال می‌شه.', 'wait');
+  }
   if(failMessages.length > 0){
     setStatus('⛔ '+failMessages.join('<br>'), 'err');
   }
+  updatePendingOfflineNotice();
   if((submittedCount > 0 || failMessages.length > 0) && loggedInEmployee){ loadMyLogs(); }
 }
 window.addEventListener('online', syncOfflineQueue);
+
+// ---------- Connectivity guard for offline queuing ----------
+// A shaky connection ("my wifi shows connected but nothing submits") shouldn't let someone
+// stack up several confusing duplicate offline submissions before the admin even sees the
+// first one. Block queuing a new one while an earlier one is still unsent locally, or still
+// awaiting the admin's approve/reject decision on the server.
+var hasPendingOffline = false;
+function canQueueOffline(){
+  if(hasPendingOffline){
+    return {ok:false, msg:'یک ثبتِ آفلاینِ قبلیِ شما هنوز منتظرِ بررسیِ مدیره — تا وقتی مدیر اون رو تایید یا رد نکنه، نمی‌تونید ثبتِ آفلاینِ جدید بزنید.'};
+  }
+  var localQueued = getOfflineQueue().filter(function(q){ return loggedInEmployee && q.entry.username === loggedInEmployee.username; });
+  if(localQueued.length > 0){
+    return {ok:false, msg:'یک ثبتِ قبلی هنوز روی گوشی ذخیره‌ست و ارسال نشده — صبر کن اینترنت وصل بشه، یا از دکمه‌ی «تلاش دوباره» استفاده کن.'};
+  }
+  return {ok:true};
+}
+function updatePendingOfflineNotice(){
+  var box = document.getElementById('pendingOfflineNotice');
+  if(!box) return;
+  var localQueued = getOfflineQueue().filter(function(q){ return loggedInEmployee && q.entry.username === loggedInEmployee.username; }).length;
+  if(hasPendingOffline){
+    box.style.display = 'block';
+    box.innerHTML = '⏳ یک ثبتِ آفلاینِ قبلی شما هنوز منتظرِ بررسیِ مدیره. تا تایید/ردش نکنه، نمی‌تونید ثبتِ آفلاینِ جدید بزنید — ثبتِ آنلاینِ عادی (وقتی اینترنت واقعاً وصله) مشکلی نداره.';
+  } else if(localQueued > 0){
+    box.style.display = 'block';
+    box.innerHTML = '📦 یک ثبت روی گوشی ذخیره شده و هنوز ارسال نشده. تا این ارسال نشه، ثبتِ آفلاینِ جدید نمی‌تونی بزنی — از دکمه‌ی «تلاش دوباره» بالا استفاده کن.';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+// ---------- Real connectivity check ----------
+// navigator.onLine only reflects whether the device has a network adapter connected
+// (e.g. wifi bars) — it does NOT mean the internet, or this app's server, is actually
+// reachable. That mismatch is exactly what caused the confusion ("my wifi shows
+// connected but nothing submits"), so we also do a real round-trip ping to the server.
+var isReallyOnline = null; // null = not checked yet
+var _connCheckTimer = null;
+function setConnBadge(state){ // state: 'online' | 'offline' | 'checking'
+  var dot = document.getElementById('connStatusDot');
+  var text = document.getElementById('connStatusText');
+  var wrap = document.getElementById('connStatusBadge');
+  if(!dot || !text || !wrap) return;
+  if(state === 'online'){
+    dot.style.background = '#2f9d68'; text.textContent = '🟢 آنلاین — اتصال به سرور برقراره';
+    wrap.style.background = '#e5f6ec'; text.style.color = '#1f7a4d';
+  } else if(state === 'offline'){
+    dot.style.background = '#d64545'; text.textContent = '🔴 آفلاین — اتصال به سرور برقرار نیست';
+    wrap.style.background = '#fbe8e8'; text.style.color = '#a32a2a';
+  } else {
+    dot.style.background = '#c9962e'; text.textContent = '🟡 در حال بررسی اتصال...';
+    wrap.style.background = '#fff4e2'; text.style.color = '#8a5a10';
+  }
+}
+async function checkRealConnectivity(){
+  if(!navigator.onLine){ isReallyOnline = false; setConnBadge('offline'); return false; }
+  setConnBadge('checking');
+  try{
+    var ctrl = new AbortController();
+    var timeoutId = setTimeout(function(){ ctrl.abort(); }, 5000);
+    var res = await fetch(API_URL, {method:'POST', body: JSON.stringify({action:'ping'}), signal: ctrl.signal});
+    clearTimeout(timeoutId);
+    isReallyOnline = !!res.ok;
+  } catch(e){
+    isReallyOnline = false;
+  }
+  setConnBadge(isReallyOnline ? 'online' : 'offline');
+  if(isReallyOnline) syncOfflineQueue();
+  return isReallyOnline;
+}
+function startConnectivityWatcher(){
+  checkRealConnectivity();
+  if(_connCheckTimer) clearInterval(_connCheckTimer);
+  _connCheckTimer = setInterval(checkRealConnectivity, 20000);
+}
+window.addEventListener('online', checkRealConnectivity);
+window.addEventListener('offline', function(){ isReallyOnline = false; setConnBadge('offline'); });
 
 async function submitEntry(type){
   if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
@@ -3607,22 +3699,36 @@ async function submitEntry(type){
   document.getElementById('checkOutBtn').disabled = true;
   if(window.refreshSwipeState) refreshSwipeState();
 
-  if(!navigator.onLine){
+  if(!navigator.onLine || isReallyOnline === false){
+    var guard1 = canQueueOffline();
+    if(!guard1.ok){
+      setStatus('⛔ ' + guard1.msg, 'err');
+      if(window.refreshSwipeState) refreshSwipeState();
+      return;
+    }
     queueOfflineEntry(entry, chosenProject.id);
     todayLastType = (type === 'in') ? 'ورود' : 'خروج';
     updateTodayStatusHint();
     setStatus('📦 اینترنت وصل نیست — ثبت ذخیره شد و به‌محض وصل‌شدن اینترنت خودکار ارسال می‌شود.', 'wait');
     renderQueuedInMyLogs();
+    updatePendingOfflineNotice();
     return;
   }
 
   var res = await apiCall(function(){ return apiPost('addLog', {entry: entry, deviceId: DEVICE_ID, project_id: chosenProject.id}); });
   if(!res.ok && res.networkError){
+    var guard2 = canQueueOffline();
+    if(!guard2.ok){
+      setStatus('⛔ ' + guard2.msg, 'err');
+      if(window.refreshSwipeState) refreshSwipeState();
+      return;
+    }
     queueOfflineEntry(entry, chosenProject.id);
     todayLastType = (type === 'in') ? 'ورود' : 'خروج';
     updateTodayStatusHint();
     setStatus('📦 ارتباط با سرور برقرار نشد — ثبت ذخیره شد و به‌محض وصل‌شدن اینترنت خودکار ارسال می‌شود.', 'wait');
     renderQueuedInMyLogs();
+    updatePendingOfflineNotice();
     return;
   }
   if(!res.ok){
@@ -3662,6 +3768,8 @@ async function loadMyLogs(){
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
   var entries = res.ok ? (res.logs || []) : [];
   entries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); }); // ascending: oldest first
+  hasPendingOffline = res.ok && res.pendingOffline && res.pendingOffline.length > 0;
+  updatePendingOfflineNotice();
 
   var queue = getOfflineQueue().filter(function(q){ return q.entry.username === loggedInEmployee.username; });
 
@@ -4609,6 +4717,7 @@ function init(){
       if(window.refreshSwipeState) refreshSwipeState();
       checkGpsPermissionHint();
       if(navigator.onLine) syncOfflineQueue();
+      startConnectivityWatcher();
     }catch(e){}
   }
   var savedPin = sessionStorage.getItem('adminPin');
