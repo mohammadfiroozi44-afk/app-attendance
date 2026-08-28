@@ -5138,8 +5138,9 @@ async function loadMyLogs(){
     var outNote = p.outE ? displayNote(p.outE.note) : '';
     var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
     var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
+    var projHtml = p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>';
     return '<div class="list-item"><div>'+
-      '<b>'+esc(p.project)+'</b>'+holBadge+
+      '<b>'+projHtml+'</b>'+holBadge+
       '<div class="meta">'+inHtml+'</div><div class="meta">'+outHtml+'</div></div></div>';
   }).join('');
 
@@ -5163,8 +5164,9 @@ async function loadMyHistory(){
     var outNote = p.outE ? displayNote(p.outE.note) : '';
     var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
     var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
+    var projHtml = p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>';
     return '<div class="list-item"><div>'+
-      '<b>'+esc(p.project)+'</b>'+holBadge+
+      '<b>'+projHtml+'</b>'+holBadge+
       '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi></div>'+
       '<div class="meta">'+inHtml+'</div><div class="meta">'+outHtml+'</div></div></div>';
   }).join('');
@@ -5341,7 +5343,7 @@ async function loadDashboard(){
     trafficBox.innerHTML = todayPairs.map(function(p){
       var inHtml = p.inE ? ('<bdi style="unicode-bidi:isolate;"><span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(p.inE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">بدون ورود</span>';
       var outHtml = p.outE ? ('<bdi style="unicode-bidi:isolate;"><span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(p.outE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">هنوز حاضر</span>';
-      return '<div class="list-item"><div><b>'+esc(currentEmployeeName(p.username, p.employee))+'</b> · '+esc(p.project)+
+      return '<div class="list-item"><div><b>'+esc(currentEmployeeName(p.username, p.employee))+'</b> · '+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+
         '<div class="meta" style="display:flex; gap:14px; flex-wrap:wrap;">'+inHtml+outHtml+'</div></div></div>';
     }).join('');
   }
@@ -5609,7 +5611,7 @@ function renderLogTable(){
     }
     var pairActions = '<button class="icon-btn del" title="حذف کل ردیف (ورود و خروج)" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
     return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+nightHtml+'</td>'+
-      '<td>'+esc(currentEmployeeName(p.username, p.employee))+'</td><td>'+esc(p.project)+'</td>'+
+      '<td>'+esc(currentEmployeeName(p.username, p.employee))+'</td><td>'+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+'</td>'+
       '<td>'+cellFor(p.inE,'in')+'</td><td>'+cellFor(p.outE,'out')+'</td>'+
       '<td style="white-space:nowrap;">'+pairActions+'</td></tr>';
   }).join('');
