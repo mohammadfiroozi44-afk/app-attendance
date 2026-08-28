@@ -814,8 +814,8 @@
       <button type="button" class="btn btn-ghost" onclick="setupSheetFiltersBtn()">📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها</button>
     </div>
     <div class="card">
-      <div class="eyebrow">چک کردن نسخه‌ی سرور</div>
-      <div class="hint" style="margin-top:-4px;">این دکمه مستقیم از Code.gs که الان روی سرور فعاله می‌پرسه چه نسخه‌ایه — اگه بعد از Deploy جدید هنوز نسخه‌ی قدیمی نشون داد، یعنی Deploy درست انجام نشده.</div>
+      <div class="eyebrow">چک کردن نسخه‌ی سرور و صفحه</div>
+      <div class="hint" style="margin-top:-4px;">این دکمه هم نسخه‌ی Code.gs که الان روی سرور فعاله رو چک می‌کنه، هم نسخه‌ی همین صفحه‌ای که الان داری می‌بینی — چون گاهی مشکل اینه که خودِ index.html رو رو گیت‌هاب آپلود نکردی، یا گوشی هنوز نسخه‌ی کش‌شده‌ی قدیمی رو نشون می‌ده.</div>
       <button type="button" class="btn btn-ghost" onclick="checkServerVersion()">🔍 چک کردن نسخه</button>
       <div id="serverVersionResult" style="margin-top:8px; font-size:13px; direction:ltr; text-align:right;"></div>
     </div>
@@ -1040,6 +1040,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
+const FRONTEND_VERSION = "v-2026-08-28-iso-sort-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2641,11 +2642,13 @@ async function checkServerVersion(){
     return;
   }
   var expected = 'v-2026-08-28-iso-sort-fix';
-  if(res.version === expected){
-    box.innerHTML = '✅ نسخه‌ی سرور به‌روزه: <b>' + esc(res.version) + '</b>';
-  } else {
-    box.innerHTML = '⛔ نسخه‌ی سرور قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
-  }
+  var backendLine = (res.version === expected)
+    ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
+    : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
+  var frontendLine = (FRONTEND_VERSION === expected)
+    ? '✅ فرانت‌اند (همین صفحه): <b>' + esc(FRONTEND_VERSION) + '</b>'
+    : '⛔ فرانت‌اند (همین صفحه) قدیمیه: <b>' + esc(FRONTEND_VERSION) + '</b><br>یعنی یا index.html جدید رو هنوز رو گیت‌هاب آپلود نکردی، یا گوشی نسخه‌ی کش‌شده رو نشون می‌ده — یه‌بار اپ رو کامل ببند و دوباره باز کن.';
+  box.innerHTML = backendLine + '<br><br>' + frontendLine;
 }
 async function saveNotifyEmail(){
   var email = document.getElementById('notifyEmail').value.trim();
