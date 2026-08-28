@@ -108,15 +108,17 @@
   }
   .swipe-track.swipe-disabled{ background:#e8e3d3; }
   .swipe-track.swipe-in{ background:linear-gradient(90deg, #cdeedd, var(--ok)); }
-  .swipe-track.swipe-out{ background:linear-gradient(90deg, #ffd9c7, var(--orange)); }
+  .swipe-track.swipe-out{ background:linear-gradient(90deg, var(--err), #f6caca); }
   .swipe-label{ font-size:14px; font-weight:700; color:#fff; pointer-events:none; }
   .swipe-track.swipe-disabled .swipe-label{ color:#8a8368; }
   .swipe-handle{
-    position:absolute; right:4px; top:4px; width:50px; height:50px; border-radius:50%; background:#fff;
+    position:absolute; top:4px; width:50px; height:50px; border-radius:50%; background:#fff;
     display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--navy);
-    box-shadow:0 4px 12px #00000040; cursor:grab; transition:transform .05s linear;
+    box-shadow:0 4px 12px #00000040; cursor:grab; transition:transform .05s linear, right .2s ease, left .2s ease;
   }
-  .swipe-track.swipe-disabled .swipe-handle{ cursor:not-allowed; color:#b5ae98; }
+  .swipe-track.swipe-in .swipe-handle{ right:4px; left:auto; }
+  .swipe-track.swipe-out .swipe-handle{ left:4px; right:auto; }
+  .swipe-track.swipe-disabled .swipe-handle{ right:4px; left:auto; cursor:not-allowed; color:#b5ae98; }
   .bottom-sheet{ padding-bottom:14px; }
 
   .req-hero{
@@ -3462,7 +3464,7 @@ function updateCheckinProjectMarker(){
 
 // ---------- Swipe-to-confirm slider ----------
 (function(){
-  var track, handle, dragging=false, startX=0, maxDrag=0, curX=0;
+  var track, handle, dragging=false, startX=0, maxDrag=0, curX=0, mode=null; // mode: 'in' (drag right→left) or 'out' (drag left→right)
   function init(){
     track = document.getElementById('swipeTrack');
     handle = document.getElementById('swipeHandle');
@@ -3485,16 +3487,18 @@ function updateCheckinProjectMarker(){
   function onMove(e){
     if(!dragging) return;
     var x = (e.touches ? e.touches[0].clientX : e.clientX);
-    var delta = startX - x; // RTL: dragging toward the left = progress
+    // check-in: handle starts at the right, dragging LEFT is progress.
+    // check-out: handle starts at the left, dragging RIGHT is progress.
+    var delta = (mode === 'out') ? (x - startX) : (startX - x);
     curX = Math.min(Math.max(delta,0), maxDrag);
-    handle.style.transform = 'translateX(-'+curX+'px)';
+    handle.style.transform = 'translateX(' + (mode === 'out' ? curX : -curX) + 'px)';
   }
   function onEnd(){
     if(!dragging) return;
     dragging = false;
     handle.style.transition = 'transform .2s ease';
     if(curX >= maxDrag*0.8 && maxDrag>10){
-      handle.style.transform = 'translateX(-'+maxDrag+'px)';
+      handle.style.transform = 'translateX(' + (mode === 'out' ? maxDrag : -maxDrag) + 'px)';
       var inOk = !document.getElementById('checkInBtn').disabled;
       var outOk = !document.getElementById('checkOutBtn').disabled;
       var targetId = inOk ? 'checkInBtn' : (outOk ? 'checkOutBtn' : null);
@@ -3510,9 +3514,10 @@ function updateCheckinProjectMarker(){
     var inOk = inBtn && !inBtn.disabled, outOk = outBtn && !outBtn.disabled;
     track.classList.remove('swipe-in','swipe-out','swipe-disabled');
     var label = document.getElementById('swipeLabel');
-    if(inOk){ track.classList.add('swipe-in'); label.textContent = 'برای ثبت ورود بکش ‹‹'; }
-    else if(outOk){ track.classList.add('swipe-out'); label.textContent = 'برای ثبت خروج بکش ‹‹'; }
-    else { track.classList.add('swipe-disabled'); label.textContent = 'ابتدا موقعیت مکانی را بررسی کن'; }
+    var arrow = document.getElementById('swipeHandle');
+    if(inOk){ mode='in'; track.classList.add('swipe-in'); label.textContent = 'برای ثبت ورود بکش ‹‹'; if(arrow) arrow.textContent='‹‹'; }
+    else if(outOk){ mode='out'; track.classList.add('swipe-out'); label.textContent = 'برای ثبت خروج بکش ››'; if(arrow) arrow.textContent='››'; }
+    else { mode=null; track.classList.add('swipe-disabled'); label.textContent = 'ابتدا موقعیت مکانی را بررسی کن'; if(arrow) arrow.textContent='‹‹'; }
     reset();
   };
   init();
