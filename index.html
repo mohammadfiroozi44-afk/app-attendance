@@ -3774,12 +3774,17 @@ async function submitEntry(type){
 }
 
 // ---------- My logs (employee view) ----------
+var serverTodayStr = null; // authoritative "today" from the server — using the device's own
+// clock/timezone for this comparison is fragile (a phone with the wrong date/timezone set
+// would silently never match "today" against server-stamped records) and was exactly the
+// cause of a real bug: check-ins saved fine but never showed up as "today's" entries.
 async function loadMyLogs(){
   if(!loggedInEmployee) return;
   updateOfflineQueueBanner();
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
   var entries = res.ok ? (res.logs || []) : [];
   entries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); }); // ascending: oldest first
+  if(res.ok && res.today) serverTodayStr = res.today;
   hasPendingOffline = res.ok && res.pendingOffline && res.pendingOffline.length > 0;
   updatePendingOfflineNotice();
 
@@ -3800,7 +3805,7 @@ async function loadMyLogs(){
     return;
   }
 
-  var todayStr = jalaliString(new Date());
+  var todayStr = serverTodayStr || jalaliString(new Date());
   var allPairs = pairLogEntriesForDisplay(entries);
   var todayPairs = allPairs.filter(function(p){
     return (p.inE && p.inE.jalaliDate === todayStr) || (p.outE && p.outE.jalaliDate === todayStr);
@@ -3860,7 +3865,7 @@ function updateTodayStatusHint(){
 }
 function nightShiftConfirmRequired(){
   if(todayLastType !== 'ورود' || !lastOpenCheckinDate) return false;
-  return lastOpenCheckinDate !== jalaliString(new Date());
+  return lastOpenCheckinDate !== (serverTodayStr || jalaliString(new Date()));
 }
 function updateNightShiftCheckbox(){
   var row = document.getElementById('nightShiftConfirmRow');
@@ -3960,7 +3965,7 @@ async function loadDashboard(){
   var emps = empRes.employees || [];
   document.getElementById('dashTotal').textContent = emps.length;
 
-  var todayStr = jalaliString(new Date());
+  var todayStr = ddRes.today || jalaliString(new Date());
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var holidaySet = {};
