@@ -422,18 +422,9 @@
         <button type="button" class="btn btn-ghost btn-small" style="margin-top:6px; width:100%;" onclick="manualSyncNow()">🔄 تلاش دوباره برای ارسال</button>
       </div>
 
-      <div class="btn-row" style="display:none;">
+      <div class="btn-row">
         <button type="button" class="btn btn-in" id="checkInBtn" disabled onclick="submitEntry('in')">✅ ثبت ورود</button>
         <button type="button" class="btn btn-out" id="checkOutBtn" disabled onclick="submitEntry('out')">🚪 ثبت خروج</button>
-      </div>
-
-      <label class="chk-item" id="nightShiftConfirmRow" style="display:none; width:100%; box-sizing:border-box; background:#fff4e2; border-radius:10px; padding:10px 12px; margin-bottom:10px;">
-        <input type="checkbox" id="nightShiftConfirmChk"> 🌙 ورودم دیروز بوده و این خروج واقعاً مربوط به شیفت شب‌کاری/طولانیه
-      </label>
-
-      <div class="swipe-track swipe-disabled" id="swipeTrack">
-        <span class="swipe-label" id="swipeLabel">ابتدا موقعیت مکانی را بررسی کن</span>
-        <div class="swipe-handle" id="swipeHandle">‹‹</div>
       </div>
     </div>
 
@@ -1043,7 +1034,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-29-emp-revert"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-29-emp-simple"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -1278,9 +1269,7 @@ var chosenProject = null;
 var loggedInEmployee = null;
 var adminPin = null;
 var adminUsername = null;
-var todayLastType = null; // 'ورود' | 'خروج' | null — from server data, used to only enable the valid next action
-var lastOpenCheckinIso = null; // timestamp of the current open check-in (if any), used for the overnight-shift confirmation
-var lastOpenCheckinDate = null; // jalali date string of that check-in
+var todayLastType = null; // 'ورود' | 'خروج' | null — shown only as an informational hint, does not gate the buttons
 var editingEmpId = null;
 var editingProjId = null;
 var editingEntry = null; // {pairKey, side} where side is 'in' or 'out' — edits ONE side of a pair independently
@@ -1331,7 +1320,6 @@ function enterEmployeeSession(empData){
   initLeaveDateSelects();
   loadMyLeaves();
   initCheckinMap();
-  if(window.refreshSwipeState) refreshSwipeState();
   checkGpsPermissionHint();
   requestNotificationPermission(); // best-effort, no-op if already asked/denied
   startConnectivityWatcher();
@@ -2519,7 +2507,7 @@ function showEmpSection(name){
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
     if(btn) btn.classList.toggle('active', s===name);
   });
-  if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
+  if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
   else if(name === 'history') loadMyHistory();
   pushSectionHistory(name, name === 'checkin');
@@ -2655,7 +2643,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-29-emp-revert'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-29-emp-simple'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3388,7 +3376,6 @@ function locateAndCheck(){
   setStatus('در حال دریافت موقعیت مکانی... لطفاً اجازه دسترسی به لوکیشن را تایید کنید.', 'wait');
   document.getElementById('checkInBtn').disabled = true;
   document.getElementById('checkOutBtn').disabled = true;
-  if(window.refreshSwipeState) refreshSwipeState();
   var locBadge = document.getElementById('checkinLocBadge');
   if(locBadge) locBadge.textContent = '⏳ در حال دریافت موقعیت...';
 
@@ -3400,10 +3387,9 @@ function locateAndCheck(){
 
     if(loggedInEmployee.freeZone){
       setStatus('✅ موقعیت ثبت شد (این پرسنل محدودیت مکانی ندارد).<br>'+line1, 'ok');
-      document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
-      document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
+      document.getElementById('checkInBtn').disabled = false;
+      document.getElementById('checkOutBtn').disabled = false;
       if(locBadge) locBadge.textContent = '✅ بدون محدودیت مکانی';
-      if(window.refreshSwipeState) refreshSwipeState();
       return;
     }
 
@@ -3411,25 +3397,21 @@ function locateAndCheck(){
     var line2 = 'فاصله تا «'+chosenProject.name+'»: '+Math.round(d)+' متر (مجاز: '+chosenProject.radius+' متر)';
     if(d <= Number(chosenProject.radius)){
       setStatus('✅ در محدوده مجاز هستید.<br>'+line1+'<br>'+line2, 'ok');
-      document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
-      document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
+      document.getElementById('checkInBtn').disabled = false;
+      document.getElementById('checkOutBtn').disabled = false;
       if(locBadge) locBadge.textContent = '✅ داخل محدوده «'+chosenProject.name+'» ('+Math.round(d)+' متر)';
     } else {
       setStatus('⛔ خارج از محدوده پروژه هستید.<br>'+line1+'<br>'+line2, 'err');
       if(locBadge) locBadge.textContent = '⛔ خارج از محدوده ('+Math.round(d)+' متر تا «'+chosenProject.name+'»)';
     }
-    if(window.refreshSwipeState) refreshSwipeState();
   }, function(err){
-    var suggestedType = (todayLastType === 'ورود') ? 'out' : 'in';
     var specificMsg;
     if(err.code === 1) specificMsg = '⛔ دسترسی موقعیت مکانی رد شده. از تنظیمات گوشی → برنامه‌ها → این اپ (یا مرورگر) → مجوزها، دسترسی Location رو فعال کن.';
     else if(err.code === 2) specificMsg = '⛔ GPS گوشی خاموش است یا سیگنال ندارد. لطفاً GPS رو از نوار بالای گوشی روشن کن و دوباره تلاش کن.';
     else if(err.code === 3) specificMsg = '⛔ دریافت موقعیت مکانی خیلی طول کشید (زمان تمام شد). مطمئن شو GPS روشنه و دوباره تلاش کن.';
     else specificMsg = '⛔ دریافت موقعیت ناموفق بود: '+err.message;
-    setStatus(specificMsg+'<br><br>'+
-      '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\''+suggestedType+'\')">📨 به‌جاش درخواست ثبت دستی بفرست</button>', 'err');
+    setStatus(specificMsg, 'err');
     if(locBadge) locBadge.textContent = '⛔ دریافت موقعیت ناموفق بود';
-    if(window.refreshSwipeState) refreshSwipeState();
   }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
 }
 function onProjectPicked(){
@@ -3479,65 +3461,6 @@ function updateCheckinProjectMarker(){
     checkinMap.fitBounds(L.latLngBounds([[currentPos.latitude,currentPos.longitude],[plat,plng]]).pad(0.3));
   }
 }
-
-// ---------- Swipe-to-confirm slider ----------
-(function(){
-  var track, handle, dragging=false, startX=0, maxDrag=0, curX=0;
-  function init(){
-    track = document.getElementById('swipeTrack');
-    handle = document.getElementById('swipeHandle');
-    if(!track || !handle || track._wired) return;
-    track._wired = true;
-    handle.addEventListener('mousedown', onStart);
-    handle.addEventListener('touchstart', onStart, {passive:true});
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('touchmove', onMove, {passive:true});
-    document.addEventListener('mouseup', onEnd);
-    document.addEventListener('touchend', onEnd);
-  }
-  function onStart(e){
-    if(track.classList.contains('swipe-disabled')) return;
-    dragging = true;
-    startX = (e.touches ? e.touches[0].clientX : e.clientX);
-    maxDrag = Math.max(track.offsetWidth - handle.offsetWidth - 8, 10);
-    handle.style.transition = 'none';
-  }
-  function onMove(e){
-    if(!dragging) return;
-    var x = (e.touches ? e.touches[0].clientX : e.clientX);
-    var delta = startX - x; // RTL: dragging toward the left = progress
-    curX = Math.min(Math.max(delta,0), maxDrag);
-    handle.style.transform = 'translateX(-'+curX+'px)';
-  }
-  function onEnd(){
-    if(!dragging) return;
-    dragging = false;
-    handle.style.transition = 'transform .2s ease';
-    if(curX >= maxDrag*0.8 && maxDrag>10){
-      handle.style.transform = 'translateX(-'+maxDrag+'px)';
-      var inOk = !document.getElementById('checkInBtn').disabled;
-      var outOk = !document.getElementById('checkOutBtn').disabled;
-      var targetId = inOk ? 'checkInBtn' : (outOk ? 'checkOutBtn' : null);
-      if(targetId){ setTimeout(function(){ document.getElementById(targetId).click(); }, 120); }
-      setTimeout(reset, 500);
-    } else { reset(); }
-  }
-  function reset(){ curX=0; if(handle) handle.style.transform='translateX(0)'; }
-  window.refreshSwipeState = function(){
-    init();
-    if(!track) return;
-    var inBtn = document.getElementById('checkInBtn'), outBtn = document.getElementById('checkOutBtn');
-    var inOk = inBtn && !inBtn.disabled, outOk = outBtn && !outBtn.disabled;
-    track.classList.remove('swipe-in','swipe-out','swipe-disabled');
-    var label = document.getElementById('swipeLabel');
-    if(inOk){ track.classList.add('swipe-in'); label.textContent = 'برای ثبت ورود بکش ‹‹'; }
-    else if(outOk){ track.classList.add('swipe-out'); label.textContent = 'برای ثبت خروج بکش ‹‹'; }
-    else { track.classList.add('swipe-disabled'); label.textContent = 'ابتدا موقعیت مکانی را بررسی کن'; }
-    reset();
-  };
-  init();
-})();
-
 
 // ---------- Submit entry ----------
 // ---------- Offline queue (used when the phone has no signal at the moment of check-in/out) ----------
@@ -3684,13 +3607,6 @@ window.addEventListener('offline', function(){ isReallyOnline = false; setConnBa
 async function submitEntry(type){
   if(!loggedInEmployee){ alert('ابتدا وارد حساب کاربری خود شوید'); return; }
   if(!currentPos || !chosenProject){ alert('ابتدا موقعیت مکانی را بررسی کنید'); return; }
-  if(type === 'out' && nightShiftConfirmRequired()){
-    var chk = document.getElementById('nightShiftConfirmChk');
-    if(!chk || !chk.checked){
-      setStatus('🌙 ورودتان مربوط به دیروز است — لطفاً تیک تایید شیفت شب‌کاری/طولانی رو بزنید تا بتونید خروج بزنید.', 'err');
-      return;
-    }
-  }
 
   var fingerprintVerified = false;
   if(loggedInEmployee.fingerprintRequired && deviceHasFingerprint){
@@ -3717,22 +3633,21 @@ async function submitEntry(type){
 
   document.getElementById('checkInBtn').disabled = true;
   document.getElementById('checkOutBtn').disabled = true;
-  if(window.refreshSwipeState) refreshSwipeState();
 
   if(!navigator.onLine){
     queueOfflineEntry(entry, chosenProject.id);
-    todayLastType = (type === 'in') ? 'ورود' : 'خروج';
-    updateTodayStatusHint();
     setStatus('📦 اینترنت وصل نیست — ثبت ذخیره شد و به‌محض وصل‌شدن اینترنت خودکار ارسال می‌شود.', 'wait');
     renderQueuedInMyLogs();
+    document.getElementById('checkInBtn').disabled = false;
+    document.getElementById('checkOutBtn').disabled = false;
     return;
   }
 
   var res = await apiCall(function(){ return apiPost('addLog', {entry: entry, deviceId: DEVICE_ID, project_id: chosenProject.id}); });
+  document.getElementById('checkInBtn').disabled = false;
+  document.getElementById('checkOutBtn').disabled = false;
   if(!res.ok && res.networkError){
     queueOfflineEntry(entry, chosenProject.id);
-    todayLastType = (type === 'in') ? 'ورود' : 'خروج';
-    updateTodayStatusHint();
     setStatus('📦 ارتباط با سرور برقرار نشد — ثبت ذخیره شد و به‌محض وصل‌شدن اینترنت خودکار ارسال می‌شود.', 'wait');
     renderQueuedInMyLogs();
     return;
@@ -3743,20 +3658,8 @@ async function submitEntry(type){
     if(res.error === 'project_not_allowed') msg = 'شما اجازه ثبت تردد برای این پروژه را ندارید.';
     if(res.error === 'outside_geofence') msg = 'موقعیت شما خارج از محدوده مجاز پروژه است.';
     if(res.error === 'fingerprint_required') msg = 'تایید اثر انگشت لازم است. دوباره تلاش کنید.';
-    if(res.error === 'already_checked_in') msg = 'شما قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
-    if(res.error === 'not_checked_in') msg = 'شما هنوز ورود نزده‌اید — ابتدا ورود بزنید.';
-    if(res.error === 'daily_limit_reached') msg = 'شما امروز حداکثر تعداد ثبت تردد (یک ورود و یک خروج) رو زدید. برای ثبت بیشتر باید با مدیر هماهنگ کنید.';
-    if(res.error === 'checkout_too_soon'){
-      setStatus('⛔ حداقل باید ۵ دقیقه از ثبت ورودتان بگذرد تا بتوانید خروج بزنید.', 'err');
-      return;
-    }
-    if(res.error === 'checkout_expired'){
-      setStatus('⛔ بیش از ۱۷ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید و باید تایم را دستی ثبت کنید.<br><br>'+
-        '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\'out\')">📨 درخواست ثبت دستی خروج بفرست</button>', 'err');
-      return;
-    }
     setStatus('⛔ ثبت ناموفق بود: ' + msg + '. دوباره تلاش کنید.', 'err');
-    loadMyLogs(); // re-sync status in case it was out of date
+    loadMyLogs();
     return;
   }
   setStatus('✅ '+(type==='in' ? 'ورود' : 'خروج')+' با موفقیت ثبت شد — ساعت سرور: '+(res.time||''), 'ok');
@@ -3800,8 +3703,7 @@ async function showMyLogsDebug(){
     lines.push((i+1) + '. ' + e.type + ' | تاریخ: ' + e.jalaliDate + ' | ساعت: ' + e.time + ' | iso: ' + e.isoTimestamp);
   });
   lines.push('');
-  lines.push('todayLastType (که دکمه‌ها ازش تعیین می‌شن): ' + todayLastType);
-  lines.push('serverTodayStr: ' + serverTodayStr);
+  lines.push('todayLastType (فقط برای متنِ راهنما، دیگه دکمه‌ها رو تعیین نمی‌کنه): ' + todayLastType);
   alert(lines.join('\n'));
 }
 async function loadMyLogs(){
@@ -3817,11 +3719,8 @@ async function loadMyLogs(){
   var lastServerEntry = entries.length ? entries[entries.length-1] : null;
   var lastServerType = lastServerEntry ? lastServerEntry.type : null;
   var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
-  todayLastType = lastQueuedType || lastServerType; // a still-pending queued entry takes priority over server state
-  lastOpenCheckinIso = (todayLastType === 'ورود' && !lastQueuedType && lastServerEntry) ? lastServerEntry.isoTimestamp : null;
-  lastOpenCheckinDate = (todayLastType === 'ورود' && !lastQueuedType && lastServerEntry) ? lastServerEntry.jalaliDate : null;
+  todayLastType = lastQueuedType || lastServerType; // shown as an informational hint only — does not gate the buttons
   updateTodayStatusHint();
-  updateNightShiftCheckbox();
 
   if(!res.ok && queue.length === 0){
     document.getElementById('myLogs').innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>';
@@ -3884,21 +3783,6 @@ function updateTodayStatusHint(){
     : (todayLastType === 'خروج' ? '📍 آخرین ثبت شما خروج بوده — می‌توانید دوباره ورود بزنید.' : '📍 هنوز ثبتی نزده‌اید.');
   var el = document.getElementById('todayStatusHint');
   if(el) el.textContent = hint;
-}
-function nightShiftConfirmRequired(){
-  if(todayLastType !== 'ورود' || !lastOpenCheckinDate) return false;
-  return lastOpenCheckinDate !== (serverTodayStr || jalaliString(new Date()));
-}
-function updateNightShiftCheckbox(){
-  var row = document.getElementById('nightShiftConfirmRow');
-  var chk = document.getElementById('nightShiftConfirmChk');
-  if(!row || !chk) return;
-  if(nightShiftConfirmRequired()){
-    row.style.display = 'flex';
-  } else {
-    row.style.display = 'none';
-    chk.checked = false;
-  }
 }
 
 // ---------- Manual entry requests (employee) ----------
@@ -4753,7 +4637,6 @@ function init(){
       initLeaveDateSelects();
       loadMyLeaves();
       initCheckinMap();
-      if(window.refreshSwipeState) refreshSwipeState();
       checkGpsPermissionHint();
       if(navigator.onLine) syncOfflineQueue();
       startConnectivityWatcher();
