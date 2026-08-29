@@ -2,7 +2,7 @@
 // available offline. It does NOT cache API calls (attendance data always needs
 // to be fresh/live), only the static app shell (HTML/CSS/JS/icons).
 
-var CACHE_NAME = 'tardod-shell-v1';
+var CACHE_NAME = 'tardod-shell-v2';
 var SHELL_FILES = [
   './',
   './index.html',
@@ -35,7 +35,7 @@ self.addEventListener('fetch', function(event){
   if(req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(req).then(function(res){
+    fetch(req, {cache: 'no-store'}).then(function(res){
       var resClone = res.clone();
       caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
       return res;
