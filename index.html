@@ -1043,7 +1043,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-28-crosswritelag-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-28-locrace-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2519,7 +2519,7 @@ function showEmpSection(name){
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
     if(btn) btn.classList.toggle('active', s===name);
   });
-  if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
+  if(name === 'checkin'){ window.myLogsPromise = loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
   else if(name === 'history') loadMyHistory();
   pushSectionHistory(name, name === 'checkin');
@@ -2655,7 +2655,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-28-crosswritelag-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-28-locrace-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3392,7 +3392,12 @@ function locateAndCheck(){
   var locBadge = document.getElementById('checkinLocBadge');
   if(locBadge) locBadge.textContent = '⏳ در حال دریافت موقعیت...';
 
-  navigator.geolocation.getCurrentPosition(function(pos){
+  navigator.geolocation.getCurrentPosition(async function(pos){
+    // Wait for any in-flight loadMyLogs() (e.g. the one triggered when this section was
+    // opened) to finish before deciding which button to enable — otherwise todayLastType can
+    // still be at its stale/default value here, wrongly favoring "check in" even when the
+    // person is actually already checked in and trying to check out.
+    if(window.myLogsPromise){ try { await window.myLogsPromise; } catch(e){} }
     currentPos = pos.coords;
     initCheckinMap(currentPos.latitude, currentPos.longitude);
     updateCheckinProjectMarker();
