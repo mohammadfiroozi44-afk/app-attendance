@@ -440,10 +440,7 @@
     <div class="card bottom-sheet">
       <div class="eyebrow" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleTodayPanel()">
         <span id="todayPanelTitle">🔼 تردد های امروز</span>
-        <span>
-          <button type="button" class="icon-btn" title="دیباگ" onclick="event.stopPropagation(); showMyLogsDebug();">🐞</button>
-          <button type="button" class="icon-btn" title="بروزرسانی" onclick="event.stopPropagation(); loadMyLogs();">🔄</button>
-        </span>
+        <button type="button" class="icon-btn" title="بروزرسانی" onclick="event.stopPropagation(); loadMyLogs();">🔄</button>
       </div>
       <div id="todayPanelBody" style="display:block;">
         <div id="myLogs"><div class="empty">هنوز ثبتی وجود ندارد</div></div>
@@ -695,6 +692,12 @@
       <div class="divider"></div>
       <div class="eyebrow">تردد های امروز</div>
       <div id="dashTodayTraffic" class="empty">در حال بارگذاری...</div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">🚫 غیبت دیروز</div>
+      <div class="hint" style="margin-top:-8px;">این با «غایبین امروز» بالا فرق داره — چون امروز هنوز تموم نشده، هرکسی می‌تونه تا آخرِ روز ورود بزنه. اما دیروز یه روزِ کامل و تمام‌شده‌ست، پس این لیست قطعیه: کسایی که دیروز هیچ ورودی نزدن و مرخصی/ماموریتِ تاییدشده هم نداشتن. اگه کسی دیروز شیفتِ شب بوده (ورودِ روزِ قبل، خروجِ دیروز)، غایب حساب نمی‌شه.</div>
+      <div id="dashAbsentYesterday" class="empty">در حال بارگذاری...</div>
     </div>
     </div><!-- /admSec-dashboard -->
 
@@ -1043,7 +1046,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-28-two-checkins-rule"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-28-absence-card"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2655,7 +2658,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-28-two-checkins-rule'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-28-absence-card'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3830,45 +3833,6 @@ var serverTodayStr = null; // authoritative "today" from the server — using th
 var myLastKnownIso = null;
 var myLastKnownType = null; // 'ورود' or 'خروج'
 
-// ---------- Debug helper (shows exactly what the app received, for troubleshooting) ----------
-async function showMyLogsDebug(){
-  if(!loggedInEmployee){ alert('ابتدا وارد شو.'); return; }
-  var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
-  if(!res.ok){ alert('درخواست ناموفق بود: ' + (res.error||'خطای نامشخص')); return; }
-  var raw = res.logs || [];
-  var todayStr = res.today || '—';
-  // Filter directly by jalaliDate string match (independent of any sort order) — this checks
-  // whether a row for today exists AT ALL, even if it's sorting into the wrong position due to
-  // a malformed isoTimestamp on some OTHER row throwing off a timestamp-based sort.
-  var todaysRaw = raw.filter(function(e){ return e.jalaliDate === todayStr; });
-  var badIso = raw.filter(function(e){ return isNaN(new Date(e.isoTimestamp).getTime()); });
-  var entries = raw.slice().sort(function(a,b){ return isoCompare(a.isoTimestamp, b.isoTimestamp); });
-  var last5 = entries.slice(-5);
-  var lines = [];
-  lines.push('نام‌کاربری: ' + loggedInEmployee.username);
-  lines.push('کل تعداد ردیف برگشتی: ' + raw.length);
-  lines.push('امروزِ سرور: ' + todayStr);
-  lines.push('');
-  lines.push('ردیف‌هایی که تاریخشون دقیقاً امروزه: ' + todaysRaw.length);
-  todaysRaw.forEach(function(e, i){
-    lines.push('  '+(i+1)+'. ' + e.type + ' | ساعت: ' + e.time + ' | iso: ' + e.isoTimestamp);
-  });
-  lines.push('');
-  lines.push('ردیف‌های با iso خراب/غیرقابل‌خوندن: ' + badIso.length);
-  badIso.forEach(function(e, i){
-    lines.push('  '+(i+1)+'. ' + e.type + ' | تاریخ: ' + e.jalaliDate + ' | ساعت: ' + e.time + ' | iso: "' + e.isoTimestamp + '"');
-  });
-  lines.push('');
-  lines.push('۵ ردیف آخر بعد از مرتب‌سازی (قدیم→جدید):');
-  if(last5.length === 0) lines.push('  (هیچی برنگشت)');
-  last5.forEach(function(e, i){
-    lines.push((i+1) + '. ' + e.type + ' | تاریخ: ' + e.jalaliDate + ' | ساعت: ' + e.time + ' | iso: ' + e.isoTimestamp);
-  });
-  lines.push('');
-  lines.push('todayLastType (که دکمه‌ها ازش تعیین می‌شن): ' + todayLastType);
-  lines.push('serverTodayStr: ' + serverTodayStr);
-  alert(lines.join('\n'));
-}
 async function loadMyLogs(){
   if(!loggedInEmployee) return;
   updateOfflineQueueBanner();
@@ -4139,6 +4103,21 @@ async function loadDashboard(){
       return '<div class="list-item"><div><b>'+esc(currentEmployeeName(p.username, p.employee))+'</b> · '+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+
         '<div class="meta" style="display:flex; gap:14px; flex-wrap:wrap;">'+inHtml+outHtml+'</div></div></div>';
     }).join('');
+  }
+
+  var absentYBox = document.getElementById('dashAbsentYesterday');
+  if(absentYBox){
+    if(ddRes.yesterdayIsHoliday){
+      absentYBox.innerHTML = '<div class="empty">🎌 دیروز تعطیل بوده — غیبت حساب نمی‌شه</div>';
+    } else {
+      var absentY = ddRes.absentYesterday || [];
+      absentYBox.innerHTML = absentY.length === 0
+        ? '<div class="empty">✅ دیروز ('+esc(ddRes.yesterdayStr||'')+') کسی غایب نبوده</div>'
+        : ('<div class="hint" style="margin:0 0 8px;">'+esc(ddRes.yesterdayStr||'')+' — '+absentY.length+' نفر</div>' +
+           absentY.map(function(a){
+             return '<div class="list-item"><div><b>'+esc(currentEmployeeName(a.username, a.fullName))+'</b>'+(a.employeeCode?(' · کد '+esc(a.employeeCode)):'')+'</div></div>';
+           }).join(''));
+    }
   }
 }
 async function loadHolidays(){
