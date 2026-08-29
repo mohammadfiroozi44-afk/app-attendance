@@ -693,12 +693,6 @@
       <div class="eyebrow">تردد های امروز</div>
       <div id="dashTodayTraffic" class="empty">در حال بارگذاری...</div>
     </div>
-
-    <div class="card">
-      <div class="eyebrow">🚫 غیبت دیروز</div>
-      <div class="hint" style="margin-top:-8px;">این با «غایبین امروز» بالا فرق داره — چون امروز هنوز تموم نشده، هرکسی می‌تونه تا آخرِ روز ورود بزنه. اما دیروز یه روزِ کامل و تمام‌شده‌ست، پس این لیست قطعیه: کسایی که دیروز هیچ ورودی نزدن و مرخصی/ماموریتِ تاییدشده هم نداشتن. اگه کسی دیروز شیفتِ شب بوده (ورودِ روزِ قبل، خروجِ دیروز)، غایب حساب نمی‌شه.</div>
-      <div id="dashAbsentYesterday" class="empty">در حال بارگذاری...</div>
-    </div>
     </div><!-- /admSec-dashboard -->
 
 
@@ -785,7 +779,7 @@
 
     <div class="card">
       <div class="eyebrow">ورود سریع با اثر انگشت (مدیریت)</div>
-      <div class="hint" style="margin-top:-4px;">اگه فعال کنی، دفعه بعد که با یوزرنیم/رمز وارد بشی، اطلاعات ورودت روی همین گوشی ذخیره می‌شه و می‌تونی بعداً با اثر انگشت گوشی وارد پنل مدیریت بشی — فقط روی همین دستگاه.</div>
+      <div class="hint" style="margin-top:-4px;">در صورت فعال‌سازی، اطلاعات ورود شما با نام‌کاربری و رمز عبور در همین دستگاه ذخیره می‌شود و در دفعات بعد می‌توانید با اثر انگشت وارد پنل مدیریت شوید — فقط روی همین دستگاه.</div>
       <label class="chk-item" style="width:100%; box-sizing:border-box;">
         <input type="checkbox" id="adminFpToggle" onchange="saveAdminFpPref()"> فعال‌سازی ورود سریع با اثر انگشت روی این گوشی
       </label>
@@ -810,18 +804,20 @@
 
     <div class="card">
       <div class="eyebrow">تعمیر داده‌های قدیمی</div>
-      <div class="hint" style="margin-top:-4px;">ثبت‌هایی که قبل از آخرین آپدیت‌ها ویرایش یا تایید شدن، ممکنه ترتیب یا علامت تعطیلشون درست نباشه. این دکمه همه‌ی ثبت‌های گزارش رو یک‌بار بازمحاسبه می‌کنه (بر اساس تاریخ/ساعت فعلیشون) — بدون تغییر تاریخ/ساعت/پرسنل هیچ‌کدوم.</div>
+      <div class="hint" style="margin-top:-4px;">ثبت‌هایی که پیش از آخرین به‌روزرسانی ویرایش یا تأیید شده‌اند، ممکن است ترتیب یا وضعیت تعطیل‌بودنشان نادرست باشد. این گزینه تمام ثبت‌های گزارش را بر اساس تاریخ و ساعت فعلی آن‌ها بازمحاسبه می‌کند، بدون تغییر در تاریخ، ساعت یا پرسنل مربوطه.</div>
       <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
-      <div class="hint" style="margin-top:10px;">این دکمه ستون «source» (دستی/اتومات) رو فقط برای ثبت‌های قدیمی که این ستون خالیه پر می‌کنه — بر اساس یادداشتِ همون ردیف حدس می‌زنه. ثبت‌های جدید که قبلاً این ستون رو دارن، دست‌نخورده می‌مونن.</div>
+      <div class="hint" style="margin-top:10px;">این گزینه ستون «منبع ثبت» (دستی/خودکار) را فقط برای ثبت‌های قدیمی که این ستون در آن‌ها خالی است، بر اساس یادداشت همان ردیف تکمیل می‌کند. ثبت‌های جدید که این ستون را از قبل دارند، بدون تغییر باقی می‌مانند.</div>
       <button type="button" class="btn btn-ghost" onclick="backfillLogSourceBtn()">🏷️ پرکردن ستون دستی/اتومات برای داده‌های قدیمی</button>
-      <div class="hint" style="margin-top:10px;">این دکمه ماموریت‌های تاییدشده‌ی قدیمی رو که ساعتِ ورود/خروجشون هنوز به گزارش اضافه نشده بود پیدا و اضافه می‌کنه (بدون تکراری‌سازی اگه دوباره بزنیش).</div>
+      <div class="hint" style="margin-top:10px;">این گزینه مأموریت‌های تأییدشده‌ای که ساعت ورود و خروج آن‌ها هنوز به گزارش اضافه نشده را یافته و اضافه می‌کند؛ اجرای دوباره باعث ثبت تکراری نمی‌شود.</div>
       <button type="button" class="btn btn-ghost" onclick="backfillMissionLogsBtn()">🚗 اضافه‌کردن ساعتِ ماموریت‌های قدیمی به گزارش</button>
-      <div class="hint" style="margin-top:10px;">این دکمه یه فیلتر (فلش‌های بالای ستون‌ها) به همه‌ی شیت‌های اصلی گوگل‌شیت اضافه می‌کنه. شیت Logs هم بر اساس تاریخ/ساعت واقعی (نه متن فارسی) مرتب می‌شه؛ بقیه‌ی شیت‌ها فقط فیلتر می‌گیرن (چون تاریخ فارسیِ متنی قابل مرتب‌سازی درست نیست، خودت از فلش فیلتر می‌تونی مرتب کنی).</div>
+      <div class="hint" style="margin-top:10px;">این گزینه یک فیلتر (فلش‌های بالای ستون‌ها) به تمام شیت‌های اصلی گوگل‌شیت اضافه می‌کند. شیت Logs بر اساس تاریخ و ساعت واقعی مرتب می‌شود؛ سایر شیت‌ها فقط فیلتر دریافت می‌کنند و مرتب‌سازی آن‌ها از طریق فلش فیلتر امکان‌پذیر است.</div>
       <button type="button" class="btn btn-ghost" onclick="setupSheetFiltersBtn()">📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها</button>
+      <div class="hint" style="margin-top:10px;">این گزینه بررسی می‌کند دیروز تعطیل بوده یا نه؛ در صورت تعطیل بودن، برای پرسنلی که تردد یا مرخصی/مأموریتی برای آن روز ثبت نشده، وضعیت «آف» را در سیستم ثبت می‌کند. این کار به‌صورت خودکار و روزانه هم قابل انجام است — برای فعال‌سازی زمان‌بندی خودکار، به راهنمای فنی مراجعه کنید.</div>
+      <button type="button" class="btn btn-ghost" onclick="runOffMarkerJobBtn()">🏠 ثبت وضعیت «آف» برای دیروز</button>
     </div>
     <div class="card">
       <div class="eyebrow">چک کردن نسخه‌ی سرور و صفحه</div>
-      <div class="hint" style="margin-top:-4px;">این دکمه هم نسخه‌ی Code.gs که الان روی سرور فعاله رو چک می‌کنه، هم نسخه‌ی همین صفحه‌ای که الان داری می‌بینی — چون گاهی مشکل اینه که خودِ index.html رو رو گیت‌هاب آپلود نکردی، یا گوشی هنوز نسخه‌ی کش‌شده‌ی قدیمی رو نشون می‌ده.</div>
+      <div class="hint" style="margin-top:-4px;">این گزینه نسخه‌ی فعال Code.gs روی سرور و نسخه‌ی همین صفحه را بررسی می‌کند تا از هماهنگ بودن بک‌اند و فرانت‌اند پس از هر به‌روزرسانی اطمینان حاصل شود.</div>
       <button type="button" class="btn btn-ghost" onclick="checkServerVersion()">🔍 چک کردن نسخه</button>
       <div id="serverVersionResult" style="margin-top:8px; font-size:13px; direction:ltr; text-align:right;"></div>
     </div>
@@ -872,14 +868,14 @@
     <div class="admin-section" id="admSec-offline" style="display:none;">
     <div class="card">
       <div class="eyebrow">تردد ناقص (آفلاین — در انتظار بررسی)</div>
-      <div class="hint" style="margin-top:-4px;">این ثبت‌ها وقتی گوشی پرسنل آفلاین بوده، بر اساس ساعت خودِ گوشی (نه سرور) ذخیره شدن. ساعت رو بررسی/اصلاح کن، بعد تایید یا رد کن.</div>
+      <div class="hint" style="margin-top:-4px;">این ثبت‌ها زمانی که گوشی پرسنل آفلاین بوده، بر اساس ساعت دستگاه (نه سرور) ذخیره شده‌اند. لطفاً ساعت را بررسی یا اصلاح کرده و سپس تأیید یا رد کنید.</div>
       <input type="text" id="pendingOfflineFilter" placeholder="فیلتر با نام یا کد پرسنلی" oninput="renderPendingOffline()">
       <button type="button" class="btn btn-ghost btn-small" style="margin-top:8px;" onclick="rejectAllPendingOffline()">🚫 رد همه (طبق فیلتر فعلی)</button>
       <div id="pendingOfflineList" style="margin-top:10px;"><div class="empty">در حال بارگذاری...</div></div>
     </div>
     <div class="card">
       <div class="eyebrow">🕐 ورود بدون خروج (یادش رفته بزنه)</div>
-      <div class="hint" style="margin-top:-4px;">پرسنلی که آخرین ثبتشون «ورود»ه و هنوز خروج نزدن — فقط روزهای قبل (امروز رو نشون نمی‌ده، چون ممکنه هنوز وسطِ شیفتشون باشن). اینجا می‌تونی مستقیم ساعتِ خروجِ فراموش‌شده رو وارد کنی؛ محدودیتِ «باید بعد از آخرین ثبت باشه» نداره، فقط اگه با یه ثبتِ بعدیِ واقعی تداخل داشته باشه بهت می‌گه.</div>
+      <div class="hint" style="margin-top:-4px;">پرسنلی که آخرین ثبت آن‌ها «ورود» بوده و هنوز خروج ثبت نکرده‌اند — فقط مربوط به روزهای گذشته (روز جاری نمایش داده نمی‌شود، زیرا ممکن است شیفت هنوز ادامه داشته باشد). در این بخش می‌توانید ساعت خروج فراموش‌شده را مستقیماً وارد کنید؛ محدودیت ترتیب زمانی با ثبت‌های قبلی وجود ندارد، مگر آنکه با یک ثبت واقعی دیگر تداخل داشته باشد.</div>
       <input type="text" id="openSessionsFilter" placeholder="فیلتر با نام یا کد پرسنلی" oninput="renderOpenSessions()">
       <div id="openSessionsList" style="margin-top:10px;"><div class="empty">در حال بارگذاری...</div></div>
     </div>
@@ -889,7 +885,7 @@
 
     <div class="card">
       <div class="eyebrow">روزهای تعطیل</div>
-      <div class="hint" style="margin-top:-4px;">جمعه‌ها خودکار تشخیص داده می‌شوند. برای تعطیلات دیگر (رسمی یا موردی)، اینجا اضافه کن.</div>
+      <div class="hint" style="margin-top:-4px;">جمعه‌ها به‌صورت خودکار شناسایی می‌شوند. برای ثبت سایر تعطیلات (رسمی یا موردی)، از این بخش استفاده کنید.</div>
       <div class="date-row">
         <select id="holidayDay"></select>
         <select id="holidayMonth"></select>
@@ -907,20 +903,36 @@
 
     <div class="card">
       <div class="eyebrow">گزارش کامل تردد</div>
-      <input type="text" id="logFilterCode" placeholder="فیلتر با نام یا کد پرسنلی" class="field-mono" oninput="renderLogTable()">
+      <input type="text" id="logFilterCode" placeholder="فیلتر با نام یا کد پرسنلی" class="field-mono" oninput="onReportFilterChange()">
       <div class="date-row">
-        <select id="logFilterDay" onchange="renderLogTable()"><option value="">همه روزها</option></select>
-        <select id="logFilterMonth" onchange="renderLogTable()"><option value="">همه ماه‌ها</option></select>
-        <select id="logFilterYear" onchange="renderLogTable()"><option value="">همه سال‌ها</option></select>
+        <select id="logFilterDay" onchange="onReportFilterChange()"><option value="">همه روزها</option></select>
+        <select id="logFilterMonth" onchange="onReportFilterChange()"><option value="">همه ماه‌ها</option></select>
+        <select id="logFilterYear" onchange="onReportFilterChange()"><option value="">همه سال‌ها</option></select>
       </div>
-      <div style="overflow-x:auto;">
-        <table id="logTable">
-          <thead><tr><th>تاریخ</th><th>پرسنل</th><th>پروژه</th><th>ورود</th><th>خروج</th><th>عملیات</th></tr></thead>
-          <tbody id="logTableBody"><tr><td colspan="6" class="empty">در حال بارگذاری...</td></tr></tbody>
-        </table>
+      <label>وضعیت</label>
+      <select id="logStatusFilter" onchange="onReportFilterChange()">
+        <option value="normal">تردد عادی</option>
+        <option value="absence">غیبت</option>
+        <option value="leave">مرخصی</option>
+        <option value="mission">ماموریت</option>
+        <option value="holiday">تعطیل / آف</option>
+      </select>
+
+      <div id="normalReportView">
+        <div style="overflow-x:auto;">
+          <table id="logTable">
+            <thead><tr><th>تاریخ</th><th>پرسنل</th><th>پروژه</th><th>ورود</th><th>خروج</th><th>عملیات</th></tr></thead>
+            <tbody id="logTableBody"><tr><td colspan="6" class="empty">در حال بارگذاری...</td></tr></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportCSV()">⬇️ خروجی CSV</button>
+        <p class="hint" style="margin-top:10px;">این گزارش به‌صورت زنده با Google Sheet متصل هماهنگ است.</p>
       </div>
-      <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportCSV()">⬇️ خروجی CSV</button>
-      <p class="hint" style="margin-top:10px;">این گزارش همیشه در Google Sheet متصل هم به‌صورت زنده موجود است.</p>
+
+      <div id="statusReportView" style="display:none;">
+        <p class="hint" style="margin-top:-4px;">برای این گزارش، ماه و سال را انتخاب کنید.</p>
+        <div id="statusReportList" class="empty">—</div>
+      </div>
     </div>
     </div><!-- /admSec-report -->
   </div>
@@ -932,7 +944,7 @@
     <div class="sheet-close-btn"><button type="button" class="icon-btn" title="بستن" onclick="closeAdminLogSheet()">✕</button></div>
     <div class="sheet-handle"></div>
     <div class="eyebrow">ثبت مستقیم تردد (بدون درخواست)</div>
-    <div class="hint" style="margin-top:-4px;">مستقیماً برای یک پرسنل، بدون نیاز به تایید درخواست، تردد ثبت می‌کنه.</div>
+    <div class="hint" style="margin-top:-4px;">برای یک پرسنل، بدون نیاز به تأیید درخواست، تردد را مستقیماً ثبت می‌کند.</div>
 
     <div class="date-row" style="margin-bottom:10px;">
       <button type="button" class="btn btn-small" id="adminLogModeSingleBtn" onclick="setAdminLogMode('single')" style="flex:1;">یک ثبت</button>
@@ -962,7 +974,7 @@
     </div>
 
     <div id="adminLogMonthlySection" style="display:none;">
-      <div class="hint" style="margin-top:-4px;">برای پرسنلی که گوشی/دسترسی به اپ نداره — تایم کل یک ماه رو یکجا وارد یا ویرایش کن. 🌙 اگه یه روز شیفت شبه (مثلاً ورود ۲۱:۰۰ و خروج ۹ صبح)، فقط همون ساعت‌ها رو تو ردیف همون روز بزن — خودش تشخیص می‌ده خروج مال روز بعده و با همون تاریخ ذخیره می‌شه. زیر «خروج» اگه نوشته «⬅️ ادامه دیشب» یعنی این خروج مال ورودِ روز قبله، نه ورود همین ردیف. زیر «ورود» اگه نوشته «🌙 خروج ← فردا» یعنی خروج این ورود تو ردیف روز بعد میاد؛ اگه نوشته «⏳ هنوز خروج نزده» یعنی این ورود اصلاً هیچ خروجی (نه امروز نه فردا) نداره — یه ورودِ بازِ ساده‌ست، نه شیفتِ شب. ردیف‌های سبزرنگ یعنی از قبل داده دارن — می‌تونی ویرایششون کنی. جمعه‌ها و تعطیلیِ تعریف‌شده، خودکار «🏠 Off» می‌خورن (اگه واقعاً کار کرده، تیکش رو بردار و ساعت بزن).</div>
+      <div class="hint" style="margin-top:-4px;">برای پرسنلی که به گوشی یا اپلیکیشن دسترسی ندارند، تردد کل یک ماه را یکجا وارد یا ویرایش کنید. برای شیفت شب (مثلاً ورود ساعت ۲۱:۰۰ و خروج ساعت ۹ صبح روز بعد)، کافی است ساعت‌ها را در ردیف همان روز وارد کنید؛ سیستم به‌صورت خودکار تشخیص می‌دهد که خروج مربوط به روز بعد است. عبارت «ادامه دیشب» زیر ستون خروج به این معناست که این خروج مربوط به ورود روز قبل است. عبارت «خروج ← فردا» زیر ستون ورود یعنی خروج این ورود در ردیف روز بعد ثبت می‌شود؛ عبارت «هنوز خروج نزده» یعنی این ورود خروجی ندارد و یک ورود باز است، نه شیفت شب. ردیف‌های سبزرنگ دارای داده‌ی ثبت‌شده‌اند و قابل ویرایش هستند. جمعه‌ها و تعطیلات تعریف‌شده به‌صورت خودکار «آف» علامت‌گذاری می‌شوند؛ در صورت کارکرد واقعی، تیک آن را بردارید و ساعت را وارد کنید.</div>
       <label>ماه و سال</label>
       <div class="date-row">
         <select id="adminLogMonthlyMonth" onchange="onBulkMonthYearChanged()"></select><select id="adminLogMonthlyYear" onchange="onBulkMonthYearChanged()"></select>
@@ -978,14 +990,14 @@
 
       <button type="button" class="btn btn-ghost" style="margin-top:8px;" onclick="toggleBulkPasteBox()">📝 پیست سریع با متن</button>
       <div id="bulkPasteBox" style="display:none; background:#eef3fb; border-radius:10px; padding:10px 12px; margin-top:8px;">
-        <div class="hint" style="margin:0 0 6px;">هر خط یک روز؛ شماره‌روز، ساعت ورود، ساعت خروج رو با کاما جدا کن (اگه یکی رو نداره، جاش خالی بذار). مثال:</div>
+        <div class="hint" style="margin:0 0 6px;">هر خط معادل یک روز است؛ شماره روز، ساعت ورود و ساعت خروج را با کاما از هم جدا کنید (در صورت نبود یکی از مقادیر، آن را خالی بگذارید). مثال:</div>
         <div class="hint" style="margin:0 0 6px; direction:ltr; text-align:right; font-family:monospace; background:#fff; padding:6px; border-radius:6px;">1,09:00,19:00<br>2,09:00,19:00<br>3,,19:00</div>
         <textarea id="bulkPasteText" rows="6" style="width:100%; box-sizing:border-box; font-family:monospace; direction:ltr; text-align:right;" placeholder="1,09:00,19:00"></textarea>
         <button type="button" class="btn btn-primary btn-small" style="margin-top:6px; width:100%;" onclick="applyBulkPasteText()">اعمال به فرم (باید اول «بارگذاری روزها» زده باشی)</button>
       </div>
 
       <div id="bulkFixedTimeBox" style="display:none; background:#fff4e2; border-radius:10px; padding:10px 12px; margin-top:10px;">
-        <div class="hint" style="margin:0 0 6px;">🔁 اگه یه بازه از این ماه ساعت ورود/خروج ثابتی داره (مثلاً یه هفته یه‌جور، هفته بعد جور دیگه)، اینجا وارد کن و فقط به همون بازه اعمال کن:</div>
+        <div class="hint" style="margin:0 0 6px;">در صورتی که بازه‌ای از این ماه ساعت ورود و خروج ثابتی دارد (مثلاً یک هفته به یک شکل و هفته بعد به شکل دیگر)، آن را اینجا وارد کنید تا فقط به همان بازه اعمال شود:</div>
         <div class="date-row">
           <input type="time" id="bulkFixedIn">
           <input type="time" id="bulkFixedOut">
@@ -1046,7 +1058,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-28-absence-card"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-29-off-marker-job"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2615,6 +2627,16 @@ async function recalcAllTimestamps(){
   alert('انجام شد. از '+res.total+' ثبت، '+res.fixed+' مورد اصلاح شد.');
   refreshCurrentAdminSection();
 }
+async function runOffMarkerJobBtn(){
+  if(!confirm('اگر دیروز تعطیل بوده، برای پرسنلی که تردد یا مرخصی/مأموریتی ثبت نکرده‌اند، وضعیت «آف» ثبت می‌شود. ادامه می‌دهید؟')) return;
+  var btn = event.target;
+  btn.disabled = true; btn.textContent = 'در حال بررسی...';
+  var res = await apiCall(function(){ return apiPost('runOffMarkerJobManually', {pin:adminPin}); });
+  btn.disabled = false; btn.textContent = '🏠 ثبت وضعیت «آف» برای دیروز';
+  if(!res.ok){ showAdminNotice('این عملیات ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  alert('عملیات با موفقیت انجام شد.');
+}
 async function backfillMissionLogsBtn(){
   if(!confirm('این کار ماموریت‌های تاییدشده‌ی قدیمی رو که ساعتشون هنوز تو گزارش نبود، پیدا و اضافه می‌کنه. ادامه بدم؟')) return;
   var btn = event.target;
@@ -2658,7 +2680,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-28-absence-card'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-29-off-marker-job'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3392,7 +3414,7 @@ function locateAndCheck(){
   // at that point something clearly went wrong (forgotten checkout, multi-day gap, etc.)
   // and it needs an admin to actually look at it, not a normal swipe.
   if(todayLastType === 'ورود' && lastOpenCheckinIso && (Date.now() - new Date(lastOpenCheckinIso).getTime()) > 24*3600*1000){
-    setStatus('⛔ بیش از ۲۴ ساعت از آخرین ورودتون گذشته و هنوز خروج ثبت نشده — دیگه نمی‌تونید خودتون خروج بزنید.<br><br>'+
+    setStatus('⛔ بیش از ۲۴ ساعت از آخرین ورود شما گذشته و هنوز خروجی ثبت نشده است؛ امکان ثبت خودکار خروج وجود ندارد.<br><br>'+
       '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\'out\')">📨 درخواست ثبت دستی خروج بفرست</button>', 'err');
     document.getElementById('checkInBtn').disabled = true;
     document.getElementById('checkOutBtn').disabled = true;
@@ -3628,11 +3650,11 @@ window.addEventListener('online', syncOfflineQueue);
 var hasPendingOffline = false;
 function canQueueOffline(){
   if(hasPendingOffline){
-    return {ok:false, msg:'یک ثبتِ آفلاینِ قبلیِ شما هنوز منتظرِ بررسیِ مدیره — تا وقتی مدیر اون رو تایید یا رد نکنه، نمی‌تونید ثبتِ آفلاینِ جدید بزنید.'};
+    return {ok:false, msg:'یک ثبت آفلاین قبلی شما هنوز در انتظار بررسی مدیر است. تا زمان تأیید یا رد آن، امکان ثبت آفلاین جدید وجود ندارد.'};
   }
   var localQueued = getOfflineQueue().filter(function(q){ return loggedInEmployee && q.entry.username === loggedInEmployee.username; });
   if(localQueued.length > 0){
-    return {ok:false, msg:'یک ثبتِ قبلی هنوز روی گوشی ذخیره‌ست و ارسال نشده — صبر کن اینترنت وصل بشه، یا از دکمه‌ی «تلاش دوباره» استفاده کن.'};
+    return {ok:false, msg:'یک ثبت قبلی هنوز روی دستگاه ذخیره شده و ارسال نشده است. لطفاً منتظر اتصال اینترنت بمانید یا از دکمه «تلاش دوباره» استفاده کنید.'};
   }
   return {ok:true};
 }
@@ -3642,10 +3664,10 @@ function updatePendingOfflineNotice(){
   var localQueued = getOfflineQueue().filter(function(q){ return loggedInEmployee && q.entry.username === loggedInEmployee.username; }).length;
   if(hasPendingOffline){
     box.style.display = 'block';
-    box.innerHTML = '⏳ یک ثبتِ آفلاینِ قبلی شما هنوز منتظرِ بررسیِ مدیره. تا تایید/ردش نکنه، نمی‌تونید ثبتِ آفلاینِ جدید بزنید — ثبتِ آنلاینِ عادی (وقتی اینترنت واقعاً وصله) مشکلی نداره.';
+    box.innerHTML = '⏳ یک ثبت آفلاین قبلی شما در انتظار بررسی مدیر است. تا تأیید یا رد آن، امکان ثبت آفلاین جدید وجود ندارد — ثبت آنلاین معمولی (در صورت اتصال اینترنت) بدون محدودیت است.';
   } else if(localQueued > 0){
     box.style.display = 'block';
-    box.innerHTML = '📦 یک ثبت روی گوشی ذخیره شده و هنوز ارسال نشده. تا این ارسال نشه، ثبتِ آفلاینِ جدید نمی‌تونی بزنی — از دکمه‌ی «تلاش دوباره» بالا استفاده کن.';
+    box.innerHTML = '📦 یک ثبت روی دستگاه ذخیره شده و هنوز ارسال نشده است. تا ارسال آن، امکان ثبت آفلاین جدید وجود ندارد — از دکمه «تلاش دوباره» بالا استفاده کنید.';
   } else {
     box.style.display = 'none';
   }
@@ -3782,13 +3804,13 @@ async function submitEntry(type){
     if(res.error === 'fingerprint_required') msg = 'تایید اثر انگشت لازم است. دوباره تلاش کنید.';
     if(res.error === 'already_checked_in') msg = 'شما قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
     if(res.error === 'not_checked_in') msg = 'شما هنوز ورود نزده‌اید — ابتدا ورود بزنید.';
-    if(res.error === 'daily_limit_reached') msg = 'شما امروز حداکثر تعداد ورود (۲ بار) رو زدید. برای ثبت بیشتر باید با مدیر هماهنگ کنید.';
+    if(res.error === 'daily_limit_reached') msg = 'شما امروز حداکثر تعداد ورود مجاز (۲ بار) را ثبت کرده‌اید. برای ثبت بیشتر، لازم است با مدیر هماهنگ کنید.';
     if(res.error === 'checkout_too_soon'){
       setStatus('⛔ حداقل باید ۵ دقیقه از ثبت ورودتان بگذرد تا بتوانید خروج بزنید.', 'err');
       return;
     }
     if(res.error === 'checkout_expired'){
-      setStatus('⛔ بیش از ۲۴ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید و باید درخواستِ ثبت تردد برای مدیر بفرستید.<br><br>'+
+      setStatus('⛔ بیش از ۲۴ ساعت از ورود شما گذشته است؛ امکان ثبت خروج عادی وجود ندارد و باید درخواست ثبت تردد برای مدیر ارسال کنید.<br><br>'+
         '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\'out\')">📨 درخواست ثبت دستی خروج بفرست</button>', 'err');
       return;
     }
@@ -4104,21 +4126,6 @@ async function loadDashboard(){
         '<div class="meta" style="display:flex; gap:14px; flex-wrap:wrap;">'+inHtml+outHtml+'</div></div></div>';
     }).join('');
   }
-
-  var absentYBox = document.getElementById('dashAbsentYesterday');
-  if(absentYBox){
-    if(ddRes.yesterdayIsHoliday){
-      absentYBox.innerHTML = '<div class="empty">🎌 دیروز تعطیل بوده — غیبت حساب نمی‌شه</div>';
-    } else {
-      var absentY = ddRes.absentYesterday || [];
-      absentYBox.innerHTML = absentY.length === 0
-        ? '<div class="empty">✅ دیروز ('+esc(ddRes.yesterdayStr||'')+') کسی غایب نبوده</div>'
-        : ('<div class="hint" style="margin:0 0 8px;">'+esc(ddRes.yesterdayStr||'')+' — '+absentY.length+' نفر</div>' +
-           absentY.map(function(a){
-             return '<div class="list-item"><div><b>'+esc(currentEmployeeName(a.username, a.fullName))+'</b>'+(a.employeeCode?(' · کد '+esc(a.employeeCode)):'')+'</div></div>';
-           }).join(''));
-    }
-  }
 }
 async function loadHolidays(){
   initLeaveDateSelects();
@@ -4308,6 +4315,55 @@ function pairLogEntriesForDisplay(entries){  var byUser = {};
   });
   pairs.sort(function(a,b){ return String(a.sortKey).localeCompare(String(b.sortKey)); });
   return pairs;
+}
+function onReportFilterChange(){
+  var status = document.getElementById('logStatusFilter').value;
+  var normalView = document.getElementById('normalReportView');
+  var statusView = document.getElementById('statusReportView');
+  if(status === 'normal'){
+    normalView.style.display = 'block';
+    statusView.style.display = 'none';
+    renderLogTable();
+  } else {
+    normalView.style.display = 'none';
+    statusView.style.display = 'block';
+    loadStatusReport(status);
+  }
+}
+async function loadStatusReport(status){
+  var year = document.getElementById('logFilterYear').value;
+  var month = document.getElementById('logFilterMonth').value;
+  var day = document.getElementById('logFilterDay').value;
+  var box = document.getElementById('statusReportList');
+  if(!year || !month){
+    box.innerHTML = '<div class="empty">برای این گزارش، ماه و سال را انتخاب کنید.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  var monthIdx = jMonths.indexOf(month) + 1;
+  var res = await apiCall(function(){ return apiPost('getAttendanceStatusReport', {pin:adminPin, year:year, month:monthIdx, status:status}); });
+  if(!res.ok){
+    box.innerHTML = '<div class="empty">دریافت گزارش ناموفق بود: ' + esc(res.error||'') + '</div>';
+    return;
+  }
+  var results = res.results || [];
+  if(day) results = results.filter(function(r){ return r.jalaliDate.split(' ')[0] === day; });
+  var codeFilter = (document.getElementById('logFilterCode').value||'').trim();
+  if(codeFilter){
+    results = results.filter(function(r){
+      return (r.fullName||'').indexOf(codeFilter) !== -1 || (r.employeeCode||'').indexOf(codeFilter) !== -1;
+    });
+  }
+  if(results.length === 0){
+    box.innerHTML = '<div class="empty">موردی یافت نشد.</div>';
+    return;
+  }
+  var labelMap = {absence:'غیبت', leave:'مرخصی', mission:'ماموریت', holiday:'تعطیل / آف'};
+  results.sort(function(a,b){ return a.jalaliDate.localeCompare(b.jalaliDate); });
+  box.innerHTML = results.map(function(r){
+    return '<div class="list-item"><div><b>'+esc(r.fullName)+'</b>'+(r.employeeCode?(' · کد '+esc(r.employeeCode)):'')+
+      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+r.jalaliDate+'</bdi> — '+esc(labelMap[status]||status)+'</div></div></div>';
+  }).join('');
 }
 function renderLogTable(){
   var tbody = document.getElementById('logTableBody');
