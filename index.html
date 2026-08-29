@@ -1034,7 +1034,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-29-diag"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-29-deepdiag"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2643,7 +2643,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-29-diag'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-29-deepdiag'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3678,8 +3678,18 @@ async function showMyLogsDebug(){
   var lines = [];
   lines.push('=== تشخیصِ نام‌کاربری (مهم) ===');
   lines.push('نام‌کاربریِ فرستاده‌شده: [' + res.debugReceivedUsername + ']');
+  lines.push('کدهای کاراکترش: ' + res.debugReceivedUsernameCharCodes);
   lines.push('کل ردیف‌های شیت (قبل از فیلتر): ' + res.debugTotalRowsInSheet);
-  lines.push('تعدادی که با این نام‌کاربری مچ شدن: ' + res.debugTotalMatchedRows);
+  lines.push('تعدادی که با فیلترِ دقیق مچ شدن: ' + res.debugTotalMatchedRows);
+  lines.push('تعدادی که با فیلترِ ساده‌تر (بدون حساسیت به بزرگ/کوچک یا فاصله) مچ شدن: ' + res.debugLooseMatchedRows);
+  if(res.debugLooseOnlyMismatchSample && res.debugLooseOnlyMismatchSample.length){
+    lines.push('');
+    lines.push('⚠️ این ردیف‌ها فقط با فیلترِ ساده‌تر پیدا شدن (یعنی یه فرقِ ظریف تو نام‌کاربریشونه):');
+    res.debugLooseOnlyMismatchSample.forEach(function(r, i){
+      lines.push('  '+(i+1)+'. تاریخ: ' + r.jalaliDate + ' ساعت: ' + r.time);
+      lines.push('     کدهای کاراکترِ username این ردیف: ' + r.usernameCharCodes);
+    });
+  }
   lines.push('');
   lines.push('۵ ردیفِ آخرِ کلِ شیت (بدون فیلتر، خام):');
   (res.debugLast5RawRows || []).forEach(function(r, i){
