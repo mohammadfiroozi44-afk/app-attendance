@@ -1058,7 +1058,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-29-off-english"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-29-admin-notify"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -1321,6 +1321,8 @@ function switchTab(which){
       document.getElementById('adminGate').style.display='none';
       document.getElementById('adminView').style.display='block';
       refreshAdminView();
+      requestNotificationPermission();
+      startAdminLogWatcher();
     } else {
       document.getElementById('adminGate').style.display='block';
       document.getElementById('adminView').style.display='none';
@@ -1328,6 +1330,7 @@ function switchTab(which){
   } else {
     document.getElementById('adminGate').style.display='none';
     document.getElementById('adminView').style.display='none';
+    stopAdminLogWatcher();
   }
 }
 
@@ -1405,6 +1408,36 @@ function employeeLogout(){
   updateFpQuickLoginVisibility();
 }
 
+// ---------- Admin live check-in/check-out notifications ----------
+// Local (on-device) notifications only fire while the admin's browser tab/app is open —
+// there is no server-push here (see project notes on Firebase Cloud Messaging for that).
+// Polls for any log rows newer than the last one seen and shows a notification for each.
+var adminLastSeenIso = null;
+var _adminLogWatcherTimer = null;
+async function pollAdminLogUpdates(){
+  if(!adminPin) return;
+  var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin, sinceIso: adminLastSeenIso}); });
+  if(!res.ok) return;
+  (res.logs||[]).forEach(function(entry){
+    var typeLabel = entry.type === 'ورود' ? 'ورود زد' : 'خروج زد';
+    var icon = entry.type === 'ورود' ? '✅' : '🚪';
+    showLocalNotification(
+      icon + ' ' + currentEmployeeName(entry.username, entry.employee) + ' ' + typeLabel,
+      (entry.project ? entry.project + ' — ' : '') + 'ساعت ' + entry.time
+    );
+  });
+  adminLastSeenIso = res.serverNowIso || adminLastSeenIso;
+}
+function startAdminLogWatcher(){
+  adminLastSeenIso = new Date().toISOString(); // start from now — don't notify about history
+  if(_adminLogWatcherTimer) clearInterval(_adminLogWatcherTimer);
+  _adminLogWatcherTimer = setInterval(pollAdminLogUpdates, 25000);
+}
+function stopAdminLogWatcher(){
+  if(_adminLogWatcherTimer) clearInterval(_adminLogWatcherTimer);
+  _adminLogWatcherTimer = null;
+}
+
 // ---------- Admin PIN ----------
 async function checkPin(){
   var enteredUser = document.getElementById('adminUsernameInput').value.trim();
@@ -1425,6 +1458,8 @@ async function checkPin(){
     document.getElementById('adminGate').style.display='none';
     document.getElementById('adminView').style.display='block';
     refreshAdminView();
+    requestNotificationPermission();
+    startAdminLogWatcher();
   } else {
     document.getElementById('pinHint').textContent = res.error ? ('خطا: '+res.error) : 'نام کاربری یا رمز اشتباه است. (پیش‌فرض: admin / 1234)';
     document.getElementById('pinHint').style.color = '#a32a2a';
@@ -1458,6 +1493,8 @@ async function tryAdminFingerprintLogin(){
   document.getElementById('adminGate').style.display='none';
   document.getElementById('adminView').style.display='block';
   refreshAdminView();
+  requestNotificationPermission();
+  startAdminLogWatcher();
 }
 function saveAdminFpPref(){
   var checked = document.getElementById('adminFpToggle').checked;
@@ -2599,6 +2636,7 @@ function adminLogout(){
   document.getElementById('pinInput').value='';
   document.getElementById('adminUsernameInput').value='';
   updateAdminFpQuickLoginVisibility();
+  stopAdminLogWatcher();
 }
 async function setPin(){
   var cur = document.getElementById('curPin').value.trim();
@@ -2680,7 +2718,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-29-off-english'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-29-admin-notify'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
