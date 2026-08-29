@@ -1034,7 +1034,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-29-emp-simple"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-29-servertoday"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2643,7 +2643,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-29-emp-simple'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-29-servertoday'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3727,7 +3727,7 @@ async function loadMyLogs(){
     return;
   }
 
-  var todayStr = jalaliString(new Date());
+  var todayStr = (res.ok && res.today) ? res.today : jalaliString(new Date());
   var allPairs = pairLogEntriesForDisplay(entries);
   var todayPairs = allPairs.filter(function(p){
     return (p.inE && p.inE.jalaliDate === todayStr) || (p.outE && p.outE.jalaliDate === todayStr);
@@ -3758,7 +3758,7 @@ async function loadMyHistory(){
   var box = document.getElementById('myHistoryList');
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>'; return; }
-  populateMonthYearFilter('myHistFilterMonth','myHistFilterYear', true);
+  populateMonthYearFilter('myHistFilterMonth','myHistFilterYear', true, res.today);
   var monthFilter = document.getElementById('myHistFilterMonth').value;
   var yearFilter = document.getElementById('myHistFilterYear').value;
   var entries = (res.logs||[]).filter(function(e){ return matchesMonthYear(e.jalaliDate, monthFilter, yearFilter); });
@@ -4572,15 +4572,22 @@ function matchesMonthYear(dateStr, monthFilter, yearFilter, dayFilter){
   if(yearFilter && p.year !== yearFilter) return false;
   return true;
 }
-function populateMonthYearFilter(monthId, yearId, defaultToCurrent){
+function populateMonthYearFilter(monthId, yearId, defaultToCurrent, serverTodayOverride){
   var monthSel = document.getElementById(monthId);
   var yearSel = document.getElementById(yearId);
   if(!monthSel || monthSel.options.length > 1) return; // already populated
   jMonths.forEach(function(m){ monthSel.innerHTML += '<option value="'+m+'">'+m+'</option>'; });
-  var today = new Date();
-  var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
-  var curJY = tj[0];
-  var curJM = tj[1];
+  var curJY, curJM;
+  if(serverTodayOverride){
+    var p = parseJalaliDateStr(serverTodayOverride);
+    curJY = parseInt(p.year, 10);
+    curJM = jMonths.indexOf(p.month) + 1;
+  } else {
+    var today = new Date();
+    var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+    curJY = tj[0];
+    curJM = tj[1];
+  }
   var topYear = Math.max(1425, curJY+1);
   for(var y=topYear; y>=curJY-5; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
   if(defaultToCurrent){
