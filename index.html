@@ -1043,7 +1043,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-28-username-type-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-28-24h-rule"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2655,7 +2655,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-28-username-type-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-28-24h-rule'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3385,6 +3385,17 @@ function locateAndCheck(){
     setStatus('مرورگر شما از موقعیت مکانی پشتیبانی نمی‌کند.', 'err');
     return;
   }
+  // If the open check-in is more than 24 hours old, self-service checkout is blocked —
+  // at that point something clearly went wrong (forgotten checkout, multi-day gap, etc.)
+  // and it needs an admin to actually look at it, not a normal swipe.
+  if(todayLastType === 'ورود' && lastOpenCheckinIso && (Date.now() - new Date(lastOpenCheckinIso).getTime()) > 24*3600*1000){
+    setStatus('⛔ بیش از ۲۴ ساعت از آخرین ورودتون گذشته و هنوز خروج ثبت نشده — دیگه نمی‌تونید خودتون خروج بزنید.<br><br>'+
+      '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\'out\')">📨 درخواست ثبت دستی خروج بفرست</button>', 'err');
+    document.getElementById('checkInBtn').disabled = true;
+    document.getElementById('checkOutBtn').disabled = true;
+    if(window.refreshSwipeState) refreshSwipeState();
+    return;
+  }
   setStatus('در حال دریافت موقعیت مکانی... لطفاً اجازه دسترسی به لوکیشن را تایید کنید.', 'wait');
   document.getElementById('checkInBtn').disabled = true;
   document.getElementById('checkOutBtn').disabled = true;
@@ -3774,7 +3785,7 @@ async function submitEntry(type){
       return;
     }
     if(res.error === 'checkout_expired'){
-      setStatus('⛔ بیش از ۱۷ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید و باید تایم را دستی ثبت کنید.<br><br>'+
+      setStatus('⛔ بیش از ۲۴ ساعت از ورود شما گذشته — دیگر نمی‌توانید خروج عادی ثبت کنید و باید درخواستِ ثبت تردد برای مدیر بفرستید.<br><br>'+
         '<button type="button" class="btn btn-ghost btn-small" onclick="goToManualRequest(\'out\')">📨 درخواست ثبت دستی خروج بفرست</button>', 'err');
       return;
     }
