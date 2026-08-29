@@ -1043,7 +1043,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-28-locrace-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-29-emp-revert"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -2519,7 +2519,7 @@ function showEmpSection(name){
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
     if(btn) btn.classList.toggle('active', s===name);
   });
-  if(name === 'checkin'){ window.myLogsPromise = loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
+  if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
   else if(name === 'history') loadMyHistory();
   pushSectionHistory(name, name === 'checkin');
@@ -2655,7 +2655,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-28-locrace-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-29-emp-revert'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3392,12 +3392,7 @@ function locateAndCheck(){
   var locBadge = document.getElementById('checkinLocBadge');
   if(locBadge) locBadge.textContent = '⏳ در حال دریافت موقعیت...';
 
-  navigator.geolocation.getCurrentPosition(async function(pos){
-    // Wait for any in-flight loadMyLogs() (e.g. the one triggered when this section was
-    // opened) to finish before deciding which button to enable — otherwise todayLastType can
-    // still be at its stale/default value here, wrongly favoring "check in" even when the
-    // person is actually already checked in and trying to check out.
-    if(window.myLogsPromise){ try { await window.myLogsPromise; } catch(e){} }
+  navigator.geolocation.getCurrentPosition(function(pos){
     currentPos = pos.coords;
     initCheckinMap(currentPos.latitude, currentPos.longitude);
     updateCheckinProjectMarker();
@@ -3487,7 +3482,7 @@ function updateCheckinProjectMarker(){
 
 // ---------- Swipe-to-confirm slider ----------
 (function(){
-  var track, handle, dragging=false, startX=0, maxDrag=0, curX=0, mode=null; // mode: 'in' (drag right→left) or 'out' (drag left→right)
+  var track, handle, dragging=false, startX=0, maxDrag=0, curX=0;
   function init(){
     track = document.getElementById('swipeTrack');
     handle = document.getElementById('swipeHandle');
@@ -3510,18 +3505,16 @@ function updateCheckinProjectMarker(){
   function onMove(e){
     if(!dragging) return;
     var x = (e.touches ? e.touches[0].clientX : e.clientX);
-    // check-in: handle starts at the right, dragging LEFT is progress.
-    // check-out: handle starts at the left, dragging RIGHT is progress.
-    var delta = (mode === 'out') ? (x - startX) : (startX - x);
+    var delta = startX - x; // RTL: dragging toward the left = progress
     curX = Math.min(Math.max(delta,0), maxDrag);
-    handle.style.transform = 'translateX(' + (mode === 'out' ? curX : -curX) + 'px)';
+    handle.style.transform = 'translateX(-'+curX+'px)';
   }
   function onEnd(){
     if(!dragging) return;
     dragging = false;
     handle.style.transition = 'transform .2s ease';
     if(curX >= maxDrag*0.8 && maxDrag>10){
-      handle.style.transform = 'translateX(' + (mode === 'out' ? maxDrag : -maxDrag) + 'px)';
+      handle.style.transform = 'translateX(-'+maxDrag+'px)';
       var inOk = !document.getElementById('checkInBtn').disabled;
       var outOk = !document.getElementById('checkOutBtn').disabled;
       var targetId = inOk ? 'checkInBtn' : (outOk ? 'checkOutBtn' : null);
@@ -3537,10 +3530,9 @@ function updateCheckinProjectMarker(){
     var inOk = inBtn && !inBtn.disabled, outOk = outBtn && !outBtn.disabled;
     track.classList.remove('swipe-in','swipe-out','swipe-disabled');
     var label = document.getElementById('swipeLabel');
-    var arrow = document.getElementById('swipeHandle');
-    if(inOk){ mode='in'; track.classList.add('swipe-in'); label.textContent = 'برای ثبت ورود بکش'; if(arrow) arrow.textContent='‹‹'; }
-    else if(outOk){ mode='out'; track.classList.add('swipe-out'); label.textContent = 'برای ثبت خروج بکش'; if(arrow) arrow.textContent='››'; }
-    else { mode=null; track.classList.add('swipe-disabled'); label.textContent = 'ابتدا موقعیت مکانی را بررسی کن'; if(arrow) arrow.textContent='‹‹'; }
+    if(inOk){ track.classList.add('swipe-in'); label.textContent = 'برای ثبت ورود بکش ‹‹'; }
+    else if(outOk){ track.classList.add('swipe-out'); label.textContent = 'برای ثبت خروج بکش ‹‹'; }
+    else { track.classList.add('swipe-disabled'); label.textContent = 'ابتدا موقعیت مکانی را بررسی کن'; }
     reset();
   };
   init();
@@ -3727,42 +3719,22 @@ async function submitEntry(type){
   document.getElementById('checkOutBtn').disabled = true;
   if(window.refreshSwipeState) refreshSwipeState();
 
-  // NOTE: submission routing only depends on navigator.onLine (device-level) plus an ACTUAL
-  // failed request below — never on the periodic background ping (isReallyOnline). That ping
-  // has a short timeout and can occasionally time out even while genuinely online (e.g. a slow
-  // Apps Script cold start), and gating real submissions on it caused check-ins to wrongly get
-  // queued offline (and then get stuck waiting on admin approval) even with a fine connection.
-  // The connectivity badge stays purely informational.
   if(!navigator.onLine){
-    var guard1 = canQueueOffline();
-    if(!guard1.ok){
-      setStatus('⛔ ' + guard1.msg, 'err');
-      if(window.refreshSwipeState) refreshSwipeState();
-      return;
-    }
     queueOfflineEntry(entry, chosenProject.id);
     todayLastType = (type === 'in') ? 'ورود' : 'خروج';
     updateTodayStatusHint();
     setStatus('📦 اینترنت وصل نیست — ثبت ذخیره شد و به‌محض وصل‌شدن اینترنت خودکار ارسال می‌شود.', 'wait');
     renderQueuedInMyLogs();
-    updatePendingOfflineNotice();
     return;
   }
 
   var res = await apiCall(function(){ return apiPost('addLog', {entry: entry, deviceId: DEVICE_ID, project_id: chosenProject.id}); });
   if(!res.ok && res.networkError){
-    var guard2 = canQueueOffline();
-    if(!guard2.ok){
-      setStatus('⛔ ' + guard2.msg, 'err');
-      if(window.refreshSwipeState) refreshSwipeState();
-      return;
-    }
     queueOfflineEntry(entry, chosenProject.id);
     todayLastType = (type === 'in') ? 'ورود' : 'خروج';
     updateTodayStatusHint();
     setStatus('📦 ارتباط با سرور برقرار نشد — ثبت ذخیره شد و به‌محض وصل‌شدن اینترنت خودکار ارسال می‌شود.', 'wait');
     renderQueuedInMyLogs();
-    updatePendingOfflineNotice();
     return;
   }
   if(!res.ok){
@@ -3788,47 +3760,10 @@ async function submitEntry(type){
     return;
   }
   setStatus('✅ '+(type==='in' ? 'ورود' : 'خروج')+' با موفقیت ثبت شد — ساعت سرور: '+(res.time||''), 'ok');
-  showLocalNotification(
-    (type==='in' ? '✅ ورود ثبت شد' : '✅ خروج ثبت شد'),
-    (loggedInEmployee.fullName||'') + ' — ساعت ' + (res.time||'')
-  );
-  // Trust this confirmed response immediately for button/state updates, instead of only
-  // waiting on the loadMyLogs() re-fetch below — avoids any chance of a stale button state
-  // (e.g. still allowing a second check-in) if that re-fetch is delayed for any reason.
-  todayLastType = (type === 'in') ? 'ورود' : 'خروج';
-  lastOpenCheckinIso = (type === 'in') ? res.isoTimestamp || new Date().toISOString() : null;
-  lastOpenCheckinDate = (type === 'in') ? (res.jalaliDate || serverTodayStr) : null;
-  myLastKnownIso = res.isoTimestamp || new Date().toISOString();
-  myLastKnownType = todayLastType;
-  myLastKnownDate = res.jalaliDate || serverTodayStr;
-  myLastKnownTime = res.time || '';
-  myLastKnownProject = entry.project;
-  updateTodayStatusHint();
-  updateNightShiftCheckbox();
-  // Location was already verified for this submission, so keep both buttons reflecting the
-  // now-current state (rather than leaving them both disabled from the submit-in-progress step).
-  document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
-  document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
-  if(window.refreshSwipeState) refreshSwipeState();
   loadMyLogs();
 }
 
 // ---------- My logs (employee view) ----------
-var serverTodayStr = null; // authoritative "today" from the server — using the device's own
-// clock/timezone for this comparison is fragile (a phone with the wrong date/timezone set
-// would silently never match "today" against server-stamped records) and was exactly the
-// cause of a real bug: check-ins saved fine but never showed up as "today's" entries.
-
-// Tracks the most recent submission THIS session confirmed with the server. A subsequent
-// loadMyLogs() re-fetch can occasionally read the sheet a moment before Google Sheets has
-// fully propagated that exact write (read-after-write lag) — without this guard, that stale
-// read would silently flip todayLastType back and re-enable check-in, letting someone submit
-// several check-ins in a row before the first one is ever visible in a fresh fetch.
-var myLastKnownIso = null;
-var myLastKnownType = null; // 'ورود' or 'خروج'
-var myLastKnownDate = null; // jalaliDate string
-var myLastKnownTime = null;
-var myLastKnownProject = null;
 
 // ---------- Debug helper (shows exactly what the app received, for troubleshooting) ----------
 async function showMyLogsDebug(){
@@ -3874,65 +3809,26 @@ async function loadMyLogs(){
   updateOfflineQueueBanner();
   var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
   var entries = res.ok ? (res.logs || []) : [];
-  entries.sort(function(a,b){ return isoCompare(a.isoTimestamp, b.isoTimestamp); }); // ascending: oldest first
-  if(res.ok && res.today) serverTodayStr = res.today;
-  hasPendingOffline = res.ok && res.pendingOffline && res.pendingOffline.length > 0;
-  updatePendingOfflineNotice();
+  entries.sort(function(a,b){ return String(a.isoTimestamp).localeCompare(String(b.isoTimestamp)); }); // ascending: oldest first
 
   var queue = getOfflineQueue().filter(function(q){ return q.entry.username === loggedInEmployee.username; });
 
   // entries now sorted ascending (oldest first) — the last item is the most recent (matches server logic)
   var lastServerEntry = entries.length ? entries[entries.length-1] : null;
   var lastServerType = lastServerEntry ? lastServerEntry.type : null;
-  // Guard against Sheets read-after-write lag: if this fetch's newest entry is OLDER than a
-  // submission we personally just got confirmed by the server, trust our own recent result
-  // instead — otherwise a slightly-delayed read could silently flip state back and let
-  // check-in be pressed again before the real data has caught up. This must also patch the
-  // DISPLAY list (entries) AND lastServerEntry itself, not just lastServerType — otherwise
-  // lastOpenCheckinDate below still sees the stale/missing entry, which broke the night-shift
-  // checkbox and its confirmation flow even though the button state and today-list were fixed.
-  var usedLocalGuard = false;
-  if(myLastKnownIso && (!lastServerEntry || new Date(myLastKnownIso).getTime() > new Date(lastServerEntry.isoTimestamp).getTime())){
-    lastServerType = myLastKnownType;
-    usedLocalGuard = true;
-  }
-  if(usedLocalGuard && myLastKnownDate){
-    var alreadyPresent = entries.some(function(e){ return e.isoTimestamp === myLastKnownIso; });
-    if(!alreadyPresent){
-      var synthEntry = {
-        jalaliDate: myLastKnownDate, time: myLastKnownTime, employee: loggedInEmployee.fullName,
-        username: loggedInEmployee.username, project: myLastKnownProject, type: myLastKnownType,
-        isoTimestamp: myLastKnownIso, note: ''
-      };
-      entries.push(synthEntry);
-      lastServerEntry = synthEntry; // keep this in sync too — see note above
-    } else {
-      lastServerEntry = entries.filter(function(e){ return e.isoTimestamp === myLastKnownIso; })[0] || lastServerEntry;
-    }
-  }
   var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
   todayLastType = lastQueuedType || lastServerType; // a still-pending queued entry takes priority over server state
   lastOpenCheckinIso = (todayLastType === 'ورود' && !lastQueuedType && lastServerEntry) ? lastServerEntry.isoTimestamp : null;
   lastOpenCheckinDate = (todayLastType === 'ورود' && !lastQueuedType && lastServerEntry) ? lastServerEntry.jalaliDate : null;
   updateTodayStatusHint();
   updateNightShiftCheckbox();
-  // Keep the actual buttons/swipe reflecting todayLastType too — loadMyLogs() can run at any
-  // time (manual refresh, periodic sync, right after locateAndCheck), not just after a submit.
-  // Only touch them if location was already verified this session (i.e. at least one is
-  // currently enabled) — otherwise leave them disabled until the person checks location first.
-  var ciBtn = document.getElementById('checkInBtn'), coBtn = document.getElementById('checkOutBtn');
-  if(ciBtn && coBtn && (!ciBtn.disabled || !coBtn.disabled)){
-    ciBtn.disabled = (todayLastType === 'ورود');
-    coBtn.disabled = (todayLastType !== 'ورود');
-    if(window.refreshSwipeState) refreshSwipeState();
-  }
 
   if(!res.ok && queue.length === 0){
     document.getElementById('myLogs').innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>';
     return;
   }
 
-  var todayStr = serverTodayStr || jalaliString(new Date());
+  var todayStr = jalaliString(new Date());
   var allPairs = pairLogEntriesForDisplay(entries);
   var todayPairs = allPairs.filter(function(p){
     return (p.inE && p.inE.jalaliDate === todayStr) || (p.outE && p.outE.jalaliDate === todayStr);
@@ -3950,9 +3846,8 @@ async function loadMyLogs(){
     var outNote = p.outE ? displayNote(p.outE.note) : '';
     var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
     var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
-    var projHtml = p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>';
     return '<div class="list-item"><div>'+
-      '<b>'+projHtml+'</b>'+holBadge+
+      '<b>'+esc(p.project)+'</b>'+holBadge+
       '<div class="meta">'+inHtml+'</div><div class="meta">'+outHtml+'</div></div></div>';
   }).join('');
 
