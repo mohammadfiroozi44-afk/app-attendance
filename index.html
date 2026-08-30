@@ -353,6 +353,16 @@
 </style>
 </head>
 <body>
+<div id="splashScreen" style="position:fixed; inset:0; z-index:5000; background:var(--navy); display:flex; align-items:center; justify-content:center;">
+  <div id="splashOwnBrand" style="display:flex; flex-direction:column; align-items:center; gap:16px; color:var(--paper); text-align:center; padding:20px;">
+    <img id="splashOwnBrandLogo" style="display:none; width:88px; height:88px; border-radius:20px; object-fit:cover;">
+    <div id="splashOwnBrandName" style="font-size:22px; font-weight:800;"></div>
+  </div>
+  <div id="splashCompanyBrand" style="display:none; flex-direction:column; align-items:center; gap:16px; color:var(--paper); text-align:center; padding:20px;">
+    <img id="splashCompanyLogo" style="display:none; width:88px; height:88px; border-radius:20px; object-fit:cover;">
+    <div id="splashCompanyName" style="font-size:22px; font-weight:800;"></div>
+  </div>
+</div>
 <div id="globalProgressBar"><div class="fill"></div></div>
 <div class="wrap">
 
@@ -803,6 +813,19 @@
     </div>
 
     <div class="card">
+      <div class="eyebrow">برند و مشخصات شرکت</div>
+      <div class="hint" style="margin-top:-4px;">این نام و لوگو در صفحه‌ی معرفی، هنگام باز شدن برنامه نمایش داده می‌شود.</div>
+      <label>نام شرکت</label>
+      <input type="text" id="companyNameInput" placeholder="نام شرکت شما">
+      <label>لوگوی شرکت</label>
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px;">
+        <img id="companyLogoPreview" style="width:56px; height:56px; border-radius:12px; object-fit:cover; display:none; border:1px solid #e2ddcc;">
+        <input type="file" id="companyLogoInput" accept="image/*" style="flex:1;" onchange="handleCompanyLogoSelect(event)">
+      </div>
+      <button type="button" class="btn btn-primary" onclick="saveCompanyBranding()">💾 ذخیره اطلاعات شرکت</button>
+    </div>
+
+    <div class="card">
       <div class="eyebrow">تعمیر داده‌های قدیمی</div>
       <div class="hint" style="margin-top:-4px;">ثبت‌هایی که پیش از آخرین به‌روزرسانی ویرایش یا تأیید شده‌اند، ممکن است ترتیب یا وضعیت تعطیل‌بودنشان نادرست باشد. این گزینه تمام ثبت‌های گزارش را بر اساس تاریخ و ساعت فعلی آن‌ها بازمحاسبه می‌کند، بدون تغییر در تاریخ، ساعت یا پرسنل مربوطه.</div>
       <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
@@ -1058,8 +1081,52 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-29-notify-dedup"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-29-branding-splash"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+
+// Your own brand — this is the developer/reseller's own identity, shown first on every
+// launch before the client company's own branding. Edit these two lines directly with your
+// own business name (and, optionally, a logo URL or base64 image) — this is not configurable
+// from the admin panel since it is not meant to change per client/deployment.
+const OWN_BRAND_NAME = "برند شما";
+const OWN_BRAND_LOGO = ""; // e.g. "https://example.com/logo.png" — leave blank to show text only
 // =====================================================================
+
+async function runSplashSequence(){
+  function sleep(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
+  var splash = document.getElementById('splashScreen');
+  var ownPanel = document.getElementById('splashOwnBrand');
+  var companyPanel = document.getElementById('splashCompanyBrand');
+
+  document.getElementById('splashOwnBrandName').textContent = OWN_BRAND_NAME;
+  if(OWN_BRAND_LOGO){
+    var ownLogoEl = document.getElementById('splashOwnBrandLogo');
+    ownLogoEl.src = OWN_BRAND_LOGO;
+    ownLogoEl.style.display = 'block';
+  }
+  ownPanel.style.display = 'flex';
+  companyPanel.style.display = 'none';
+
+  var brandingPromise = apiCall(function(){ return apiPost('getCompanyBranding', {}); });
+  await sleep(1600);
+
+  var res = await brandingPromise;
+  var companyName = (res && res.ok) ? (res.companyName || '') : '';
+  var companyLogo = (res && res.ok) ? (res.companyLogo || '') : '';
+
+  if(companyName || companyLogo){
+    document.getElementById('splashCompanyName').textContent = companyName;
+    if(companyLogo){
+      var logoEl = document.getElementById('splashCompanyLogo');
+      logoEl.src = companyLogo;
+      logoEl.style.display = 'block';
+    }
+    ownPanel.style.display = 'none';
+    companyPanel.style.display = 'flex';
+    await sleep(1600);
+  }
+
+  splash.style.display = 'none';
+}
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
 function getDeviceId(){
@@ -1411,43 +1478,58 @@ function employeeLogout(){
 // ---------- Admin live check-in/check-out notifications ----------
 // Local (on-device) notifications only fire while the admin's browser tab/app is open —
 // there is no server-push here (see project notes on Firebase Cloud Messaging for that).
-// Polls for any log rows newer than the last one seen and shows a notification for each.
+// Polls for any log rows newer than the last one acknowledged and shows a notification for
+// each. The acknowledged cursor is persisted (not just held in a JS variable) specifically so
+// it survives page reloads/navigation and can never accidentally rewind and re-notify about
+// something already shown.
 var adminLastSeenIso = null;
 var _adminLogWatcherTimer = null;
-var _adminNotifiedLogIds = {}; // guards against ever notifying about the same row twice,
-// regardless of any timing edge case in the "since" cursor below
 var _adminPollInFlight = false; // prevents overlapping polls from racing each other
+function getAdminNotifyCursor(){
+  try{ return localStorage.getItem('adminNotifyCursor') || null; }catch(e){ return null; }
+}
+function setAdminNotifyCursor(iso){
+  adminLastSeenIso = iso;
+  try{ localStorage.setItem('adminNotifyCursor', iso); }catch(e){}
+}
 async function pollAdminLogUpdates(){
   if(!adminPin || _adminPollInFlight) return;
   _adminPollInFlight = true;
   try{
-    var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin, sinceIso: adminLastSeenIso}); });
+    var cursor = adminLastSeenIso;
+    var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin, sinceIso: cursor}); });
     if(!res.ok) return;
+    var cursorMs = cursor ? new Date(cursor).getTime() : 0;
+    var maxSeenMs = cursorMs;
+    var maxSeenIso = cursor;
     (res.logs||[]).forEach(function(entry){
-      var key = entry.id || (entry.username+'|'+entry.isoTimestamp);
-      if(_adminNotifiedLogIds[key]) return;
-      _adminNotifiedLogIds[key] = true;
+      var entryMs = new Date(entry.isoTimestamp).getTime();
+      if(isNaN(entryMs) || entryMs <= cursorMs) return; // strictly newer than the acknowledged cursor only
       var typeLabel = entry.type === 'ورود' ? 'ورود زد' : 'خروج زد';
       var icon = entry.type === 'ورود' ? '✅' : '🚪';
       showLocalNotification(
         icon + ' ' + currentEmployeeName(entry.username, entry.employee) + ' ' + typeLabel,
         (entry.project ? entry.project + ' — ' : '') + 'ساعت ' + entry.time
       );
+      if(entryMs > maxSeenMs){ maxSeenMs = entryMs; maxSeenIso = entry.isoTimestamp; }
     });
-    adminLastSeenIso = res.serverNowIso || adminLastSeenIso;
+    // Advance the cursor to whichever is later: the newest entry actually seen, or the
+    // server's own clock (covers the case where nothing new happened this round).
+    var serverMs = res.serverNowIso ? new Date(res.serverNowIso).getTime() : maxSeenMs;
+    setAdminNotifyCursor(serverMs >= maxSeenMs ? res.serverNowIso : maxSeenIso);
   } finally {
     _adminPollInFlight = false;
   }
 }
 function startAdminLogWatcher(){
-  if(_adminLogWatcherTimer) return; // already running — do not reset the cursor or stack a second interval
-  adminLastSeenIso = new Date().toISOString(); // start from now — don't notify about history
+  if(_adminLogWatcherTimer) return; // already running — don't stack a second interval
+  adminLastSeenIso = getAdminNotifyCursor() || new Date().toISOString(); // first-ever run starts from now, not all of history
+  if(!getAdminNotifyCursor()) setAdminNotifyCursor(adminLastSeenIso);
   _adminLogWatcherTimer = setInterval(pollAdminLogUpdates, 25000);
 }
 function stopAdminLogWatcher(){
   if(_adminLogWatcherTimer) clearInterval(_adminLogWatcherTimer);
   _adminLogWatcherTimer = null;
-  _adminNotifiedLogIds = {};
 }
 
 // ---------- Admin PIN ----------
@@ -2636,6 +2718,7 @@ async function refreshAdminSection(name){
     }
     var fpChk = document.getElementById('adminFpToggle');
     if(fpChk) fpChk.checked = (localStorage.getItem('adminFpEnabled') === 'yes');
+    loadCompanyBrandingAdmin();
   }
 }
 function adminLogout(){
@@ -2730,7 +2813,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-29-notify-dedup'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-29-branding-splash'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -2744,6 +2827,47 @@ async function saveNotifyEmail(){
   var res = await apiCall(function(){ return apiPost('setNotifyEmail', {pin:adminPin, email:email}); });
   if(!res.ok){ showAdminNotice('ذخیره ایمیل ناموفق بود: ' + (res.error||'')); return; }
   alert(email ? 'ایمیل اعلان ذخیره شد.' : 'اعلان ایمیلی غیرفعال شد.');
+}
+var pendingCompanyLogoDataUrl = null;
+function handleCompanyLogoSelect(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var canvas = document.createElement('canvas');
+      var maxSize = 200;
+      var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      pendingCompanyLogoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      var prev = document.getElementById('companyLogoPreview');
+      prev.src = pendingCompanyLogoDataUrl;
+      prev.style.display = 'inline-block';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+async function loadCompanyBrandingAdmin(){
+  var res = await apiCall(function(){ return apiPost('getCompanyBranding', {}); });
+  if(!res.ok) return;
+  document.getElementById('companyNameInput').value = res.companyName || '';
+  if(res.companyLogo){
+    pendingCompanyLogoDataUrl = res.companyLogo;
+    var prev = document.getElementById('companyLogoPreview');
+    prev.src = res.companyLogo;
+    prev.style.display = 'inline-block';
+  }
+}
+async function saveCompanyBranding(){
+  var name = document.getElementById('companyNameInput').value.trim();
+  var res = await apiCall(function(){ return apiPost('setCompanyBranding', {pin:adminPin, companyName:name, companyLogo: pendingCompanyLogoDataUrl}); });
+  if(!res.ok){ showAdminNotice('ذخیره اطلاعات شرکت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  alert('اطلاعات شرکت ذخیره شد.');
 }
 function showAdminNotice(msg){
   var el = document.getElementById('adminNotice');
@@ -4907,6 +5031,7 @@ async function refreshAdminView(){
 
 // ---------- Init ----------
 function init(){
+  runSplashSequence();
   detectFingerprintSupport().then(function(v){ deviceHasFingerprint = v; updateFpQuickLoginVisibility(); updateAdminFpQuickLoginVisibility(); });
   document.getElementById('mainApp').style.display='block';
 
