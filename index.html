@@ -355,11 +355,11 @@
 <body>
 <div id="splashScreen" style="position:fixed; inset:0; z-index:5000; background:var(--navy); display:flex; align-items:center; justify-content:center;">
   <div id="splashOwnBrand" style="display:flex; flex-direction:column; align-items:center; gap:16px; color:var(--paper); text-align:center; padding:20px;">
-    <img id="splashOwnBrandLogo" style="display:none; width:88px; height:88px; border-radius:20px; object-fit:cover;">
+    <img id="splashOwnBrandLogo" style="display:none; max-width:220px; max-height:110px; width:auto; height:auto; border-radius:14px; object-fit:contain;">
     <div id="splashOwnBrandName" style="font-size:22px; font-weight:800;"></div>
   </div>
   <div id="splashCompanyBrand" style="display:none; flex-direction:column; align-items:center; gap:16px; color:var(--paper); text-align:center; padding:20px;">
-    <img id="splashCompanyLogo" style="display:none; width:88px; height:88px; border-radius:20px; object-fit:cover;">
+    <img id="splashCompanyLogo" style="display:none; max-width:220px; max-height:110px; width:auto; height:auto; border-radius:14px; object-fit:contain; background:#fff; padding:8px;">
     <div id="splashCompanyName" style="font-size:22px; font-weight:800;"></div>
   </div>
 </div>
@@ -822,7 +822,7 @@
       <input type="text" id="companyNameInput" placeholder="نام شرکت شما">
       <label>لوگوی شرکت</label>
       <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px;">
-        <img id="companyLogoPreview" style="width:56px; height:56px; border-radius:12px; object-fit:cover; display:none; border:1px solid #e2ddcc;">
+        <img id="companyLogoPreview" style="width:72px; height:56px; border-radius:10px; object-fit:contain; background:#fff; padding:4px; display:none; border:1px solid #e2ddcc;">
         <input type="file" id="companyLogoInput" accept="image/*" style="flex:1;" onchange="handleCompanyLogoSelect(event)">
       </div>
       <button type="button" class="btn btn-primary" onclick="saveCompanyBranding()">💾 ذخیره اطلاعات شرکت</button>
