@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-<title>ثبت تردد سایت</title>
+<title>تردد‌یار</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f2a43">
 <link rel="icon" href="icon-192.png">
@@ -369,9 +369,12 @@
   <div id="mainApp" style="display:none;">
 
   <header class="top">
-    <div>
-      <div class="title">ثبت تردد سایت</div>
-      <div class="sub">ورود / خروج پرسنل بر اساس موقعیت پروژه</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <img src="icon-192.png" alt="" style="width:34px; height:34px; border-radius:9px; flex-shrink:0;">
+      <div>
+        <div class="title">تردد‌یار</div>
+        <div class="sub">ورود / خروج پرسنل بر اساس موقعیت پروژه</div>
+      </div>
     </div>
     <div class="clock" id="clockBox">—</div>
   </header>
@@ -1081,14 +1084,14 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-29-brand-content"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-30-branding-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
 // own business name (and, optionally, a logo URL or base64 image) — this is not configurable
 // from the admin panel since it is not meant to change per client/deployment.
 const OWN_BRAND_NAME = "تردد‌یار";
-const OWN_BRAND_LOGO = "data:image/png;base64,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";
+const OWN_BRAND_LOGO = "icon-512.png"; // same icon as the app itself (icon-512.png), for one consistent identity
 // =====================================================================
 
 async function runSplashSequence(){
@@ -1182,7 +1185,7 @@ async function verifyFingerprint(){
     await navigator.credentials.create({
       publicKey: {
         challenge: challenge,
-        rp: { name: "ثبت تردد سایت" },
+        rp: { name: "تردد‌یار" },
         user: { id: userId, name: (loggedInEmployee?loggedInEmployee.username:'user'), displayName: (loggedInEmployee?loggedInEmployee.fullName:'user') },
         pubKeyCredParams: [{type:"public-key", alg:-7}, {type:"public-key", alg:-257}],
         authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
@@ -2813,7 +2816,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-29-brand-content'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-30-branding-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
