@@ -1058,7 +1058,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-29-admin-notify"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-29-notify-dedup"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 // =====================================================================
 
 // ---------- Device ID (persists in this browser/device only; used to lock one username to one phone) ----------
@@ -1414,28 +1414,40 @@ function employeeLogout(){
 // Polls for any log rows newer than the last one seen and shows a notification for each.
 var adminLastSeenIso = null;
 var _adminLogWatcherTimer = null;
+var _adminNotifiedLogIds = {}; // guards against ever notifying about the same row twice,
+// regardless of any timing edge case in the "since" cursor below
+var _adminPollInFlight = false; // prevents overlapping polls from racing each other
 async function pollAdminLogUpdates(){
-  if(!adminPin) return;
-  var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin, sinceIso: adminLastSeenIso}); });
-  if(!res.ok) return;
-  (res.logs||[]).forEach(function(entry){
-    var typeLabel = entry.type === 'ورود' ? 'ورود زد' : 'خروج زد';
-    var icon = entry.type === 'ورود' ? '✅' : '🚪';
-    showLocalNotification(
-      icon + ' ' + currentEmployeeName(entry.username, entry.employee) + ' ' + typeLabel,
-      (entry.project ? entry.project + ' — ' : '') + 'ساعت ' + entry.time
-    );
-  });
-  adminLastSeenIso = res.serverNowIso || adminLastSeenIso;
+  if(!adminPin || _adminPollInFlight) return;
+  _adminPollInFlight = true;
+  try{
+    var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin, sinceIso: adminLastSeenIso}); });
+    if(!res.ok) return;
+    (res.logs||[]).forEach(function(entry){
+      var key = entry.id || (entry.username+'|'+entry.isoTimestamp);
+      if(_adminNotifiedLogIds[key]) return;
+      _adminNotifiedLogIds[key] = true;
+      var typeLabel = entry.type === 'ورود' ? 'ورود زد' : 'خروج زد';
+      var icon = entry.type === 'ورود' ? '✅' : '🚪';
+      showLocalNotification(
+        icon + ' ' + currentEmployeeName(entry.username, entry.employee) + ' ' + typeLabel,
+        (entry.project ? entry.project + ' — ' : '') + 'ساعت ' + entry.time
+      );
+    });
+    adminLastSeenIso = res.serverNowIso || adminLastSeenIso;
+  } finally {
+    _adminPollInFlight = false;
+  }
 }
 function startAdminLogWatcher(){
+  if(_adminLogWatcherTimer) return; // already running — do not reset the cursor or stack a second interval
   adminLastSeenIso = new Date().toISOString(); // start from now — don't notify about history
-  if(_adminLogWatcherTimer) clearInterval(_adminLogWatcherTimer);
   _adminLogWatcherTimer = setInterval(pollAdminLogUpdates, 25000);
 }
 function stopAdminLogWatcher(){
   if(_adminLogWatcherTimer) clearInterval(_adminLogWatcherTimer);
   _adminLogWatcherTimer = null;
+  _adminNotifiedLogIds = {};
 }
 
 // ---------- Admin PIN ----------
@@ -2718,7 +2730,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-29-admin-notify'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-29-notify-dedup'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
