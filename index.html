@@ -363,6 +363,12 @@
     <div id="splashCompanyName" style="font-size:22px; font-weight:800;"></div>
   </div>
 </div>
+<div id="appAlertOverlay" style="display:none; position:fixed; inset:0; background:#00000066; z-index:6000; align-items:center; justify-content:center; padding:24px;">
+  <div style="background:var(--paper); border-radius:var(--r-lg); padding:22px; max-width:360px; width:100%; box-shadow:var(--sh-lg); text-align:center;">
+    <div id="appAlertMessage" style="font-size:14.5px; line-height:1.9; color:var(--ink); margin-bottom:18px; white-space:pre-line;"></div>
+    <button type="button" class="btn btn-primary" onclick="closeAppAlert()">تایید</button>
+  </div>
+</div>
 <div id="globalProgressBar"><div class="fill"></div></div>
 <div class="wrap">
 
@@ -1084,7 +1090,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-30-branding-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-30-custom-alert-projlabel"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1093,6 +1099,21 @@ const FRONTEND_VERSION = "v-2026-08-30-branding-fix"; // bump this every time in
 const OWN_BRAND_NAME = "تردد‌یار";
 const OWN_BRAND_LOGO = "icon-512.png"; // same icon as the app itself (icon-512.png), for one consistent identity
 // =====================================================================
+
+// ---------- Custom in-app alert (replaces the native browser popup everywhere) ----------
+var _appAlertResolve = null;
+function showAppAlert(message){
+  return new Promise(function(resolve){
+    document.getElementById('appAlertMessage').textContent = message;
+    document.getElementById('appAlertOverlay').style.display = 'flex';
+    _appAlertResolve = resolve;
+  });
+}
+function closeAppAlert(){
+  document.getElementById('appAlertOverlay').style.display = 'none';
+  if(_appAlertResolve){ _appAlertResolve(); _appAlertResolve = null; }
+}
+window.alert = showAppAlert; // every existing alert(...) call in this file now shows the styled in-app dialog instead of the browser's native popup
 
 async function runSplashSequence(){
   function sleep(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
@@ -2816,7 +2837,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-30-branding-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-30-custom-alert-projlabel'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4466,7 +4487,10 @@ function pairLogEntriesForDisplay(entries){  var byUser = {};
     byUser[k].push(e);
   });
   function projectLabel(inE, outE){
-    if(inE && outE) return (inE.project === outE.project) ? inE.project : (inE.project + ' → ' + outE.project);
+    // When check-in and check-out happened at different projects, spell out which is which
+    // explicitly (rather than "A → B") — a bare arrow between two RTL project names inside an
+    // RTL paragraph has no guaranteed visual direction and was showing backwards for some pairs.
+    if(inE && outE) return (inE.project === outE.project) ? inE.project : ('ورود: ' + inE.project + ' · خروج: ' + outE.project);
     return (inE || outE).project;
   }
   function makePair(inE, outE){
