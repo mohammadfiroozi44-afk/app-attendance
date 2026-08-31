@@ -495,10 +495,11 @@
     <div class="card">
       <div class="eyebrow">سوابق من</div>
       <div class="date-row">
-        <select id="myHistFilterMonth" onchange="loadMyHistory()"><option value="">همه ماه‌ها</option></select>
-        <select id="myHistFilterYear" onchange="loadMyHistory()"><option value="">همه سال‌ها</option></select>
+        <select id="myHistFilterMonth"><option value="">همه ماه‌ها</option></select>
+        <select id="myHistFilterYear"><option value="">همه سال‌ها</option></select>
       </div>
-      <div id="myHistoryList"><div class="empty">در حال بارگذاری...</div></div>
+      <button type="button" class="btn btn-primary" onclick="loadMyHistory()">🔄 بارگذاری سوابق</button>
+      <div id="myHistoryList" style="margin-top:14px;"><div class="empty">ماه و سال موردنظر را انتخاب کرده و «بارگذاری سوابق» را بزنید.</div></div>
     </div>
     </div><!-- /empSec-history -->
 
@@ -859,7 +860,7 @@
     <div class="card">
       <div class="eyebrow">درخواست‌های ثبت دستی</div>
       <div class="btn-row" style="margin-bottom:8px;">
-        <select id="reqFilterStatus" onchange="renderReqAdminList()" style="flex:2; margin-bottom:0;">
+        <select id="reqFilterStatus" style="flex:2; margin-bottom:0;">
           <option value="pending">در انتظار</option>
           <option value="approved">تاییدشده</option>
           <option value="rejected">ردشده</option>
@@ -868,18 +869,19 @@
         <button type="button" class="btn btn-ghost btn-small" style="flex:1;" onclick="toggleSelectAllReq()">انتخاب همه</button>
         <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedRequests()">🗑 حذف</button>
       </div>
-      <input type="text" id="reqFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderReqAdminList()">
+      <input type="text" id="reqFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono">
       <div class="date-row">
-        <select id="reqFilterMonth" onchange="renderReqAdminList()"><option value="">همه ماه‌ها</option></select>
-        <select id="reqFilterYear" onchange="renderReqAdminList()"><option value="">همه سال‌ها</option></select>
+        <select id="reqFilterMonth"><option value="">همه ماه‌ها</option></select>
+        <select id="reqFilterYear"><option value="">همه سال‌ها</option></select>
       </div>
-      <div id="reqAdminList"><div class="empty">در حال بارگذاری...</div></div>
+      <button type="button" class="btn btn-primary" onclick="loadAdminRequests()">🔄 بارگذاری</button>
+      <div id="reqAdminList" style="margin-top:14px;"><div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
     </div>
 
     <div class="card">
       <div class="eyebrow">درخواست‌های مرخصی</div>
       <div class="btn-row" style="margin-bottom:8px;">
-        <select id="leaveFilterStatus" onchange="renderLeaveAdminList()" style="flex:2; margin-bottom:0;">
+        <select id="leaveFilterStatus" style="flex:2; margin-bottom:0;">
           <option value="pending">در انتظار</option>
           <option value="approved">تاییدشده</option>
           <option value="rejected">ردشده</option>
@@ -888,12 +890,13 @@
         <button type="button" class="btn btn-ghost btn-small" style="flex:1;" onclick="toggleSelectAllLeave()">انتخاب همه</button>
         <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedLeaves()">🗑 حذف</button>
       </div>
-      <input type="text" id="leaveFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono" oninput="renderLeaveAdminList()">
+      <input type="text" id="leaveFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono">
       <div class="date-row">
-        <select id="leaveFilterMonth" onchange="renderLeaveAdminList()"><option value="">همه ماه‌ها</option></select>
-        <select id="leaveFilterYear" onchange="renderLeaveAdminList()"><option value="">همه سال‌ها</option></select>
+        <select id="leaveFilterMonth"><option value="">همه ماه‌ها</option></select>
+        <select id="leaveFilterYear"><option value="">همه سال‌ها</option></select>
       </div>
-      <div id="leaveAdminList"><div class="empty">در حال بارگذاری...</div></div>
+      <button type="button" class="btn btn-primary" onclick="loadAdminLeaves()">🔄 بارگذاری</button>
+      <div id="leaveAdminList" style="margin-top:14px;"><div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
     </div>
     </div><!-- /admSec-requests -->
 
@@ -935,35 +938,35 @@
 
     <div class="card">
       <div class="eyebrow">گزارش کامل تردد</div>
-      <input type="text" id="logFilterCode" placeholder="فیلتر با نام یا کد پرسنلی" class="field-mono" oninput="onReportFilterChange()">
+      <input type="text" id="logFilterCode" placeholder="فیلتر با نام یا کد پرسنلی" class="field-mono">
       <div class="date-row">
-        <select id="logFilterDay" onchange="onReportFilterChange()"><option value="">همه روزها</option></select>
-        <select id="logFilterMonth" onchange="onReportFilterChange()"><option value="">همه ماه‌ها</option></select>
-        <select id="logFilterYear" onchange="onReportFilterChange()"><option value="">همه سال‌ها</option></select>
+        <select id="logFilterDay"><option value="">همه روزها</option></select>
+        <select id="logFilterMonth"><option value="">همه ماه‌ها</option></select>
+        <select id="logFilterYear"><option value="">همه سال‌ها</option></select>
       </div>
       <label>وضعیت</label>
-      <select id="logStatusFilter" onchange="onReportFilterChange()">
+      <select id="logStatusFilter">
         <option value="normal">تردد عادی</option>
         <option value="absence">غیبت</option>
         <option value="leave">مرخصی</option>
         <option value="mission">ماموریت</option>
         <option value="holiday">تعطیل / آف</option>
       </select>
+      <button type="button" class="btn btn-primary" onclick="onReportFilterChange()">🔄 بارگذاری گزارش</button>
 
-      <div id="normalReportView">
+      <div id="normalReportView" style="display:none; margin-top:14px;">
         <div style="overflow-x:auto;">
           <table id="logTable">
             <thead><tr><th>تاریخ</th><th>پرسنل</th><th>پروژه</th><th>ورود</th><th>خروج</th><th>عملیات</th></tr></thead>
-            <tbody id="logTableBody"><tr><td colspan="6" class="empty">در حال بارگذاری...</td></tr></tbody>
+            <tbody id="logTableBody"><tr><td colspan="6" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</td></tr></tbody>
           </table>
         </div>
         <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportCSV()">⬇️ خروجی CSV</button>
         <p class="hint" style="margin-top:10px;">این گزارش به‌صورت زنده با Google Sheet متصل هماهنگ است.</p>
       </div>
 
-      <div id="statusReportView" style="display:none;">
-        <p class="hint" style="margin-top:-4px;">برای این گزارش، ماه و سال را انتخاب کنید.</p>
-        <div id="statusReportList" class="empty">—</div>
+      <div id="statusReportView" style="display:none; margin-top:14px;">
+        <div id="statusReportList" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</div>
       </div>
     </div>
     </div><!-- /admSec-report -->
@@ -1090,7 +1093,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-30-custom-alert-projlabel"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-30-lazy-load-filters"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2691,7 +2694,10 @@ function showEmpSection(name){
   });
   if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
-  else if(name === 'history') loadMyHistory();
+  else if(name === 'history'){
+    populateMonthYearFilter('myHistFilterMonth','myHistFilterYear', true);
+    document.getElementById('myHistoryList').innerHTML = '<div class="empty">ماه و سال موردنظر را انتخاب کرده و «بارگذاری سوابق» را بزنید.</div>';
+  }
   pushSectionHistory(name, name === 'checkin');
   closeDrawer();
 }
@@ -2731,8 +2737,20 @@ async function refreshAdminSection(name){
   else if(name === 'offline') await Promise.all([ensureEmployeesFresh(), loadPendingOffline(), loadOpenSessions()]);
   else if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
-  else if(name === 'requests') await Promise.all([ensureEmployeesFresh(), loadAdminRequests(), loadAdminLeaves()]);
-  else if(name === 'report') await Promise.all([ensureEmployeesFresh(), loadHolidays(), loadFullLog()]);
+  else if(name === 'requests'){
+    await ensureEmployeesFresh();
+    populateMonthYearFilter('reqFilterMonth','reqFilterYear');
+    populateMonthYearFilter('leaveFilterMonth','leaveFilterYear');
+    document.getElementById('reqAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
+    document.getElementById('leaveAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
+  }
+  else if(name === 'report'){
+    await Promise.all([ensureEmployeesFresh(), loadHolidays()]);
+    populateMonthYearFilter('logFilterMonth','logFilterYear', true);
+    document.getElementById('normalReportView').style.display = 'block';
+    document.getElementById('statusReportView').style.display = 'none';
+    document.getElementById('logTableBody').innerHTML = '<tr><td colspan="6" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</td></tr>';
+  }
   else if(name === 'settings'){
     var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
     if(emailRes.ok){
@@ -2837,7 +2855,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-30-custom-alert-projlabel'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-30-lazy-load-filters'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4334,7 +4352,6 @@ async function loadHolidays(){
   window._holidays.forEach(function(h){ window._holidaySet[h.jalaliDate] = true; });
   populateMonthYearFilter('holidayFilterMonth','holidayFilterYear');
   renderHolidayList();
-  renderLogTable();
 }
 function renderHolidayList(){
   var box = document.getElementById('holidayList');
@@ -4524,7 +4541,7 @@ function onReportFilterChange(){
   if(status === 'normal'){
     normalView.style.display = 'block';
     statusView.style.display = 'none';
-    renderLogTable();
+    loadFullLog();
   } else {
     normalView.style.display = 'none';
     statusView.style.display = 'block';
@@ -4541,30 +4558,34 @@ async function loadStatusReport(status){
     return;
   }
   box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
-  var monthIdx = jMonths.indexOf(month) + 1;
-  var res = await apiCall(function(){ return apiPost('getAttendanceStatusReport', {pin:adminPin, year:year, month:monthIdx, status:status}); });
-  if(!res.ok){
-    box.innerHTML = '<div class="empty">دریافت گزارش ناموفق بود: ' + esc(res.error||'') + '</div>';
-    return;
+  try{
+    var monthIdx = jMonths.indexOf(month) + 1;
+    var res = await apiCall(function(){ return apiPost('getAttendanceStatusReport', {pin:adminPin, year:year, month:monthIdx, status:status}); });
+    if(!res.ok){
+      box.innerHTML = '<div class="empty">دریافت گزارش ناموفق بود: ' + esc(res.error||'') + '</div>';
+      return;
+    }
+    var results = res.results || [];
+    if(day) results = results.filter(function(r){ return r.jalaliDate && r.jalaliDate.split(' ')[0] === day; });
+    var codeFilter = (document.getElementById('logFilterCode').value||'').trim();
+    if(codeFilter){
+      results = results.filter(function(r){
+        return (r.fullName||'').indexOf(codeFilter) !== -1 || (r.employeeCode||'').indexOf(codeFilter) !== -1;
+      });
+    }
+    if(results.length === 0){
+      box.innerHTML = '<div class="empty">موردی یافت نشد.</div>';
+      return;
+    }
+    var labelMap = {absence:'غیبت', leave:'مرخصی', mission:'ماموریت', holiday:'تعطیل / آف'};
+    results.sort(function(a,b){ return (a.jalaliDate||'').localeCompare(b.jalaliDate||''); });
+    box.innerHTML = results.map(function(r){
+      return '<div class="list-item"><div><b>'+esc(r.fullName)+'</b>'+(r.employeeCode?(' · کد '+esc(r.employeeCode)):'')+
+        '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+r.jalaliDate+'</bdi> — '+esc(labelMap[status]||status)+'</div></div></div>';
+    }).join('');
+  } catch(err){
+    box.innerHTML = '<div class="empty">خطا در نمایش گزارش: ' + esc((err && err.message) || 'نامشخص') + '</div>';
   }
-  var results = res.results || [];
-  if(day) results = results.filter(function(r){ return r.jalaliDate.split(' ')[0] === day; });
-  var codeFilter = (document.getElementById('logFilterCode').value||'').trim();
-  if(codeFilter){
-    results = results.filter(function(r){
-      return (r.fullName||'').indexOf(codeFilter) !== -1 || (r.employeeCode||'').indexOf(codeFilter) !== -1;
-    });
-  }
-  if(results.length === 0){
-    box.innerHTML = '<div class="empty">موردی یافت نشد.</div>';
-    return;
-  }
-  var labelMap = {absence:'غیبت', leave:'مرخصی', mission:'ماموریت', holiday:'تعطیل / آف'};
-  results.sort(function(a,b){ return a.jalaliDate.localeCompare(b.jalaliDate); });
-  box.innerHTML = results.map(function(r){
-    return '<div class="list-item"><div><b>'+esc(r.fullName)+'</b>'+(r.employeeCode?(' · کد '+esc(r.employeeCode)):'')+
-      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+r.jalaliDate+'</bdi> — '+esc(labelMap[status]||status)+'</div></div></div>';
-  }).join('');
 }
 function renderLogTable(){
   var tbody = document.getElementById('logTableBody');
@@ -5045,9 +5066,13 @@ async function refreshAdminView(){
   await loadDashboard();
   await loadEmployeesAdmin();
   await loadProjectsAdmin();
-  await loadAdminRequests();
-  await loadAdminLeaves();
-  await loadFullLog();
+  await loadHolidays();
+  // Requests/leaves/report are intentionally NOT pre-loaded here — those sections start
+  // empty with their own filters + a "بارگذاری" button, loaded only once the admin actually
+  // opens that section and chooses to load it (avoids a cluttered wall of data on login).
+  populateMonthYearFilter('reqFilterMonth','reqFilterYear');
+  populateMonthYearFilter('leaveFilterMonth','leaveFilterYear');
+  populateMonthYearFilter('logFilterMonth','logFilterYear', true);
   var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
   if(emailRes.ok){
     document.getElementById('notifyEmail').value = emailRes.email || '';
