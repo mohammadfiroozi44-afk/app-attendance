@@ -1093,7 +1093,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-31-report-speed-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-31-race-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2859,7 +2859,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-31-report-speed-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-31-race-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4555,7 +4555,10 @@ function onReportFilterChange(){
     loadStatusReport(status);
   }
 }
+var _statusReportReqId = 0; // guards against an older, slower request's results arriving
+// AFTER a newer request and overwriting it with stale/mismatched data
 async function loadStatusReport(status){
+  var myReqId = ++_statusReportReqId;
   var year = document.getElementById('logFilterYear').value;
   var month = document.getElementById('logFilterMonth').value;
   var day = document.getElementById('logFilterDay').value;
@@ -4568,6 +4571,7 @@ async function loadStatusReport(status){
   try{
     var monthIdx = jMonths.indexOf(month) + 1;
     var res = await apiCall(function(){ return apiPost('getAttendanceStatusReport', {pin:adminPin, year:year, month:monthIdx, status:status}); });
+    if(myReqId !== _statusReportReqId) return; // a newer request has already started/finished — discard this stale response
     if(!res.ok){
       box.innerHTML = '<div class="empty">دریافت گزارش ناموفق بود: ' + esc(res.error||'') + '</div>';
       return;
@@ -4587,10 +4591,14 @@ async function loadStatusReport(status){
     var labelMap = {absence:'غیبت', leave:'مرخصی', mission:'ماموریت', holiday:'تعطیل / آف'};
     results.sort(function(a,b){ return (a.jalaliDate||'').localeCompare(b.jalaliDate||''); });
     box.innerHTML = results.map(function(r){
+      // Label each row by its OWN actual status (r.status), never by the currently-selected
+      // filter — if a row's real status ever doesn't match what was requested, this makes
+      // that visible instead of silently mislabeling it.
       return '<div class="list-item"><div><b>'+esc(r.fullName)+'</b>'+(r.employeeCode?(' · کد '+esc(r.employeeCode)):'')+
-        '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+r.jalaliDate+'</bdi> — '+esc(labelMap[status]||status)+'</div></div></div>';
+        '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+r.jalaliDate+'</bdi> — '+esc(labelMap[r.status]||r.status)+'</div></div></div>';
     }).join('');
   } catch(err){
+    if(myReqId !== _statusReportReqId) return;
     box.innerHTML = '<div class="empty">خطا در نمایش گزارش: ' + esc((err && err.message) || 'نامشخص') + '</div>';
   }
 }
