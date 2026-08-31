@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.mohammadfiroozi44_afk.twa",
+        "sha256_cert_fingerprints": ["3B:F3:ED:4C:25:4C:DE:AE:B8:DC:BD:A0:71:0C:FF:96:91:4E:37:B5:B6:AE:B2:1C:6D:83:B0:40:2A:AC:D8:3A"]
+      }
+    }]
