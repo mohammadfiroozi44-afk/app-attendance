@@ -1093,7 +1093,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-31-off-marker-read"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-08-31-report-speed-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2747,6 +2747,10 @@ async function refreshAdminSection(name){
   else if(name === 'report'){
     await Promise.all([ensureEmployeesFresh(), loadHolidays()]);
     populateMonthYearFilter('logFilterMonth','logFilterYear', true);
+    var dayFilterSelR = document.getElementById('logFilterDay');
+    if(dayFilterSelR.options.length <= 1){
+      for(var ddR=1; ddR<=31; ddR++){ dayFilterSelR.innerHTML += '<option value="'+ddR+'">'+ddR+'</option>'; }
+    }
     document.getElementById('normalReportView').style.display = 'block';
     document.getElementById('statusReportView').style.display = 'none';
     document.getElementById('logTableBody').innerHTML = '<tr><td colspan="6" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</td></tr>';
@@ -2855,7 +2859,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-31-off-marker-read'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-08-31-report-speed-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4470,7 +4474,10 @@ async function loadMyLeaves(){
 
 // ---------- Admin: log table ----------
 async function loadFullLog(){
-  var res = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin}); });
+  var monthVal = document.getElementById('logFilterMonth').value;
+  var yearVal = document.getElementById('logFilterYear').value;
+  var monthIdxGL = monthVal ? (jMonths.indexOf(monthVal) + 1) : null;
+  var res = await apiCall(function(){ return apiPost('getLogs', {pin:adminPin, year: yearVal||null, month: monthIdxGL}); });
   var tbody = document.getElementById('logTableBody');
   if(!res.ok){
     tbody.innerHTML = '<tr><td colspan="6" class="empty">دریافت گزارش ناموفق بود</td></tr>';
