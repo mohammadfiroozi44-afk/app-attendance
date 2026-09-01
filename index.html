@@ -978,8 +978,8 @@
   <div class="bottom-sheet-modal" id="adminLogSheet">
     <div class="sheet-close-btn"><button type="button" class="icon-btn" title="بستن" onclick="closeAdminLogSheet()">✕</button></div>
     <div class="sheet-handle"></div>
-    <div class="eyebrow">ثبت مستقیم تردد (بدون درخواست)</div>
-    <div class="hint" style="margin-top:-4px;">برای یک پرسنل، بدون نیاز به تأیید درخواست، تردد را مستقیماً ثبت می‌کند.</div>
+    <div class="eyebrow">ثبت‌ها (بدون درخواست)</div>
+    <div class="hint" style="margin-top:-4px;">برای یک پرسنل، بدون نیاز به تأیید درخواست، تردد یا وضعیت روز را مستقیماً ثبت می‌کند.</div>
 
     <div class="date-row" style="margin-bottom:10px;">
       <button type="button" class="btn btn-small" id="adminLogModeSingleBtn" onclick="setAdminLogMode('single')" style="flex:1;">یک ثبت</button>
@@ -993,16 +993,29 @@
 
     <div id="adminLogSingleSection">
       <label>نوع</label>
-      <select id="adminLogType">
+      <select id="adminLogType" onchange="onAdminLogTypeChange()">
         <option value="in">ورود</option>
         <option value="out">خروج</option>
+        <option value="leave">مرخصی (کل روز)</option>
+        <option value="absence">غیبت</option>
+        <option value="mission">ماموریت (کل روز)</option>
       </select>
+      <div id="adminLogLeaveCategoryRow" style="display:none;">
+        <label>نوع مرخصی</label>
+        <select id="adminLogLeaveCategory">
+          <option value="استحقاقی">استحقاقی</option>
+          <option value="استعلاجی">استعلاجی</option>
+          <option value="بدون‌حقوق">بدون‌حقوق</option>
+        </select>
+      </div>
       <label>تاریخ</label>
       <div class="date-row">
         <select id="adminLogDay"></select><select id="adminLogMonth"></select><select id="adminLogYear"></select>
       </div>
-      <label>ساعت</label>
-      <input type="time" id="adminLogTime" step="1">
+      <div id="adminLogTimeRow">
+        <label>ساعت</label>
+        <input type="time" id="adminLogTime" step="1">
+      </div>
       <label>یادداشت (اختیاری)</label>
       <input type="text" id="adminLogReason" placeholder="مثلاً: طبق هماهنگی تلفنی">
       <button type="button" class="btn btn-primary" onclick="submitAdminLog()">💾 ثبت</button>
@@ -1070,7 +1083,7 @@
     <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon">📴</span> تردد ناقص</div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon">📊</span> گزارش</div>
     <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon">⚙️</span> تنظیمات</div>
-    <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon">🕐</span> ثبت تردد</div>
+    <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon">🕐</span> ثبت‌ها</div>
     <div class="drawer-item" onclick="refreshCurrentAdminSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
     <div class="drawer-item" onclick="adminLogout()"><span class="dicon">🚪</span> خروج از مدیریت</div>
   </div>
@@ -1093,7 +1106,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-08-31-no-dynamic-holiday-guess"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-01-multitype-single-entry"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2596,13 +2609,46 @@ function closeAdminLogSheet(){
   document.getElementById('adminLogSheet').classList.remove('open');
   hideBulkProgress();
 }
+function onAdminLogTypeChange(){
+  var type = document.getElementById('adminLogType').value;
+  var isLeaveOrMission = (type === 'leave' || type === 'mission');
+  var isAbsence = (type === 'absence');
+  document.getElementById('adminLogLeaveCategoryRow').style.display = (type === 'leave') ? 'block' : 'none';
+  document.getElementById('adminLogTimeRow').style.display = (isLeaveOrMission || isAbsence) ? 'none' : 'block';
+}
 async function submitAdminLog(){
   var username = document.getElementById('adminLogEmp').value;
   var project = document.getElementById('adminLogProj').value;
   var type = document.getElementById('adminLogType').value;
   var jalaliDate = readDateSelect('adminLog');
-  var timeVal = document.getElementById('adminLogTime').value;
+  var reasonVal = document.getElementById('adminLogReason').value.trim();
   if(!username){ alert('یک پرسنل انتخاب کن'); return; }
+
+  if(type === 'leave' || type === 'mission'){
+    var leaveCat = document.getElementById('adminLogLeaveCategory').value;
+    var res = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
+      pin: adminPin, username: username,
+      entries: [{date: jalaliDate, requestType: type, leaveType: 'daily'}],
+      leaveCategory: leaveCat, reason: reasonVal || (type === 'leave' ? 'ثبت مستقیم مرخصی توسط مدیر' : 'ثبت مستقیم ماموریت توسط مدیر')
+    }); });
+    if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + (res.error||'')); return; }
+    clearAdminNotice(); closeAdminLogSheet(); alert('ثبت شد.'); refreshCurrentAdminSection();
+    return;
+  }
+
+  if(type === 'absence'){
+    var res = await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
+      pin: adminPin, username: username,
+      allDatesInMonth: [jalaliDate],
+      entries: [{jalaliDate: jalaliDate, status: 'غیبت'}]
+    }); });
+    if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + (res.error||'')); return; }
+    clearAdminNotice(); closeAdminLogSheet(); alert('ثبت شد.'); refreshCurrentAdminSection();
+    return;
+  }
+
+  // type === 'in' or 'out' — an actual attendance log entry, needs a time
+  var timeVal = document.getElementById('adminLogTime').value;
   if(!timeVal){ alert('ساعت را وارد کن'); return; }
   var timeParts = timeVal.split(':');
   var hh = timeParts[0]||'00'; if(hh.length<2) hh='0'+hh;
@@ -2610,7 +2656,7 @@ async function submitAdminLog(){
   var ss = timeParts[2]||'00'; if(ss.length<2) ss='0'+ss;
   var res = await apiCall(function(){ return apiPost('adminAddLog', {
     pin: adminPin, username: username, project: project, type: type,
-    jalaliDate: jalaliDate, time: hh+':'+mm+':'+ss, reason: document.getElementById('adminLogReason').value.trim()
+    jalaliDate: jalaliDate, time: hh+':'+mm+':'+ss, reason: reasonVal
   }); });
   if(!res.ok){
     var msg = res.error === 'must_be_after_last_entry'
@@ -2859,7 +2905,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-08-31-no-dynamic-holiday-guess'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-01-multitype-single-entry'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
