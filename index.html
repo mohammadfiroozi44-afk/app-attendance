@@ -2797,6 +2797,7 @@ async function refreshAdminSection(name){
     if(dayFilterSelR.options.length <= 1){
       for(var ddR=1; ddR<=31; ddR++){ dayFilterSelR.innerHTML += '<option value="'+ddR+'">'+ddR+'</option>'; }
     }
+    document.getElementById('logStatusFilter').value = 'normal';
     document.getElementById('normalReportView').style.display = 'block';
     document.getElementById('statusReportView').style.display = 'none';
     document.getElementById('logTableBody').innerHTML = '<tr><td colspan="6" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</td></tr>';
@@ -4400,7 +4401,7 @@ async function loadHolidays(){
   window._holidays = res.holidays || [];
   window._holidaySet = {};
   window._holidays.forEach(function(h){ window._holidaySet[h.jalaliDate] = true; });
-  populateMonthYearFilter('holidayFilterMonth','holidayFilterYear');
+  populateMonthYearFilter('holidayFilterMonth','holidayFilterYear', true);
   renderHolidayList();
 }
 function renderHolidayList(){
