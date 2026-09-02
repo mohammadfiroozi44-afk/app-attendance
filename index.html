@@ -278,6 +278,14 @@
   .btn-in{background:linear-gradient(135deg, #37b57e, var(--ok)); color:#fff; box-shadow:0 6px 16px -6px #2f9d6860;}
   .btn-out{background:linear-gradient(135deg, var(--orange), var(--orange-dark)); color:#fff; box-shadow:0 6px 16px -6px #e6522a60;}
   .btn-ghost{background:var(--paper-2); color:var(--ink);}
+  .picker-display-btn{
+    display:flex; align-items:center; justify-content:space-between; width:100%;
+    padding:12px 14px; border-radius:var(--r-sm); border:1.5px solid var(--border-soft);
+    font-family:var(--sans); font-size:15px; background:var(--input-bg); margin-bottom:14px; color:var(--ink);
+    cursor:pointer; text-align:right; transition:border-color .15s, box-shadow .15s;
+  }
+  .picker-display-btn:active{ border-color:var(--navy-2); }
+  .picker-display-btn .picker-arrow{ color:var(--muted); font-size:12px; flex-shrink:0; margin-inline-start:8px; }
   .btn-ghost:hover{background:#e5ddc7;}
   .btn-small{width:auto; padding:8px 13px; font-size:12.5px; box-shadow:none;}
   .btn:disabled{opacity:.45; cursor:not-allowed; filter:none; box-shadow:none;}
@@ -402,6 +410,14 @@
     <button type="button" class="btn btn-primary" onclick="closeAppAlert()">تایید</button>
   </div>
 </div>
+<div id="customPickerOverlay" style="display:none; position:fixed; inset:0; background:#00000066; z-index:6050; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:var(--paper); border-radius:var(--r-lg); padding:16px; max-width:400px; width:100%; max-height:78vh; display:flex; flex-direction:column; box-shadow:var(--sh-lg);">
+    <div id="customPickerTitle" style="font-weight:800; font-size:15px; margin-bottom:10px; color:var(--navy);"></div>
+    <input type="text" id="customPickerSearch" placeholder="جستجو..." oninput="filterPickerOptions()" style="margin-bottom:10px;">
+    <div id="customPickerList" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:6px; padding-inline-end:4px;"></div>
+    <button type="button" class="btn btn-ghost btn-small" style="margin-top:12px;" onclick="closeCustomPicker()">لغو</button>
+  </div>
+</div>
 <div id="globalProgressBar"><div class="fill"></div></div>
 <div class="wrap">
 
@@ -468,6 +484,7 @@
       <div id="pendingOfflineNotice" style="display:none; background:#fff4e2; border:1px solid #f2e0bd; border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:12.5px; color:#8a5a10; line-height:1.8;"></div>
       <label>پروژه</label>
       <select id="empProject" onchange="onProjectPicked()"><option value="">در حال بارگذاری...</option></select>
+      <button type="button" class="picker-display-btn" id="empProjectBtn"><span class="picker-display-text">در حال بارگذاری...</span><span class="picker-arrow">▾</span></button>
       <div class="hint" id="todayStatusHint" style="margin-top:-8px;">📍 در حال بررسی وضعیت امروز...</div>
       <button type="button" class="btn btn-primary" id="locateBtn" onclick="locateAndCheck()">📍 روشن کردن موقعیت مکانی</button>
       <div class="hint" id="gpsHintText" style="display:none;"></div>
@@ -1037,6 +1054,7 @@
 
     <label>پرسنل</label>
     <select id="adminLogEmp"></select>
+    <button type="button" class="picker-display-btn" id="adminLogEmpBtn"><span class="picker-display-text">انتخاب کنید</span><span class="picker-arrow">▾</span></button>
     <label>پروژه</label>
     <select id="adminLogProj"></select>
 
@@ -1155,7 +1173,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-02-drawer-colorscheme"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-02-custom-picker"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1179,6 +1197,69 @@ function closeAppAlert(){
   if(_appAlertResolve){ _appAlertResolve(); _appAlertResolve = null; }
 }
 window.alert = showAppAlert; // every existing alert(...) call in this file now shows the styled in-app dialog instead of the browser's native popup
+
+// ---------- Custom picker (replaces the native OS/browser dropdown for long <select> lists) ----------
+// Wraps an existing <select> without changing anything that reads/writes its .value
+// elsewhere — we hide the real select, show a themed button with the current text, and this
+// modal edits the SAME select's value + fires a real "change" event so all existing
+// onchange handlers keep working exactly as before.
+var _pickerOptions = [];
+var _pickerTargetSelectId = null;
+function wireCustomPicker(selectId, displayBtnId, title){
+  var sel = document.getElementById(selectId);
+  var btn = document.getElementById(displayBtnId);
+  if(!sel || !btn) return;
+  sel.style.display = 'none';
+  btn.onclick = function(){ openCustomPicker(selectId, displayBtnId, title); };
+  syncCustomSelectDisplay(selectId, displayBtnId);
+}
+function syncCustomSelectDisplay(selectId, displayBtnId){
+  var sel = document.getElementById(selectId);
+  var btn = document.getElementById(displayBtnId);
+  if(!sel || !btn) return;
+  var span = btn.querySelector('.picker-display-text');
+  var text = (sel.selectedIndex >= 0 && sel.options[sel.selectedIndex]) ? sel.options[sel.selectedIndex].textContent : 'انتخاب کنید';
+  if(span) span.textContent = text || 'انتخاب کنید';
+}
+function openCustomPicker(selectId, displayBtnId, title){
+  var sel = document.getElementById(selectId);
+  if(!sel) return;
+  _pickerTargetSelectId = selectId;
+  window._pickerDisplayBtnId = displayBtnId;
+  _pickerOptions = Array.prototype.map.call(sel.options, function(o){ return {value:o.value, label:o.textContent, selected:o.selected}; });
+  document.getElementById('customPickerTitle').textContent = title || 'انتخاب کنید';
+  document.getElementById('customPickerSearch').value = '';
+  renderPickerOptions(_pickerOptions);
+  document.getElementById('customPickerOverlay').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('customPickerSearch').focus(); }, 60);
+}
+function renderPickerOptions(opts){
+  var list = document.getElementById('customPickerList');
+  if(opts.length === 0){ list.innerHTML = '<div class="empty">موردی یافت نشد</div>'; return; }
+  list.innerHTML = opts.map(function(o){
+    var safeVal = esc(o.value).replace(/'/g, "&#39;");
+    return '<div class="list-item" style="cursor:pointer; margin-bottom:0;'+(o.selected?' border-color:var(--navy-2); background:var(--paper-2);':'')+'" onclick="selectPickerOption(\''+safeVal+'\')">'+
+      '<div>'+esc(o.label)+(o.selected?' <b>✓</b>':'')+'</div></div>';
+  }).join('');
+}
+function filterPickerOptions(){
+  var q = document.getElementById('customPickerSearch').value.trim();
+  if(!q){ renderPickerOptions(_pickerOptions); return; }
+  var filtered = _pickerOptions.filter(function(o){ return o.label.indexOf(q) !== -1; });
+  renderPickerOptions(filtered);
+}
+function selectPickerOption(value){
+  var sel = document.getElementById(_pickerTargetSelectId);
+  if(sel){
+    sel.value = value;
+    sel.dispatchEvent(new Event('change', {bubbles:true}));
+    syncCustomSelectDisplay(_pickerTargetSelectId, window._pickerDisplayBtnId);
+  }
+  closeCustomPicker();
+}
+function closeCustomPicker(){
+  document.getElementById('customPickerOverlay').style.display = 'none';
+}
 
 // ---------- Light/Dark theme ----------
 // Purely visual — swaps CSS custom-property values only; touches no calculation, storage,
@@ -1958,6 +2039,7 @@ async function openAdminLogSheet(){
   if(!projects || projects.length === 0){ await loadProjectsAdmin(); }
   var empSel = document.getElementById('adminLogEmp');
   empSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+(e.employeeCode?(' (کد '+esc(e.employeeCode)+')'):'')+'</option>'; }).join('');
+  wireCustomPicker('adminLogEmp', 'adminLogEmpBtn', 'انتخاب پرسنل');
   var projSel = document.getElementById('adminLogProj');
   projSel.innerHTML = projects.map(function(p){ return '<option>'+esc(p.name)+'</option>'; }).join('');
   document.getElementById('adminLogTime').value = '';
@@ -3000,7 +3082,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-02-drawer-colorscheme'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-02-custom-picker'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3613,6 +3695,7 @@ function renderProjectSelect(){
   }
   if(sel) sel.innerHTML = html;
   if(reqSel) reqSel.innerHTML = html;
+  wireCustomPicker('empProject', 'empProjectBtn', 'انتخاب پروژه');
 }
 function renderProjectList(){
   var box = document.getElementById('projList');
