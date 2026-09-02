@@ -842,19 +842,6 @@
     </div>
 
     <div class="card">
-      <div class="eyebrow">برند و مشخصات شرکت</div>
-      <div class="hint" style="margin-top:-4px;">این نام و لوگو در صفحه‌ی معرفی، هنگام باز شدن برنامه نمایش داده می‌شود.</div>
-      <label>نام شرکت</label>
-      <input type="text" id="companyNameInput" placeholder="نام شرکت شما">
-      <label>لوگوی شرکت</label>
-      <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px;">
-        <img id="companyLogoPreview" style="width:72px; height:56px; border-radius:10px; object-fit:contain; background:#fff; padding:4px; display:none; border:1px solid #e2ddcc;">
-        <input type="file" id="companyLogoInput" accept="image/*" style="flex:1;" onchange="handleCompanyLogoSelect(event)">
-      </div>
-      <button type="button" class="btn btn-primary" onclick="saveCompanyBranding()">💾 ذخیره اطلاعات شرکت</button>
-    </div>
-
-    <div class="card">
       <div class="eyebrow">تعمیر داده‌های قدیمی</div>
       <div class="hint" style="margin-top:-4px;">ثبت‌هایی که پیش از آخرین به‌روزرسانی ویرایش یا تأیید شده‌اند، ممکن است ترتیب یا وضعیت تعطیل‌بودنشان نادرست باشد. این گزینه تمام ثبت‌های گزارش را بر اساس تاریخ و ساعت فعلی آن‌ها بازمحاسبه می‌کند، بدون تغییر در تاریخ، ساعت یا پرسنل مربوطه.</div>
       <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
@@ -1125,7 +1112,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-01-emp-code-username-devices"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-01-fp-session-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1643,6 +1630,20 @@ async function tryAdminFingerprintLogin(){
   if(!cached){ alert('هنوز هیچ ورود قبلی روی این گوشی ذخیره نشده. یک‌بار باید با یوزرنیم/رمز وارد بشی.'); return; }
   var ok = await verifyFingerprint();
   if(!ok){ document.getElementById('pinHint').textContent = 'تایید اثر انگشت ناموفق بود یا لغو شد.'; document.getElementById('pinHint').style.color = '#a32a2a'; return; }
+  // Fingerprint login only checks the LOCAL cached credential — it still needs to register
+  // (or refresh) this device's session with the server, exactly like a normal username/pin
+  // login does, so this device actually shows up under "دستگاه‌های واردشده" and correctly
+  // counts against the 2-device limit.
+  var deviceLabel = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || 'دستگاه نامشخص';
+  var res = await apiCall(function(){ return apiPost('checkPin', {username: cached.username, pin: cached.pin, deviceId: DEVICE_ID, deviceLabel: deviceLabel}); });
+  if(!res.ok){
+    var fpErrMsg = res.error === 'admin_device_limit_reached'
+      ? 'ورودِ مدیر فقط از حداکثر ۲ دستگاه هم‌زمان مجازه. برای ورود از این دستگاه، از تنظیمات یکی از دستگاه‌های قبلی رو حذف کن.'
+      : 'ورود ناموفق بود، لطفاً دوباره با یوزرنیم/رمز وارد شو.';
+    document.getElementById('pinHint').textContent = fpErrMsg;
+    document.getElementById('pinHint').style.color = '#a32a2a';
+    return;
+  }
   adminPin = cached.pin;
   adminUsername = cached.username;
   sessionStorage.setItem('adminPin', adminPin);
@@ -2930,7 +2931,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-01-emp-code-username-devices'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-01-fp-session-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
