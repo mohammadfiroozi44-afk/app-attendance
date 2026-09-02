@@ -836,6 +836,25 @@
     </div>
 
     <div class="card">
+      <div class="eyebrow">دستگاه‌های واردشده به پنل مدیریت</div>
+      <div class="hint" style="margin-top:-4px;">ورودِ مدیر حداکثر از ۲ دستگاه هم‌زمان مجازه. برای ورود از یک دستگاهِ جدید، ابتدا یکی از دستگاه‌های زیر را حذف کن.</div>
+      <div id="adminSessionsList" class="empty">در حال بارگذاری...</div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">برند و مشخصات شرکت</div>
+      <div class="hint" style="margin-top:-4px;">این نام و لوگو در صفحه‌ی معرفی، هنگام باز شدن برنامه نمایش داده می‌شود.</div>
+      <label>نام شرکت</label>
+      <input type="text" id="companyNameInput" placeholder="نام شرکت شما">
+      <label>لوگوی شرکت</label>
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px;">
+        <img id="companyLogoPreview" style="width:72px; height:56px; border-radius:10px; object-fit:contain; background:#fff; padding:4px; display:none; border:1px solid #e2ddcc;">
+        <input type="file" id="companyLogoInput" accept="image/*" style="flex:1;" onchange="handleCompanyLogoSelect(event)">
+      </div>
+      <button type="button" class="btn btn-primary" onclick="saveCompanyBranding()">💾 ذخیره اطلاعات شرکت</button>
+    </div>
+
+    <div class="card">
       <div class="eyebrow">تعمیر داده‌های قدیمی</div>
       <div class="hint" style="margin-top:-4px;">ثبت‌هایی که پیش از آخرین به‌روزرسانی ویرایش یا تأیید شده‌اند، ممکن است ترتیب یا وضعیت تعطیل‌بودنشان نادرست باشد. این گزینه تمام ثبت‌های گزارش را بر اساس تاریخ و ساعت فعلی آن‌ها بازمحاسبه می‌کند، بدون تغییر در تاریخ، ساعت یا پرسنل مربوطه.</div>
       <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
@@ -1106,7 +1125,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-01-multitype-single-entry"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-01-emp-code-username-devices"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1579,7 +1598,8 @@ async function checkPin(){
   if(!enteredUser || !entered) return;
   var btn = document.getElementById('pinBtn');
   btn.disabled = true; btn.textContent = 'در حال بررسی...';
-  var res = await apiCall(function(){ return apiPost('checkPin', {username: enteredUser, pin: entered}); });
+  var deviceLabel = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || 'دستگاه نامشخص';
+  var res = await apiCall(function(){ return apiPost('checkPin', {username: enteredUser, pin: entered, deviceId: DEVICE_ID, deviceLabel: deviceLabel}); });
   btn.disabled = false; btn.textContent = 'ورود';
   if(res.ok){
     adminPin = entered;
@@ -1595,7 +1615,10 @@ async function checkPin(){
     requestNotificationPermission();
     startAdminLogWatcher();
   } else {
-    document.getElementById('pinHint').textContent = res.error ? ('خطا: '+res.error) : 'نام کاربری یا رمز اشتباه است. (پیش‌فرض: admin / 1234)';
+    var pinErrMsg = res.error === 'admin_device_limit_reached'
+      ? 'ورودِ مدیر فقط از حداکثر ۲ دستگاه هم‌زمان مجازه. برای ورود از این دستگاه، از تنظیمات یکی از دستگاه‌های قبلی رو حذف کن (یا از همون دستگاه‌ها وارد شو).'
+      : (res.error ? ('خطا: '+res.error) : 'نام کاربری یا رمز اشتباه است. (پیش‌فرض: admin / 1234)');
+    document.getElementById('pinHint').textContent = pinErrMsg;
     document.getElementById('pinHint').style.color = '#a32a2a';
   }
 }
@@ -2812,6 +2835,7 @@ async function refreshAdminSection(name){
     var fpChk = document.getElementById('adminFpToggle');
     if(fpChk) fpChk.checked = (localStorage.getItem('adminFpEnabled') === 'yes');
     loadCompanyBrandingAdmin();
+    loadAdminSessions();
   }
 }
 function adminLogout(){
@@ -2906,7 +2930,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-01-multitype-single-entry'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-01-emp-code-username-devices'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -2943,6 +2967,26 @@ function handleCompanyLogoSelect(event){
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
+}
+async function loadAdminSessions(){
+  var box = document.getElementById('adminSessionsList');
+  var res = await apiCall(function(){ return apiPost('getAdminSessions', {pin:adminPin, deviceId: DEVICE_ID}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافت لیست دستگاه‌ها ناموفق بود</div>'; return; }
+  var sessions = res.sessions || [];
+  if(sessions.length === 0){ box.innerHTML = '<div class="empty">هیچ دستگاهی ثبت نشده</div>'; return; }
+  box.innerHTML = sessions.map(function(s){
+    var isThis = s.deviceId === DEVICE_ID;
+    return '<div class="list-item"><div><b>'+esc(s.deviceLabel||'دستگاه ناشناس')+'</b>'+(isThis?' <span class="badge badge-bound">همین دستگاه</span>':'')+
+      '<div class="meta">ورود: '+esc(s.loginTime||'')+' · آخرین فعالیت: '+esc(s.lastActiveTime||'')+'</div></div>'+
+      '<button class="icon-btn del" title="حذف این دستگاه" onclick="removeAdminSession(\''+s.id+'\')">✕</button></div>';
+  }).join('');
+}
+async function removeAdminSession(id){
+  if(!confirm('این دستگاه از لیستِ دستگاه‌های مجاز حذف شود؟ اگه همین دستگاهیه که الان باهاش واردی، لازمه دوباره وارد بشی.')) return;
+  var res = await apiCall(function(){ return apiPost('removeAdminSession', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  loadAdminSessions();
 }
 async function loadCompanyBrandingAdmin(){
   var res = await apiCall(function(){ return apiPost('getCompanyBranding', {}); });
@@ -3132,6 +3176,7 @@ async function saveEmployee(){
     if(!res.ok){
       var saveMsg = res.error === 'employee_code_required' ? 'کد پرسنلی الزامی است'
         : res.error === 'employee_limit_reached' ? 'به سقف مجاز تعداد پرسنل این نسخه رسیدی.'
+        : res.error === 'username_taken' ? 'این نام کاربری قبلاً برای یک پرسنل دیگر ثبت شده — یک نام کاربری دیگر انتخاب کنید.'
         : (res.error||'نامشخص');
       showAdminNotice('ذخیره پرسنل ناموفق بود: ' + saveMsg);
       return;
@@ -3272,7 +3317,7 @@ function renderPendingOffline(){
       var monthOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(edp && m===edp.month?' selected':'')+'>'+m+'</option>'; }).join('');
       var yearOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
       return '<div class="list-item"><div style="width:100%;">'+
-        '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+        '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
         '<div class="hint" style="margin:4px 0;">ادعای گوشی: '+r.jalaliDate+' — '+r.time+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin:6px 0;">'+
           '<select id="offEditDay-'+r.id+'" style="width:64px;">'+dayOpts+'</select>'+
@@ -3286,7 +3331,7 @@ function renderPendingOffline(){
         '</div></div></div>';
     }
     return '<div class="list-item"><div>'+
-      '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+      '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
       '<div class="meta">ادعای گوشی: '+r.jalaliDate+' — '+r.time+'</div></div>'+
       '<div class="btn-row" style="width:auto;">'+
         '<button type="button" class="btn btn-in btn-small" onclick="editingOfflineId=\''+r.id+'\'; renderPendingOffline();">✏️ بررسی</button>'+
@@ -3358,7 +3403,7 @@ function renderReqAdminList(){
     return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
       '<label style="display:flex; align-items:center; gap:6px; flex:1;">'+
         '<input type="checkbox" class="req-chk" value="'+r.id+'" style="width:auto; margin:0;">'+
-        '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+        '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
       '</label>'+
       '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
       '<div class="meta">'+r.createdAt+' — '+r.createdTime+(r.requestedDate?(' · زمان درخواستی: '+r.requestedDate+' '+r.requestedTime):'')+'</div>'+
@@ -3427,7 +3472,7 @@ function renderLeaveAdminList(){
     return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
       '<label style="display:flex; align-items:center; gap:6px; flex:1;">'+
         '<input type="checkbox" class="leave-chk" value="'+r.id+'" style="width:auto; margin:0;">'+
-        '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b> · '+formatLeaveRange(r)+
+        '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b> · '+formatLeaveRange(r)+
       '</label>'+
       '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
       (r.reason ? '<div style="margin:6px 0; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
@@ -4389,7 +4434,7 @@ async function loadDashboard(){
     trafficBox.innerHTML = todayPairs.map(function(p){
       var inHtml = p.inE ? ('<bdi style="unicode-bidi:isolate;"><span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(p.inE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">بدون ورود</span>';
       var outHtml = p.outE ? ('<bdi style="unicode-bidi:isolate;"><span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(p.outE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">هنوز حاضر</span>';
-      return '<div class="list-item"><div><b>'+esc(currentEmployeeName(p.username, p.employee))+'</b> · '+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+
+      return '<div class="list-item"><div><b>'+nameWithCode(p.username, p.employee, p.employeeCode)+'</b> · '+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+
         '<div class="meta" style="display:flex; gap:14px; flex-wrap:wrap;">'+inHtml+outHtml+'</div></div></div>';
     }).join('');
   }
@@ -4547,6 +4592,20 @@ function currentEmployeeName(username, fallbackName){
   }
   return fallbackName;
 }
+// Employee code alongside a name disambiguates people with identical/similar names —
+// looked up live (like currentEmployeeName) so a later code change shows up everywhere too.
+function currentEmployeeCode(username, fallbackCode){
+  if(username){
+    var emp = (employees||[]).filter(function(e){ return e.username === username; })[0];
+    if(emp && emp.employeeCode) return emp.employeeCode;
+  }
+  return fallbackCode || '';
+}
+function nameWithCode(username, fallbackName, fallbackCode){
+  var name = esc(currentEmployeeName(username, fallbackName));
+  var code = currentEmployeeCode(username, fallbackCode);
+  return code ? (name + ' <span class="mono" style="font-size:11px; color:#847a63;">(کد '+esc(code)+')</span>') : name;
+}
 function pairLogEntriesForDisplay(entries){  var byUser = {};
   entries.forEach(function(e){
     // Key by username only — pairing happens across the employee's whole timeline. An
@@ -4566,7 +4625,7 @@ function pairLogEntriesForDisplay(entries){  var byUser = {};
   }
   function makePair(inE, outE){
     var ref = inE || outE;
-    return {inE:inE, outE:outE, jalaliDate: ref.jalaliDate, employee: ref.employee, username: ref.username, project: projectLabel(inE, outE), sortKey: ref.isoTimestamp};
+    return {inE:inE, outE:outE, jalaliDate: ref.jalaliDate, employee: ref.employee, employeeCode: ref.employeeCode, username: ref.username, project: projectLabel(inE, outE), sortKey: ref.isoTimestamp};
   }
   var pairs = [];
   Object.keys(byUser).forEach(function(k){
@@ -4695,7 +4754,7 @@ function renderLogTable(){
       var defaultDate = sideE ? sideE.jalaliDate : (refE ? refE.jalaliDate : jalaliString(new Date()));
       var timeVal = sideE ? normTimeForSubmit(sideE.time) : '';
       return '<tr class="edit-row"><td colspan="6">'+
-        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش '+sideLabel+' — '+esc(currentEmployeeName(refE.username, refE.employee))+(existingId?'':' (ثبت نشده — با ذخیره اضافه می‌شه)')+'</div>'+
+        '<div class="hint" style="margin:0 0 6px;">در حال ویرایش '+sideLabel+' — '+nameWithCode(refE.username, refE.employee, refE.employeeCode)+(existingId?'':' (ثبت نشده — با ذخیره اضافه می‌شه)')+'</div>'+
         '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">'+
           '<select id="logEditEmp" style="width:140px;">'+empOpts+'</select>'+
           '<select id="logEditProj" style="width:140px;">'+prOpts+'</select>'+
@@ -4723,7 +4782,7 @@ function renderLogTable(){
     }
     var pairActions = '<button class="icon-btn del" title="حذف کل ردیف (ورود و خروج)" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
     return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+nightHtml+'</td>'+
-      '<td>'+esc(currentEmployeeName(p.username, p.employee))+'</td><td>'+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+'</td>'+
+      '<td>'+nameWithCode(p.username, p.employee, p.employeeCode)+'</td><td>'+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+'</td>'+
       '<td>'+cellFor(p.inE,'in')+'</td><td>'+cellFor(p.outE,'out')+'</td>'+
       '<td style="white-space:nowrap;">'+pairActions+'</td></tr>';
   }).join('');
