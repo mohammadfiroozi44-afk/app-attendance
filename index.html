@@ -418,6 +418,22 @@
     <button type="button" class="btn btn-ghost btn-small" style="margin-top:12px;" onclick="closeCustomPicker()">لغو</button>
   </div>
 </div>
+<div id="customTimePickerOverlay" style="display:none; position:fixed; inset:0; background:#00000066; z-index:6050; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:var(--paper); border-radius:var(--r-lg); padding:22px; max-width:320px; width:100%; box-shadow:var(--sh-lg); text-align:center;">
+    <div id="customTimePickerTitle" style="font-weight:800; font-size:15px; margin-bottom:16px; color:var(--navy);"></div>
+    <div style="display:flex; align-items:center; justify-content:center; gap:6px; direction:ltr;">
+      <input type="number" id="tpHour" min="0" max="23" class="field-mono" style="width:66px; text-align:center; font-size:22px; margin-bottom:0;">
+      <span style="font-size:22px; font-weight:800; color:var(--ink);">:</span>
+      <input type="number" id="tpMinute" min="0" max="59" class="field-mono" style="width:66px; text-align:center; font-size:22px; margin-bottom:0;">
+      <span style="font-size:22px; font-weight:800; color:var(--ink);">:</span>
+      <input type="number" id="tpSecond" min="0" max="59" class="field-mono" style="width:66px; text-align:center; font-size:22px; margin-bottom:0;">
+    </div>
+    <div class="btn-row" style="margin-top:20px;">
+      <button type="button" class="btn btn-ghost btn-small" onclick="closeCustomTimePicker()">لغو</button>
+      <button type="button" class="btn btn-primary btn-small" onclick="confirmCustomTimePicker()">تنظیم</button>
+    </div>
+  </div>
+</div>
 <div id="globalProgressBar"><div class="fill"></div></div>
 <div class="wrap">
 
@@ -902,6 +918,13 @@
     </div>
 
     <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="eyebrow" style="margin:0;">ابزارهای پیشرفته</div>
+        <button type="button" class="btn btn-ghost btn-small" onclick="revealAdvancedTools()">🔒 نمایش (نیاز به تأیید رمز)</button>
+      </div>
+      <div class="hint" style="margin-top:8px;">این ابزارها به‌ندرت لازم می‌شوند و برای جلوگیری از استفاده‌ی اشتباه، پیش‌فرض پنهان هستند.</div>
+    </div>
+    <div id="advancedToolsCard" class="card" style="display:none;">
       <div class="eyebrow">تعمیر داده‌های قدیمی</div>
       <div class="hint" style="margin-top:-4px;">ثبت‌هایی که پیش از آخرین به‌روزرسانی ویرایش یا تأیید شده‌اند، ممکن است ترتیب یا وضعیت تعطیل‌بودنشان نادرست باشد. این گزینه تمام ثبت‌های گزارش را بر اساس تاریخ و ساعت فعلی آن‌ها بازمحاسبه می‌کند، بدون تغییر در تاریخ، ساعت یا پرسنل مربوطه.</div>
       <button type="button" class="btn btn-ghost" onclick="recalcAllTimestamps()">🔧 بازمحاسبه همه ثبت‌های گزارش</button>
@@ -1082,6 +1105,7 @@
       <div id="adminLogTimeRow">
         <label>ساعت</label>
         <input type="time" id="adminLogTime" step="1">
+        <button type="button" class="picker-display-btn" id="adminLogTimeBtn"><span class="picker-display-text">انتخاب ساعت</span><span class="picker-arrow">🕐</span></button>
       </div>
       <label>یادداشت (اختیاری)</label>
       <input type="text" id="adminLogReason" placeholder="مثلاً: طبق هماهنگی تلفنی">
@@ -1115,7 +1139,9 @@
         <div class="hint" style="margin:0 0 6px;">در صورتی که بازه‌ای از این ماه ساعت ورود و خروج ثابتی دارد (مثلاً یک هفته به یک شکل و هفته بعد به شکل دیگر)، آن را اینجا وارد کنید تا فقط به همان بازه اعمال شود:</div>
         <div class="date-row">
           <input type="time" id="bulkFixedIn">
+          <button type="button" class="picker-display-btn" id="bulkFixedInBtn" style="margin-bottom:0;"><span class="picker-display-text">ساعت ورود</span><span class="picker-arrow">🕐</span></button>
           <input type="time" id="bulkFixedOut">
+          <button type="button" class="picker-display-btn" id="bulkFixedOutBtn" style="margin-bottom:0;"><span class="picker-display-text">ساعت خروج</span><span class="picker-arrow">🕐</span></button>
         </div>
         <div class="date-row" style="margin-top:6px; align-items:center;">
           <span style="font-size:12px; flex-shrink:0;">از روز</span>
@@ -1173,7 +1199,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-02-custom-picker"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-02-bulk-timepicker"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1259,6 +1285,60 @@ function selectPickerOption(value){
 }
 function closeCustomPicker(){
   document.getElementById('customPickerOverlay').style.display = 'none';
+}
+
+// ---------- Custom time picker (replaces the native OS "Set time" wheel) ----------
+var _timePickerTargetId = null;
+function wireCustomTimePicker(inputId, displayBtnId, title, placeholder){
+  var inp = document.getElementById(inputId);
+  var btn = document.getElementById(displayBtnId);
+  if(!inp || !btn) return;
+  inp.style.display = 'none';
+  btn.onclick = function(){ openCustomTimePicker(inputId, displayBtnId, title); };
+  syncTimeDisplay(inputId, displayBtnId, placeholder);
+}
+function syncTimeDisplay(inputId, displayBtnId, placeholder){
+  var inp = document.getElementById(inputId);
+  var btn = document.getElementById(displayBtnId);
+  if(!inp || !btn) return;
+  var span = btn.querySelector('.picker-display-text');
+  if(span) span.textContent = inp.value ? inp.value : (placeholder || 'انتخاب ساعت');
+}
+function openCustomTimePicker(inputId, displayBtnId, title){
+  _timePickerTargetId = inputId;
+  window._timePickerDisplayBtnId = displayBtnId;
+  var inp = document.getElementById(inputId);
+  var parts = (inp.value||'00:00:00').split(':');
+  document.getElementById('tpHour').value = parts[0]||'00';
+  document.getElementById('tpMinute').value = parts[1]||'00';
+  document.getElementById('tpSecond').value = parts[2]||'00';
+  document.getElementById('customTimePickerTitle').textContent = title || 'انتخاب ساعت';
+  document.getElementById('customTimePickerOverlay').style.display = 'flex';
+}
+function confirmCustomTimePicker(){
+  function pad(n){ n = parseInt(n,10); if(isNaN(n) || n<0) n=0; return (n<10?'0':'')+n; }
+  var h = pad(document.getElementById('tpHour').value);
+  var m = pad(document.getElementById('tpMinute').value);
+  var s = pad(document.getElementById('tpSecond').value);
+  var inp = document.getElementById(_timePickerTargetId);
+  if(inp){
+    inp.value = h+':'+m+':'+s;
+    inp.dispatchEvent(new Event('change', {bubbles:true}));
+    syncTimeDisplay(_timePickerTargetId, window._timePickerDisplayBtnId);
+  }
+  closeCustomTimePicker();
+}
+function closeCustomTimePicker(){
+  document.getElementById('customTimePickerOverlay').style.display = 'none';
+}
+async function revealAdvancedTools(){
+  var enteredPin = prompt('این ابزارها به‌ندرت لازم می‌شوند. برای نمایش، رمزِ مدیر را دوباره وارد کنید:');
+  if(enteredPin === null) return;
+  if(String(enteredPin) !== String(adminPin)){
+    showAppAlert('رمز واردشده درست نیست.');
+    return;
+  }
+  document.getElementById('advancedToolsCard').style.display = 'block';
 }
 
 // ---------- Light/Dark theme ----------
@@ -2044,6 +2124,7 @@ async function openAdminLogSheet(){
   projSel.innerHTML = projects.map(function(p){ return '<option>'+esc(p.name)+'</option>'; }).join('');
   document.getElementById('adminLogTime').value = '';
   document.getElementById('adminLogReason').value = '';
+  wireCustomTimePicker('adminLogTime', 'adminLogTimeBtn', 'انتخاب ساعت');
 
   var mMonthSel = document.getElementById('adminLogMonthlyMonth');
   var mYearSel = document.getElementById('adminLogMonthlyYear');
@@ -2192,8 +2273,12 @@ async function loadMonthDaysForBulkEntry(){
       rows.push(
         '<div class="date-row" id="bulkRow'+d+'" style="align-items:center; margin-bottom:2px;'+(hasData?' background:#eaf3ec; border-radius:8px 8px 0 0; padding:4px;':'')+'">'+
           '<span style="width:70px; font-size:12px; flex-shrink:0;">'+d+' '+monthName+'<br><span style="color:'+weekdayColor+'; font-weight:700;">'+weekday+'</span></span>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+esc(displayInTime)+'" '+(timeLocked?'disabled':'')+'>'+inNote+'</div>'+
-          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+esc(displayOutTime)+'" '+(timeLocked?'disabled':'')+'>'+outNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In" style="width:100%;" value="'+esc(displayInTime)+'" '+(timeLocked?'disabled':'')+'>'+
+            '<button type="button" class="picker-display-btn" id="bulkDay'+d+'InBtn" style="padding:8px 10px; margin-bottom:0; font-size:13px;" '+(timeLocked?'disabled':'')+'><span class="picker-display-text">—</span><span class="picker-arrow">🕐</span></button>'+
+            inNote+'</div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out" style="width:100%;" value="'+esc(displayOutTime)+'" '+(timeLocked?'disabled':'')+'>'+
+            '<button type="button" class="picker-display-btn" id="bulkDay'+d+'OutBtn" style="padding:8px 10px; margin-bottom:0; font-size:13px;" '+(timeLocked?'disabled':'')+'><span class="picker-display-text">—</span><span class="picker-arrow">🕐</span></button>'+
+            outNote+'</div>'+
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
           '<button type="button" class="icon-btn" title="فقط همین روز رو ذخیره کن" onclick="saveSingleBulkDay('+d+')" style="flex-shrink:0;">💾</button>'+
         '</div>'+
@@ -2206,6 +2291,12 @@ async function loadMonthDaysForBulkEntry(){
       );
     }
     box.innerHTML = '<div class="date-row" style="font-size:11px; color:#7a7360; margin-bottom:4px;"><span style="width:82px; flex-shrink:0;"></span><span style="flex:1;">ورود</span><span style="flex:1;">خروج</span></div>' + rows.join('');
+    for(var dw=1; dw<=daysCount; dw++){
+      wireCustomTimePicker('bulkDay'+dw+'In', 'bulkDay'+dw+'InBtn', 'ساعت ورود — '+dw+' '+monthName, '—');
+      wireCustomTimePicker('bulkDay'+dw+'Out', 'bulkDay'+dw+'OutBtn', 'ساعت خروج — '+dw+' '+monthName, '—');
+    }
+    wireCustomTimePicker('bulkFixedIn', 'bulkFixedInBtn', 'ساعت ورودِ ثابت');
+    wireCustomTimePicker('bulkFixedOut', 'bulkFixedOutBtn', 'ساعت خروجِ ثابت');
     document.getElementById('bulkFixedTimeBox').style.display = 'block';
     document.getElementById('bulkSubmitBtn').style.display = 'block';
     var dayOpts = '';
@@ -2243,6 +2334,10 @@ function clearBulkDay(d){
   document.getElementById('bulkDay'+d+'Out').value = '';
   document.getElementById('bulkDay'+d+'In').disabled = false;
   document.getElementById('bulkDay'+d+'Out').disabled = false;
+  document.getElementById('bulkDay'+d+'InBtn').disabled = false;
+  document.getElementById('bulkDay'+d+'OutBtn').disabled = false;
+  syncTimeDisplay('bulkDay'+d+'In', 'bulkDay'+d+'InBtn', '—');
+  syncTimeDisplay('bulkDay'+d+'Out', 'bulkDay'+d+'OutBtn', '—');
   document.getElementById('bulkDay'+d+'Leave').checked = false;
   document.getElementById('bulkDay'+d+'Absence').checked = false;
   document.getElementById('bulkDay'+d+'Off').checked = false;
@@ -2803,7 +2898,7 @@ async function submitAdminLog(){
     var leaveCat = document.getElementById('adminLogLeaveCategory').value;
     var res = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
       pin: adminPin, username: username,
-      entries: [{date: jalaliDate, requestType: type, leaveType: 'daily'}],
+      entries: [{date: jalaliDate, requestType: type, leaveType: 'daily', project: project}],
       leaveCategory: leaveCat, reason: reasonVal || (type === 'leave' ? 'ثبت مستقیم مرخصی توسط مدیر' : 'ثبت مستقیم ماموریت توسط مدیر')
     }); });
     if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + (res.error||'')); return; }
@@ -3082,7 +3177,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-02-custom-picker'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-02-bulk-timepicker'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
