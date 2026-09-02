@@ -17,25 +17,51 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
 <style>
   :root{
-    --navy:#0f2a43;
-    --navy-2:#16395c;
-    --grid:#3e7cb14d;
-    --cyan:#7fd4d9;
+    --navy:#1e3a8a;
+    --navy-2:#172554;
+    --grid:#2563eb1f;
+    --cyan:#7dd3fc;
     --orange:#ff6a3d;
     --orange-dark:#e6522a;
     --gold:#c9962e;
-    --paper:#fbfaf5;
-    --paper-2:#f1efe4;
-    --ink:#16232e;
-    --ok:#2f9d68;
-    --err:#d64545;
+    --paper:#ffffff;
+    --paper-2:#f4f7fb;
+    --ink:#172033;
+    --ok:#16a34a;
+    --err:#dc2626;
+    --on-dark:#f4f7fb;
+    --border-soft:#e5eaf1;
+    --input-bg:#fbfaf5;
+    --muted:#7a7360;
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Vazirmatn', Tahoma, sans-serif;
     --r-sm:9px; --r-md:13px; --r-lg:20px;
-    --sh-sm: 0 2px 10px -4px #0f2a4324;
-    --sh-md: 0 12px 30px -12px #0f2a4345;
-    --sh-lg: 0 20px 48px -16px #0f2a434d;
+    --sh-sm: 0 2px 10px -4px #17203324;
+    --sh-md: 0 12px 30px -12px #17203345;
+    --sh-lg: 0 20px 48px -16px #1720334d;
   }
+  html[data-theme="dark"]{
+    --navy:#1e3a8a;
+    --navy-2:#0f172a;
+    --grid:#2563eb26;
+    --cyan:#7dd3fc;
+    --orange:#ff8259;
+    --orange-dark:#f2704e;
+    --gold:#e0b354;
+    --paper:#161d2e;
+    --paper-2:#1d2740;
+    --ink:#e7ecf5;
+    --ok:#34d976;
+    --err:#f0554f;
+    --on-dark:#f4f7fb;
+    --border-soft:#2a3550;
+    --input-bg:#1d2740;
+    --muted:#9aa7c2;
+    --sh-sm: 0 2px 10px -4px #00000055;
+    --sh-md: 0 12px 30px -12px #00000066;
+    --sh-lg: 0 20px 48px -16px #00000077;
+  }
+  html[data-theme="dark"] body{ background-color:#0d1424; }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
@@ -52,7 +78,7 @@
 
   header.top{
     display:flex; align-items:center; justify-content:space-between;
-    color:var(--paper); margin-bottom:16px; gap:10px;
+    color:var(--on-dark); margin-bottom:16px; gap:10px;
   }
   header.top .title{font-weight:800; font-size:21px; letter-spacing:.1px;}
   header.top .sub{font-family:var(--mono); font-size:11.5px; color:var(--cyan); opacity:.85; letter-spacing:.2px;}
@@ -62,7 +88,7 @@
 
   .card{
     background:var(--paper);
-    border:1px solid #0f2a4314;
+    border:1px solid var(--border-soft);
     border-radius:var(--r-lg);
     padding:20px;
     box-shadow: var(--sh-md);
@@ -90,7 +116,7 @@
   .tabs{display:flex; gap:8px; margin-bottom:14px;}
 
   .checkin-hero{
-    background:linear-gradient(135deg, var(--navy), var(--navy-2)); color:var(--paper);
+    background:linear-gradient(135deg, var(--navy), var(--navy-2)); color:var(--on-dark);
     padding:24px 20px 42px; text-align:center; border-radius:0 0 var(--r-lg) var(--r-lg); margin:-18px -14px 0;
   }
   .checkin-clock{ font-family:var(--mono); font-size:35px; font-weight:700; letter-spacing:1px; }
@@ -123,7 +149,7 @@
   .bottom-sheet{ padding-bottom:14px; }
 
   .req-hero{
-    background:linear-gradient(135deg, var(--navy), var(--navy-2)); color:var(--paper);
+    background:linear-gradient(135deg, var(--navy), var(--navy-2)); color:var(--on-dark);
     padding:16px 14px 14px; border-radius:0 0 var(--r-md) var(--r-md); margin:-18px -14px 0;
   }
   .cal-icon-btn{
@@ -210,7 +236,7 @@
     overflow-y:auto; padding:18px 0;
   }
   .side-drawer.open{ transform:translateX(0); }
-  .drawer-header{ padding:0 18px 16px; font-weight:800; font-size:15px; color:var(--navy); border-bottom:1px solid #eae5d6; margin-bottom:8px;}
+  .drawer-header{ padding:0 18px 16px; font-weight:800; font-size:15px; color:var(--navy); border-bottom:1px solid var(--border-soft); margin-bottom:8px;}
   .drawer-item{
     display:flex; align-items:center; gap:12px; padding:14px 18px; font-size:14.5px; font-weight:600;
     cursor:pointer; color:var(--ink); border-inline-start:3px solid transparent; transition:background .12s, border-color .12s;
@@ -220,18 +246,18 @@
   .drawer-item .dicon{ font-size:19px; width:24px; text-align:center; }
   .tab-btn{
     flex:1; padding:11px 8px; border-radius:var(--r-sm); border:1px solid #ffffff33;
-    background:#ffffff14; color:var(--paper); font-family:var(--sans); font-weight:600;
+    background:#ffffff14; color:var(--on-dark); font-family:var(--sans); font-weight:600;
     font-size:14px; cursor:pointer; transition:.15s;
   }
   .tab-btn.active{background:linear-gradient(135deg, var(--orange), var(--orange-dark)); border-color:var(--orange); color:#fff; box-shadow:var(--sh-sm);}
 
   label{display:block; font-size:12.5px; font-weight:700; color:#4a5a68; margin-bottom:7px; letter-spacing:.1px;}
   input[type=text], input[type=number], input[type=password], input[type=time], select{
-    width:100%; padding:12px 14px; border-radius:var(--r-sm); border:1.5px solid #e2ddcc;
-    font-family:var(--sans); font-size:15px; background:#fffdf8; margin-bottom:14px; color:var(--ink);
+    width:100%; padding:12px 14px; border-radius:var(--r-sm); border:1.5px solid var(--border-soft);
+    font-family:var(--sans); font-size:15px; background:var(--input-bg); margin-bottom:14px; color:var(--ink);
     transition:border-color .15s, box-shadow .15s, background .15s;
   }
-  input:focus, select:focus{outline:none; border-color:var(--navy-2); background:#fff; box-shadow:0 0 0 3.5px #0f2a431c;}
+  input:focus, select:focus{outline:none; border-color:var(--navy-2); background:var(--paper); box-shadow:0 0 0 3.5px var(--grid);}
 
   .field-mono input{font-family:var(--mono); direction:ltr; text-align:left;}
 
@@ -244,7 +270,7 @@
   .btn-primary:hover{filter:brightness(1.08);}
   .btn-in{background:linear-gradient(135deg, #37b57e, var(--ok)); color:#fff; box-shadow:0 6px 16px -6px #2f9d6860;}
   .btn-out{background:linear-gradient(135deg, var(--orange), var(--orange-dark)); color:#fff; box-shadow:0 6px 16px -6px #e6522a60;}
-  .btn-ghost{background:#eee7d6; color:var(--ink);}
+  .btn-ghost{background:var(--paper-2); color:var(--ink);}
   .btn-ghost:hover{background:#e5ddc7;}
   .btn-small{width:auto; padding:8px 13px; font-size:12.5px; box-shadow:none;}
   .btn:disabled{opacity:.45; cursor:not-allowed; filter:none; box-shadow:none;}
@@ -267,15 +293,15 @@
   }
 
   table{width:100%; border-collapse:collapse; font-size:12.5px;}
-  th,td{padding:8px 6px; border-bottom:1px solid #eae5d6; text-align:right;}
-  th{font-size:11px; color:#6b6252; font-weight:700; letter-spacing:.2px;}
+  th,td{padding:8px 6px; border-bottom:1px solid var(--border-soft); text-align:right;}
+  th{font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.2px;}
   td.mono{font-family:var(--mono); direction:ltr; text-align:left;}
   .in-tag{color:var(--ok); font-weight:700;}
   .out-tag{color:var(--orange-dark); font-weight:700;}
 
   .list-item{
     display:flex; justify-content:space-between; align-items:center; gap:8px;
-    background:#f8f6ee; border:1px solid #ece6d4; border-radius:var(--r-md); padding:11px 13px; margin-bottom:8px;
+    background:var(--paper-2); border:1px solid var(--border-soft); border-radius:var(--r-md); padding:11px 13px; margin-bottom:8px;
     font-size:13.5px; transition:box-shadow .15s, border-color .15s;
   }
   .list-item:hover{ box-shadow:var(--sh-sm); border-color:#e2d9bf; }
@@ -293,8 +319,8 @@
   .icon-btn.edit{color:#2f6f8f; background:#2f6f8f12;}
   .icon-btn.edit:hover{background:#2f6f8f1f;}
 
-  .divider{height:1px; background:linear-gradient(90deg, transparent, #d8d1ba, transparent); margin:18px 0;}
-  .hint{font-size:12px; color:#7a7360; margin:-8px 0 14px;}
+  .divider{height:1px; background:linear-gradient(90deg, transparent, var(--border-soft), transparent); margin:18px 0;}
+  .hint{font-size:12px; color:var(--muted); margin:-8px 0 14px;}
   details summary{cursor:pointer; font-weight:700; color:var(--navy); font-size:14px; margin-bottom:8px;}
   pre{
     background:var(--navy); color:#d7ecec; padding:14px; border-radius:var(--r-sm); font-family:var(--mono);
@@ -302,10 +328,10 @@
   }
   .copy-btn{font-size:11px; padding:6px 10px; width:auto; margin-bottom:8px;}
   .pin-gate{max-width:340px; margin:40px auto; text-align:center;}
-  .empty{text-align:center; color:#a39c88; font-size:13px; padding:18px 0;}
+  .empty{text-align:center; color:var(--muted); font-size:13px; padding:18px 0;}
   .badge-ok{display:inline-block; background:#e5f6ec; color:#1f7a4d; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; font-family:var(--mono); border:1px solid #cdead9;}
   .badge-off{display:inline-block; background:#fbe8e8; color:#a32a2a; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; font-family:var(--mono); border:1px solid #f2cfcf;}
-  .setup-wrap{max-width:600px; margin:40px auto; color:var(--paper);}
+  .setup-wrap{max-width:600px; margin:40px auto; color:var(--on-dark);}
   .setup-wrap .card{color:var(--ink);}
   .setup-wrap ol{font-size:13.5px; line-height:2.1; padding-inline-start:20px;}
 
@@ -315,22 +341,22 @@
   .map-search-row button{width:auto; flex-shrink:0;}
 
   .chk-list{
-    display:flex; flex-wrap:wrap; gap:8px; background:#f8f6ee; border:1px solid #ece6d4;
+    display:flex; flex-wrap:wrap; gap:8px; background:var(--paper-2); border:1px solid var(--border-soft);
     border-radius:var(--r-md); padding:10px; margin-bottom:14px; max-height:160px; overflow-y:auto;
   }
   .chk-item{
-    display:flex; align-items:center; gap:5px; background:#fff; border:1px solid #e0dac8;
+    display:flex; align-items:center; gap:5px; background:var(--paper); border:1px solid var(--border-soft);
     border-radius:20px; padding:5px 11px; font-size:12.5px; cursor:pointer; user-select:none; transition:border-color .12s, background .12s;
   }
   .chk-item:hover{ border-color:#c9c1a4; }
   .chk-item input{width:auto; margin:0;}
-  .chk-item.all-item{font-weight:700; background:#eee7d6;}
+  .chk-item.all-item{font-weight:700; background:var(--paper-2);}
 
   .badge{display:inline-block; font-size:10.5px; padding:2px 9px; border-radius:20px; font-family:var(--mono); margin-inline-start:6px; font-weight:600;}
   .badge-bound{background:#e5f6ec; color:#1f7a4d; border:1px solid #cdead9;}
   .badge-unbound{background:#fff4e2; color:#8a5a10; border:1px solid #f2e0bd;}
 
-  .req-item{background:#f8f6ee; border:1px solid #ece6d4; border-radius:var(--r-md); padding:11px 13px; margin-bottom:8px; font-size:13px; transition:box-shadow .15s;}
+  .req-item{background:var(--paper-2); border:1px solid var(--border-soft); border-radius:var(--r-md); padding:11px 13px; margin-bottom:8px; font-size:13px; transition:box-shadow .15s;}
   .req-item:hover{ box-shadow:var(--sh-sm); }
   .req-item .meta{font-family:var(--mono); font-size:11px; color:#847a63; direction:ltr; text-align:left; margin-top:2px;}
   .req-status{font-size:11px; padding:2px 9px; border-radius:20px; font-weight:700;}
@@ -339,11 +365,11 @@
   .req-status.rejected{background:#fbe8e8; color:#a32a2a; border:1px solid #f2cfcf;}
 
   textarea{
-    width:100%; padding:12px 14px; border-radius:var(--r-sm); border:1.5px solid #e2ddcc;
-    font-family:var(--sans); font-size:14px; background:#fffdf8; margin-bottom:14px; color:var(--ink);
+    width:100%; padding:12px 14px; border-radius:var(--r-sm); border:1.5px solid var(--border-soft);
+    font-family:var(--sans); font-size:14px; background:var(--input-bg); margin-bottom:14px; color:var(--ink);
     resize:vertical; min-height:70px; transition:border-color .15s, box-shadow .15s, background .15s;
   }
-  textarea:focus{outline:none; border-color:var(--navy-2); background:#fff; box-shadow:0 0 0 3.5px #0f2a431c;}
+  textarea:focus{outline:none; border-color:var(--navy-2); background:var(--paper); box-shadow:0 0 0 3.5px var(--grid);}
 
   .edit-row{background:#fdf6ea; border:1px solid #eddca8;}
   .edit-row input, .edit-row select{margin-bottom:6px; padding:7px 9px; font-size:12.5px;}
@@ -354,11 +380,11 @@
 </head>
 <body>
 <div id="splashScreen" style="position:fixed; inset:0; z-index:5000; background:var(--navy); display:flex; align-items:center; justify-content:center;">
-  <div id="splashOwnBrand" style="display:flex; flex-direction:column; align-items:center; gap:16px; color:var(--paper); text-align:center; padding:20px;">
+  <div id="splashOwnBrand" style="display:flex; flex-direction:column; align-items:center; gap:16px; color:var(--on-dark); text-align:center; padding:20px;">
     <img id="splashOwnBrandLogo" style="display:none; max-width:220px; max-height:110px; width:auto; height:auto; border-radius:14px; object-fit:contain;">
     <div id="splashOwnBrandName" style="font-size:22px; font-weight:800;"></div>
   </div>
-  <div id="splashCompanyBrand" style="display:none; flex-direction:column; align-items:center; gap:16px; color:var(--paper); text-align:center; padding:20px;">
+  <div id="splashCompanyBrand" style="display:none; flex-direction:column; align-items:center; gap:16px; color:var(--on-dark); text-align:center; padding:20px;">
     <img id="splashCompanyLogo" style="display:none; max-width:220px; max-height:110px; width:auto; height:auto; border-radius:14px; object-fit:contain; background:#fff; padding:8px;">
     <div id="splashCompanyName" style="font-size:22px; font-weight:800;"></div>
   </div>
@@ -382,7 +408,10 @@
         <div class="sub">ورود / خروج پرسنل بر اساس موقعیت پروژه</div>
       </div>
     </div>
-    <div class="clock" id="clockBox">—</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button type="button" class="hamburger-btn" id="quickThemeBtn" title="تغییر حالت روز/شب" onclick="quickToggleTheme()">🌙</button>
+      <div class="clock" id="clockBox">—</div>
+    </div>
   </header>
 
   <div class="tabs">
@@ -787,6 +816,13 @@
 
     <div class="admin-section" id="admSec-settings" style="display:none;">
     <div class="card">
+      <div class="eyebrow">ظاهر برنامه</div>
+      <label class="chk-item" style="width:100%; box-sizing:border-box; justify-content:space-between;">
+        <span>🌙 حالت شب (تیره)</span>
+        <input type="checkbox" id="themeToggleChk" onchange="toggleTheme()">
+      </label>
+    </div>
+    <div class="card">
       <div class="eyebrow">تنظیمات ورود مدیر</div>
       <label>رمز عبور فعلی (برای تایید تغییرات)</label>
       <input type="password" id="curPin" placeholder="رمز فعلی">
@@ -1045,7 +1081,7 @@
       <button type="button" class="btn btn-ghost" style="margin-top:8px;" onclick="toggleBulkPasteBox()">📝 پیست سریع با متن</button>
       <div id="bulkPasteBox" style="display:none; background:#eef3fb; border-radius:10px; padding:10px 12px; margin-top:8px;">
         <div class="hint" style="margin:0 0 6px;">هر خط معادل یک روز است؛ شماره روز، ساعت ورود و ساعت خروج را با کاما از هم جدا کنید (در صورت نبود یکی از مقادیر، آن را خالی بگذارید). مثال:</div>
-        <div class="hint" style="margin:0 0 6px; direction:ltr; text-align:right; font-family:monospace; background:#fff; padding:6px; border-radius:6px;">1,09:00,19:00<br>2,09:00,19:00<br>3,,19:00</div>
+        <div class="hint" style="margin:0 0 6px; direction:ltr; text-align:right; font-family:monospace; background:var(--paper-2); padding:6px; border-radius:6px;">1,09:00,19:00<br>2,09:00,19:00<br>3,,19:00</div>
         <textarea id="bulkPasteText" rows="6" style="width:100%; box-sizing:border-box; font-family:monospace; direction:ltr; text-align:right;" placeholder="1,09:00,19:00"></textarea>
         <button type="button" class="btn btn-primary btn-small" style="margin-top:6px; width:100%;" onclick="applyBulkPasteText()">اعمال به فرم (باید اول «بارگذاری روزها» زده باشی)</button>
       </div>
@@ -1112,7 +1148,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-02-reupload"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-02-theme-redesign"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1136,6 +1172,28 @@ function closeAppAlert(){
   if(_appAlertResolve){ _appAlertResolve(); _appAlertResolve = null; }
 }
 window.alert = showAppAlert; // every existing alert(...) call in this file now shows the styled in-app dialog instead of the browser's native popup
+
+// ---------- Light/Dark theme ----------
+// Purely visual — swaps CSS custom-property values only; touches no calculation, storage,
+// or business logic anywhere in the app.
+function getThemePref(){
+  try{ return localStorage.getItem('appTheme') || 'light'; }catch(e){ return 'light'; }
+}
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+  try{ localStorage.setItem('appTheme', theme); }catch(e){}
+  var toggle = document.getElementById('themeToggleChk');
+  if(toggle) toggle.checked = (theme === 'dark');
+  var quickBtn = document.getElementById('quickThemeBtn');
+  if(quickBtn) quickBtn.textContent = (theme === 'dark') ? '☀️' : '🌙';
+}
+function toggleTheme(){
+  applyTheme(document.getElementById('themeToggleChk').checked ? 'dark' : 'light');
+}
+function quickToggleTheme(){
+  applyTheme(getThemePref() === 'dark' ? 'light' : 'dark');
+}
+applyTheme(getThemePref()); // apply immediately, before splash/init, to avoid a light-mode flash
 
 async function runSplashSequence(){
   function sleep(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
@@ -2931,7 +2989,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-02-reupload'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-02-theme-redesign'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
