@@ -1252,7 +1252,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-print-beforeafter-events"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-print-direct-inline-style"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3318,7 +3318,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-print-beforeafter-events'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-print-direct-inline-style'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5280,22 +5280,35 @@ async function generatePerformancePdf(){
 }
 function triggerActualPrint(){
  try {
-  function onBeforePrint(){
-    document.body.classList.add('printing-pdf-form');
-    document.title = window._pdfTitleToUse || document.title;
+  // Direct, immediate inline style manipulation — NOT a CSS class + @media print rule, and
+  // NOT the beforeprint event either. Both of those turned out to apply too late: Android's
+  // print/PDF renderer appears to snapshot the page before either one actually takes effect,
+  // which is exactly why the printed output kept showing the live admin screen. Setting
+  // .style.display directly, synchronously, right here — with nothing async or event-based
+  // in between — guarantees the DOM is already in the right state before print() runs.
+  var wrapEl = document.querySelector('.wrap');
+  var printAreaEl = document.getElementById('pdfPrintArea');
+  var origWrapDisplay = wrapEl ? wrapEl.style.display : '';
+  var origTitle = document.title;
+  if(wrapEl) wrapEl.style.display = 'none';
+  printAreaEl.style.display = 'block';
+  document.title = window._pdfTitleToUse || document.title;
+
+  function revert(){
+    if(wrapEl) wrapEl.style.display = origWrapDisplay;
+    printAreaEl.style.display = 'none';
+    document.title = origTitle;
+    window.removeEventListener('afterprint', revert);
   }
-  function onAfterPrint(){
-    document.body.classList.remove('printing-pdf-form');
-    document.title = window._pdfOriginalTitle || document.title;
-    window.removeEventListener('beforeprint', onBeforePrint);
-    window.removeEventListener('afterprint', onAfterPrint);
-  }
-  // Using the browser's own beforeprint/afterprint events (rather than toggling the class
-  // ourselves right before calling print()) is the standard, reliable way to do this —
-  // the browser sequences these correctly around its OWN print rendering pass, instead of us
-  // guessing when that rendering actually happens.
-  window.addEventListener('beforeprint', onBeforePrint);
-  window.addEventListener('afterprint', onAfterPrint);
+  // print() itself is non-blocking on Android — it returns immediately while the system
+  // print/PDF dialog stays open in the background, so reverting right after the call (rather
+  // than waiting for afterprint) would undo these changes before that dialog ever captures
+  // the page. afterprint fires only once printing is actually finished/cancelled.
+  window.addEventListener('afterprint', revert);
+  // Safety net in case afterprint never fires on some devices — revert after a generous delay
+  // regardless, so the admin view doesn't stay hidden forever if something goes wrong.
+  setTimeout(revert, 20000);
+
   window.print();
  } catch(errPrint){
   showAdminNotice('باز کردنِ پنجره‌ی چاپ ناموفق بود: ' + (errPrint && errPrint.message ? errPrint.message : String(errPrint)));
