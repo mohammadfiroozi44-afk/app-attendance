@@ -1248,7 +1248,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-onepage-vazir"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-final-fixes"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3313,7 +3313,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-onepage-vazir'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-final-fixes'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5181,58 +5181,74 @@ async function generatePerformancePdf(){
 
   var daily = res.daily || [];
   var t = res.totals || {};
+  var missionDaysCount = daily.filter(function(d){ return d.statusLabel === 'ماموریت'; }).length;
+
   var rowsHtml = daily.map(function(d){
     var shift1 = d.shiftPairs[0] || {}, shift2 = d.shiftPairs[1] || {};
     var noteParts = [];
     if(d.isFriday) noteParts.push('جمعه');
     if(d.isHoliday) noteParts.push('تعطیل رسمی');
-    if(d.statusLabel) noteParts.push(d.statusLabel);
+    // Mission is deliberately excluded from the note — a mission day can still have real
+    // check-in/out times, so it must never overwrite/hide those in the time columns.
+    if(d.statusLabel && d.statusLabel !== 'ماموریت') noteParts.push(d.statusLabel);
     var isOffDay = d.isFriday || d.isHoliday;
     // Off days (Friday/official holiday) get a visibly bigger, bold row — everything else
-    // stays compact so all 31 days plus the summary fit on a single page.
-    var rowStyle = isOffDay ? 'font-weight:800; font-size:9.5px;' : 'font-size:8px;';
-    return '<tr style="'+rowStyle+'">'+
-      '<td>'+d.day+'</td>'+
-      '<td>'+esc(d.jalaliDate)+'</td>'+
-      '<td>'+esc(d.weekday||'')+'</td>'+
-      '<td>'+(shift1.inTime||'')+'</td>'+
-      '<td>'+(shift1.outTime||'')+'</td>'+
-      '<td>'+(shift2.inTime||'')+'</td>'+
-      '<td>'+(shift2.outTime||'')+'</td>'+
-      '<td>'+(d.leaveMin ? minutesToHM(d.leaveMin) : '')+'</td>'+
-      '<td>'+(d.breakMin ? minutesToHM(d.breakMin) : '')+'</td>'+
-      '<td>'+esc(noteParts.join(' - '))+'</td>'+
+    // stays as compact as possible so all 31 days plus the summary fit on a single page.
+    var rowStyle = isOffDay ? 'font-weight:800; font-size:8.5px;' : 'font-size:7px;';
+    // When there's genuinely no shift time (no attendance that day) AND a non-mission status
+    // marker exists (Off/leave/absence), show that word directly in place of the blank first
+    // check-in cell instead of leaving it empty — much clearer at a glance than an empty box.
+    var shift1InCell = shift1.inTime || '';
+    if(!shift1InCell && d.statusLabel && d.statusLabel !== 'ماموریت'){
+      shift1InCell = d.statusLabel;
+    } else if(!shift1InCell && d.isFriday){
+      shift1InCell = 'جمعه';
+    } else if(!shift1InCell && d.isHoliday){
+      shift1InCell = 'تعطیل';
+    }
+    return '<tr style="'+rowStyle+' line-height:1;">'+
+      '<td style="padding:0 2px;">'+d.day+'</td>'+
+      '<td style="padding:0 2px;">'+esc(d.jalaliDate)+'</td>'+
+      '<td style="padding:0 2px;">'+esc(d.weekday||'')+'</td>'+
+      '<td style="padding:0 2px;">'+esc(shift1InCell)+'</td>'+
+      '<td style="padding:0 2px;">'+(shift1.outTime||'')+'</td>'+
+      '<td style="padding:0 2px;">'+(shift2.inTime||'')+'</td>'+
+      '<td style="padding:0 2px;">'+(shift2.outTime||'')+'</td>'+
+      '<td style="padding:0 2px;">'+(d.leaveMin ? minutesToHM(d.leaveMin) : '')+'</td>'+
+      '<td style="padding:0 2px;">'+(d.breakMin ? minutesToHM(d.breakMin) : '')+'</td>'+
+      '<td style="padding:0 2px;">'+esc(noteParts.join(' - '))+'</td>'+
     '</tr>';
   }).join('');
 
   var html =
-    '<div style="font-family:'+PDF_FONT+'; direction:rtl; padding:6mm;">'+
-      '<div style="text-align:center; font-weight:800; font-size:14px; margin-bottom:4px;">فرم ثبت ساعت ورود و خروج کارکنان</div>'+
-      '<div style="display:flex; justify-content:space-between; font-size:10.5px; margin-bottom:6px; border-bottom:1px solid #333; padding-bottom:5px;">'+
+    '<div style="font-family:'+PDF_FONT+'; direction:rtl; padding:4mm; page-break-inside:avoid;">'+
+      '<div style="text-align:center; font-weight:800; font-size:12px; margin-bottom:3px;">فرم ثبت ساعت ورود و خروج کارکنان</div>'+
+      '<div style="display:flex; justify-content:space-between; font-size:9px; margin-bottom:4px; border-bottom:1px solid #333; padding-bottom:3px;">'+
         '<span><b>نام و نام‌خانوادگی:</b> '+esc(res.fullName)+(res.employeeCode?(' (کد '+esc(res.employeeCode)+')'):'')+'</span>'+
         '<span><b>ماه:</b> '+esc(monthName)+' &nbsp; <b>سال:</b> '+esc(year)+'</span>'+
       '</div>'+
       '<table style="width:100%; border-collapse:collapse; font-family:'+PDF_FONT+';" border="1">'+
-        '<thead><tr style="background:#eee; font-size:8px; font-weight:800;">'+
+        '<thead><tr style="background:#eee; font-size:7px; font-weight:800; line-height:1;">'+
           '<th style="padding:1px 2px;">روز</th><th style="padding:1px 2px;">تاریخ</th><th style="padding:1px 2px;">ایام هفته</th>'+
           '<th style="padding:1px 2px;">ورود اول</th><th style="padding:1px 2px;">خروج اول</th><th style="padding:1px 2px;">ورود دوم</th><th style="padding:1px 2px;">خروج دوم</th>'+
           '<th style="padding:1px 2px;">مرخصی</th><th style="padding:1px 2px;">استراحت</th><th style="padding:1px 2px;">توضیحات</th>'+
         '</tr></thead>'+
         '<tbody>'+rowsHtml+'</tbody>'+
       '</table>'+
-      '<table style="width:100%; border-collapse:collapse; font-family:'+PDF_FONT+'; font-size:9px; margin-top:6px;" border="1">'+
-        '<thead><tr style="background:#eee; font-weight:800;">'+
-          '<th style="padding:2px;">موظفی</th><th style="padding:2px;">کارکرد</th><th style="padding:2px;">مفید</th><th style="padding:2px;">شب‌کاری</th>'+
-          '<th style="padding:2px;">اضافه‌کاری</th><th style="padding:2px;">تعطیل‌کاری</th><th style="padding:2px;">جمعه‌کاری</th><th style="padding:2px;">مرخصی</th>'+
+      '<table style="width:100%; border-collapse:collapse; font-family:'+PDF_FONT+'; font-size:8px; margin-top:4px;" border="1">'+
+        '<thead><tr style="background:#eee; font-weight:800; line-height:1;">'+
+          '<th style="padding:1px;">موظفی</th><th style="padding:1px;">کارکرد</th><th style="padding:1px;">مفید</th><th style="padding:1px;">شب‌کاری</th>'+
+          '<th style="padding:1px;">اضافه‌کاری</th><th style="padding:1px;">تعطیل‌کاری</th><th style="padding:1px;">جمعه‌کاری</th><th style="padding:1px;">مرخصی</th><th style="padding:1px;">تعداد روز ماموریت</th>'+
         '</tr></thead>'+
-        '<tbody><tr>'+
-          '<td style="padding:2px; text-align:center;">'+minutesToHM(t.requiredMin)+'</td><td style="padding:2px; text-align:center;">'+minutesToHM(t.workedMin)+'</td>'+
-          '<td style="padding:2px; text-align:center;">'+minutesToHM(t.usefulMin)+'</td><td style="padding:2px; text-align:center;">'+minutesToHM(t.nightMin)+'</td>'+
-          '<td style="padding:2px; text-align:center;">'+minutesToHM(t.overtimeMin)+'</td><td style="padding:2px; text-align:center;">'+minutesToHM(t.holidayMin)+'</td>'+
-          '<td style="padding:2px; text-align:center;">'+minutesToHM(t.fridayMin)+'</td><td style="padding:2px; text-align:center;">'+minutesToHM(t.leaveMin)+'</td>'+
+        '<tbody><tr style="line-height:1;">'+
+          '<td style="padding:1px; text-align:center;">'+minutesToHM(t.requiredMin)+'</td><td style="padding:1px; text-align:center;">'+minutesToHM(t.workedMin)+'</td>'+
+          '<td style="padding:1px; text-align:center;">'+minutesToHM(t.usefulMin)+'</td><td style="padding:1px; text-align:center;">'+minutesToHM(t.nightMin)+'</td>'+
+          '<td style="padding:1px; text-align:center;">'+minutesToHM(t.overtimeMin)+'</td><td style="padding:1px; text-align:center;">'+minutesToHM(t.holidayMin)+'</td>'+
+          '<td style="padding:1px; text-align:center;">'+minutesToHM(t.fridayMin)+'</td><td style="padding:1px; text-align:center;">'+minutesToHM(t.leaveMin)+'</td>'+
+          '<td style="padding:1px; text-align:center;">'+missionDaysCount+'</td>'+
         '</tr></tbody>'+
       '</table>'+
-      '<div style="display:flex; justify-content:space-between; margin-top:16px; font-size:9.5px;">'+
+      '<div style="display:flex; justify-content:space-between; margin-top:10px; font-size:8.5px;">'+
         '<span>امضاء و اثر انگشت کارگر: ____________________</span>'+
         '<span>امضاء مدیر: ____________________</span>'+
       '</div>'+
@@ -5240,12 +5256,29 @@ async function generatePerformancePdf(){
 
   document.getElementById('pdfPrintArea').innerHTML = html;
   document.body.classList.add('printing-pdf-form');
+  // Browsers use document.title as the default suggested filename for "Save as PDF" — swap
+  // it briefly to the employee's own name+code so the saved file is named sensibly instead
+  // of just the app's own title, then restore it once printing is done.
+  var originalTitle = document.title;
+  document.title = res.fullName + (res.employeeCode ? ('-'+res.employeeCode) : '') + '-ترددیار';
+
+  function cleanupAfterPrint(){
+    document.body.classList.remove('printing-pdf-form');
+    document.title = originalTitle;
+    window.removeEventListener('afterprint', cleanupAfterPrint);
+  }
+  // onafterprint (not a fixed setTimeout) is what actually matters here — some print/PDF
+  // renderers keep re-rendering the LIVE page for as long as the system print dialog stays
+  // open, so reverting the print-only view on a short arbitrary timer (before the person had
+  // even finished choosing "Save as PDF") was exactly what made the saved file come out as a
+  // screenshot of the ordinary app screen instead of the form.
+  window.addEventListener('afterprint', cleanupAfterPrint);
+
   // A short delay before print() lets the browser actually repaint with the new class
   // applied first — calling print() in the very same tick can fire before the layout change
   // takes effect, which is exactly what was printing the live admin page instead of the form.
   setTimeout(function(){
     window.print();
-    setTimeout(function(){ document.body.classList.remove('printing-pdf-form'); }, 500);
   }, 150);
 }
 async function loadStatusReport(status){
