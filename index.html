@@ -1100,11 +1100,7 @@
         <select id="pdfExportMonth"><option value="">ماه</option></select>
         <select id="pdfExportYear"><option value="">سال</option></select>
       </div>
-      <button type="button" class="btn btn-primary" onclick="generatePerformancePdf()">🖨️ آماده‌سازی فرم برای چاپ</button>
-      <div id="pdfExportReadyBox" style="display:none; margin-top:12px; background:#fff4e2; border:1px solid #f2e0bd; border-radius:10px; padding:12px;">
-        <div class="hint" style="margin:0 0 8px;">فرم آماده شد — برای باز شدنِ پنجره‌ی چاپ/ذخیره، این دکمه را بزن (مرورگرها فقط با یک لمسِ مستقیم اجازه‌ی این کار را می‌دهند).</div>
-        <button type="button" class="btn btn-primary" onclick="triggerActualPrint()">🖨️ چاپ / ذخیره PDF</button>
-      </div>
+      <button type="button" class="btn btn-primary" onclick="generatePerformancePdf()">⬇️ دانلود PDF</button>
     </div>
     </div><!-- /admSec-performance -->
   </div>
@@ -1244,15 +1240,17 @@
   </div><!-- /mainApp -->
 </div>
 
-<div id="pdfPrintArea" style="display:none;"></div>
+<div id="pdfPrintArea" style="position:absolute; left:-9999px; top:0; width:210mm; background:#fff;"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 // =====================================================================
 // CONFIG — ADMIN: paste your Google Apps Script Web App URL here once.
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-print-new-window"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-clientside-generation"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3211,7 +3209,6 @@ async function refreshAdminSection(name){
     var pdfEmpSel = document.getElementById('pdfExportEmp');
     pdfEmpSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+(e.employeeCode?(' (کد '+esc(e.employeeCode)+')'):'')+'</option>'; }).join('');
     wireCustomPicker('pdfExportEmp', 'pdfExportEmpBtn', 'انتخاب پرسنل');
-    document.getElementById('pdfExportReadyBox').style.display = 'none';
   }
   else if(name === 'settings'){
     var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
@@ -3318,7 +3315,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-print-new-window'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-clientside-generation'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5261,53 +5258,38 @@ async function generatePerformancePdf(){
     '</div>';
 
   document.getElementById('pdfPrintArea').innerHTML = html;
-  // Browsers use document.title as the default suggested filename for "Save as PDF" — swap
-  // it briefly to the employee's own name+code so the saved file is named sensibly instead
-  // of just the app's own title, then restore it once printing is done.
-  window._pdfOriginalTitle = document.title;
-  window._pdfTitleToUse = res.fullName + (res.employeeCode ? ('-'+res.employeeCode) : '') + '-ترددیار';
 
-  // window.print() has to run SYNCHRONOUSLY inside a direct user click to reliably work on
-  // mobile browsers — after an "await" (the data fetch above) the browser can consider the
-  // click's "user gesture" expired and silently ignore print() with no error at all, which
-  // is exactly what was happening. So instead of calling print() here, show a second button
-  // that IS a fresh, direct click — that one calls print() with nothing async in between.
-  document.getElementById('pdfExportReadyBox').style.display = 'block';
-  document.getElementById('pdfExportReadyBox').scrollIntoView({behavior:'smooth', block:'center'});
+  showAdminNotice('در حال ساختِ فایلِ PDF... چند لحظه صبر کن.');
+  // Give the browser one tick to actually finish laying out the newly-inserted content
+  // before capturing it — otherwise html2canvas can grab it mid-render.
+  await new Promise(function(resolve){ setTimeout(resolve, 60); });
+
+  // Renders the ALREADY correctly-styled HTML (Persian text, RTL, fonts, table borders —
+  // everything built above) into an image, then embeds that image into a real PDF file and
+  // triggers a normal file download — exactly like the working CSV export already does.
+  // This deliberately avoids window.print()/window.open() entirely: three different
+  // approaches using those were each unreliable in different ways on this device (silently
+  // ignored, printed the wrong content, or crashed the installed app outright), while a
+  // direct Blob download is the same reliable mechanism the CSV button has always used.
+  var captureEl = document.getElementById('pdfPrintArea');
+  var canvas = await html2canvas(captureEl, {scale: 2, useCORS: true, backgroundColor: '#ffffff'});
+  var imgData = canvas.toDataURL('image/jpeg', 0.92);
+  var pdf = new jspdf.jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
+  var pageWidth = pdf.internal.pageSize.getWidth();
+  var pageHeight = pdf.internal.pageSize.getHeight();
+  var imgWidthMm = pageWidth;
+  var imgHeightMm = (canvas.height * imgWidthMm) / canvas.width;
+  if(imgHeightMm > pageHeight){
+    imgHeightMm = pageHeight;
+    imgWidthMm = (canvas.width * imgHeightMm) / canvas.height;
+  }
+  var xOffset = (pageWidth - imgWidthMm) / 2;
+  pdf.addImage(imgData, 'JPEG', xOffset, 0, imgWidthMm, imgHeightMm);
+  var filename = res.fullName + (res.employeeCode ? ('-'+res.employeeCode) : '') + '-ترددیار.pdf';
+  pdf.save(filename);
+  clearAdminNotice();
  } catch(errPdf){
   showAdminNotice('ساخت PDF ناموفق بود: ' + (errPdf && errPdf.message ? errPdf.message : String(errPdf)));
- }
-}
-function triggerActualPrint(){
- try {
-  // Two DOM-hiding approaches (a CSS class + @media print, then direct inline style changes)
-  // both still printed the whole live admin page, which means whatever Android's "Save as
-  // PDF" pipeline is snapshotting doesn't reliably reflect JS-driven show/hide of shared page
-  // content. So instead of trying to hide everything else on THIS page, open a brand-new,
-  // completely separate window/tab that contains ONLY the print form and nothing else from
-  // the app at all — there's nothing left for that pipeline to accidentally capture.
-  var formHtml = document.getElementById('pdfPrintArea').innerHTML;
-  var pageTitle = window._pdfTitleToUse || 'گزارش کارکرد';
-  var printWin = window.open('', '_blank');
-  if(!printWin){
-    showAdminNotice('بازکردنِ پنجره‌ی چاپ مسدود شد — لطفاً اجازه‌ی pop-up رو برای این سایت تو تنظیماتِ مرورگر فعال کن و دوباره امتحان کن.');
-    return;
-  }
-  printWin.document.open();
-  printWin.document.write(
-    '<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8">'+
-    '<title>'+esc(pageTitle)+'</title>'+
-    '<style>@page{ size:A4 portrait; margin:6mm; } body{ margin:0; }</style>'+
-    '</head><body>'+formHtml+'</body></html>'
-  );
-  printWin.document.close();
-  function doPrint(){
-    try{ printWin.focus(); printWin.print(); }catch(e){}
-  }
-  if(printWin.document.readyState === 'complete'){ doPrint(); }
-  else { printWin.onload = doPrint; setTimeout(doPrint, 400); }
- } catch(errPrint){
-  showAdminNotice('باز کردنِ پنجره‌ی چاپ ناموفق بود: ' + (errPrint && errPrint.message ? errPrint.message : String(errPrint)));
  }
 }
 async function loadStatusReport(status){
