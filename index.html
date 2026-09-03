@@ -1084,6 +1084,25 @@
         <div id="statusReportList" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="eyebrow">گزارش کارکرد ماهانه</div>
+      <div class="hint" style="margin-top:-4px;">جمعِ ساعتِ کارکرد، موظفی، مفید، اضافه‌کاری، مرخصی، شب‌کاری، جمعه‌کاری و تعطیل‌کاری برای هر پرسنل در یک ماه — بر اساسِ شیفتِ استاندارد ۷:۳۰ تا ۱۴:۵۰ و موظفیِ روزانه‌ی ۷:۲۰.</div>
+      <div class="date-row">
+        <select id="perfReportMonth"><option value="">ماه</option></select>
+        <select id="perfReportYear"><option value="">سال</option></select>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="loadMonthlyPerformanceReport()">🔄 بارگذاری گزارش کارکرد</button>
+      <div style="overflow-x:auto; margin-top:14px;">
+        <table id="perfReportTable">
+          <thead><tr>
+            <th>پرسنل</th><th>کارکرد</th><th>موظفی</th><th>مفید</th><th>اضافه‌کاری</th><th>مرخصی</th><th>شب‌کاری</th><th>جمعه‌کاری</th><th>تعطیل‌کاری</th><th>استراحت</th><th>جمعِ کلِ اضافه‌کاری</th>
+          </tr></thead>
+          <tbody id="perfReportBody"><tr><td colspan="11" class="empty">ماه و سال را انتخاب کرده و «بارگذاری گزارش کارکرد» را بزنید.</td></tr></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportPerformanceCSV()">⬇️ خروجی CSV</button>
+    </div>
     </div><!-- /admSec-report -->
   </div>
 
@@ -1225,7 +1244,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-02-project-city-restricted"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-02-monthly-payroll-report"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3182,6 +3201,7 @@ async function refreshAdminSection(name){
     document.getElementById('normalReportView').style.display = 'block';
     document.getElementById('statusReportView').style.display = 'none';
     document.getElementById('logTableBody').innerHTML = '<tr><td colspan="6" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</td></tr>';
+    populateMonthYearFilter('perfReportMonth','perfReportYear', true);
   }
   else if(name === 'settings'){
     var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
@@ -3288,7 +3308,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-02-project-city-restricted'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-02-monthly-payroll-report'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5060,6 +5080,68 @@ function onReportFilterChange(){
 }
 var _statusReportReqId = 0; // guards against an older, slower request's results arriving
 // AFTER a newer request and overwriting it with stale/mismatched data
+// ---------- Monthly performance/payroll report ----------
+function minutesToHM(mins){
+  mins = Math.round(mins||0);
+  var neg = mins < 0; if(neg) mins = -mins;
+  var h = Math.floor(mins/60), m = mins%60;
+  return (neg?'-':'') + h + ':' + (m<10?'0':'') + m;
+}
+var _perfReportResults = [];
+async function loadMonthlyPerformanceReport(){
+  var monthName = document.getElementById('perfReportMonth').value;
+  var year = document.getElementById('perfReportYear').value;
+  var tbody = document.getElementById('perfReportBody');
+  if(!monthName || !year){
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">ماه و سال را انتخاب کنید.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '<tr><td colspan="11" class="empty">در حال بارگذاری...</td></tr>';
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var res = await apiCall(function(){ return apiPost('getMonthlyPerformanceReport', {pin:adminPin, year:year, month:monthIdx}); });
+  if(!res.ok){
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">دریافت گزارش ناموفق بود: '+esc(res.error||'')+'</td></tr>';
+    return;
+  }
+  _perfReportResults = res.results || [];
+  if(_perfReportResults.length === 0){
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">موردی یافت نشد.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _perfReportResults.map(function(r){
+    return '<tr>'+
+      '<td>'+esc(r.fullName)+(r.employeeCode?(' <span class="mono" style="font-size:11px; color:#847a63;">(کد '+esc(r.employeeCode)+')</span>'):'')+'</td>'+
+      '<td class="mono">'+minutesToHM(r.workedMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.requiredMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.usefulMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.overtimeMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.leaveMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.nightMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.fridayMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.holidayMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.breakMin)+'</td>'+
+      '<td class="mono">'+minutesToHM(r.grandOvertimeMin)+'</td>'+
+    '</tr>';
+  }).join('');
+}
+function exportPerformanceCSV(){
+  if(_perfReportResults.length === 0){ alert('اول گزارش را بارگذاری کن.'); return; }
+  var header = ['نام','کد پرسنلی','ساعت کارکرد','ساعت موظفی','ساعت مفید','اضافه‌کاری','مرخصی','شب‌کاری','جمعه‌کاری','تعطیل‌کاری','استراحت','جمع کل اضافه‌کاری'];
+  var rows = [header.join(',')];
+  _perfReportResults.forEach(function(r){
+    rows.push([
+      '"'+r.fullName+'"', r.employeeCode||'',
+      minutesToHM(r.workedMin), minutesToHM(r.requiredMin), minutesToHM(r.usefulMin),
+      minutesToHM(r.overtimeMin), minutesToHM(r.leaveMin), minutesToHM(r.nightMin),
+      minutesToHM(r.fridayMin), minutesToHM(r.holidayMin), minutesToHM(r.breakMin), minutesToHM(r.grandOvertimeMin)
+    ].join(','));
+  });
+  var blob = new Blob(['\ufeff'+rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'گزارش-کارکرد-'+document.getElementById('perfReportMonth').value+'-'+document.getElementById('perfReportYear').value+'.csv';
+  link.click();
+}
 async function loadStatusReport(status){
   var myReqId = ++_statusReportReqId;
   var year = document.getElementById('logFilterYear').value;
