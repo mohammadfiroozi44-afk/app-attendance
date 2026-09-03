@@ -1250,7 +1250,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-visible-overlay-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-text-cellfit-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3315,7 +3315,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-visible-overlay-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-text-cellfit-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5209,16 +5209,20 @@ async function generatePerformancePdf(){
     } else if(!shift1InCell && d.isHoliday){
       shift1InCell = 'تعطیل';
     }
+    // Year is already shown once in the header ("سال: ...") — repeating it in every single
+    // row's date cell was overflowing that narrow column and wrapping onto its own line,
+    // visually looking like the date had "spilled into the next cell".
+    var shortDate = String(d.jalaliDate||'').split(' ').slice(0,2).join(' ');
     return '<tr style="'+rowStyle+' line-height:1;">'+
-      '<td style="padding:0 2px;">'+d.day+'</td>'+
-      '<td style="padding:0 2px;">'+esc(d.jalaliDate)+'</td>'+
-      '<td style="padding:0 2px;">'+esc(d.weekday||'')+'</td>'+
-      '<td style="padding:0 2px;">'+esc(shift1InCell)+'</td>'+
-      '<td style="padding:0 2px;">'+(shift1.outTime||'')+'</td>'+
-      '<td style="padding:0 2px;">'+(shift2.inTime||'')+'</td>'+
-      '<td style="padding:0 2px;">'+(shift2.outTime||'')+'</td>'+
-      '<td style="padding:0 2px;">'+(d.leaveMin ? minutesToHM(d.leaveMin) : '')+'</td>'+
-      '<td style="padding:0 2px;">'+(d.breakMin ? minutesToHM(d.breakMin) : '')+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+d.day+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+esc(shortDate)+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+esc(d.weekday||'')+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+esc(shift1InCell)+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+(shift1.outTime||'')+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+(shift2.inTime||'')+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+(shift2.outTime||'')+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+(d.leaveMin ? minutesToHM(d.leaveMin) : '')+'</td>'+
+      '<td style="padding:0 2px; white-space:nowrap;">'+(d.breakMin ? minutesToHM(d.breakMin) : '')+'</td>'+
       '<td style="padding:0 2px;">'+esc(noteParts.join(' - '))+'</td>'+
     '</tr>';
   }).join('');
@@ -5230,11 +5234,11 @@ async function generatePerformancePdf(){
         '<span><b>نام و نام‌خانوادگی:</b> '+esc(res.fullName)+(res.employeeCode?(' (کد '+esc(res.employeeCode)+')'):'')+'</span>'+
         '<span><b>ماه:</b> '+esc(monthName)+' &nbsp; <b>سال:</b> '+esc(year)+'</span>'+
       '</div>'+
-      '<table style="width:100%; border-collapse:collapse; font-family:'+PDF_FONT+';" border="1">'+
+      '<table style="width:100%; border-collapse:collapse; table-layout:fixed; font-family:'+PDF_FONT+';" border="1">'+
         '<thead><tr style="background:#eee; font-size:7px; font-weight:800; line-height:1;">'+
-          '<th style="padding:1px 2px;">روز</th><th style="padding:1px 2px;">تاریخ</th><th style="padding:1px 2px;">ایام هفته</th>'+
-          '<th style="padding:1px 2px;">ورود اول</th><th style="padding:1px 2px;">خروج اول</th><th style="padding:1px 2px;">ورود دوم</th><th style="padding:1px 2px;">خروج دوم</th>'+
-          '<th style="padding:1px 2px;">مرخصی</th><th style="padding:1px 2px;">استراحت</th><th style="padding:1px 2px;">توضیحات</th>'+
+          '<th style="padding:1px 2px; width:4%;">روز</th><th style="padding:1px 2px; width:9%;">تاریخ</th><th style="padding:1px 2px; width:8%;">ایام هفته</th>'+
+          '<th style="padding:1px 2px; width:9%;">ورود اول</th><th style="padding:1px 2px; width:9%;">خروج اول</th><th style="padding:1px 2px; width:9%;">ورود دوم</th><th style="padding:1px 2px; width:9%;">خروج دوم</th>'+
+          '<th style="padding:1px 2px; width:8%;">مرخصی</th><th style="padding:1px 2px; width:8%;">استراحت</th><th style="padding:1px 2px; width:27%;">توضیحات</th>'+
         '</tr></thead>'+
         '<tbody>'+rowsHtml+'</tbody>'+
       '</table>'+
@@ -5280,7 +5284,11 @@ async function generatePerformancePdf(){
   // approaches using those were each unreliable in different ways on this device (silently
   // ignored, printed the wrong content, or crashed the installed app outright), while a
   // direct Blob download is the same reliable mechanism the CSV button has always used.
-  var canvas = await html2canvas(captureEl, {scale: 2, useCORS: true, backgroundColor: '#ffffff'});
+  // letterRendering:true is the documented html2canvas fix for exactly the garbled/reshaped
+  // text seen with Persian and other complex/cursive scripts — without it, html2canvas can
+  // measure and place whole text runs using assumptions that don't hold for Arabic-script
+  // letter joining, scrambling how the letters end up positioned relative to each other.
+  var canvas = await html2canvas(captureEl, {scale: 3, useCORS: true, backgroundColor: '#ffffff', letterRendering: true});
   captureEl.style.display = 'none';
   captureEl.innerHTML = '';
   var imgData = canvas.toDataURL('image/jpeg', 0.92);
