@@ -221,6 +221,8 @@
   @media print{
     #adminGate, #empLoginGate, .hamburger-btn, .cal-icon-btn, .req-fab, .side-drawer, .drawer-overlay,
     #tabEmpBtn, #tabAdminBtn, .req-tabs, .day-nav { display:none !important; }
+    body.printing-pdf-form > *:not(#pdfPrintArea) { display:none !important; }
+    body.printing-pdf-form #pdfPrintArea { display:block !important; }
   }
 
   .hamburger-btn{
@@ -608,7 +610,6 @@
       </div>
       <button type="button" class="btn btn-primary" onclick="loadMyPerf()">🔄 بارگذاری</button>
       <div id="perfStatsCards" style="margin-top:14px;"><div class="empty">ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
-      <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="printMyPerf()">🖨️ چاپ / ذخیره PDF</button>
     </div>
     </div><!-- /empSec-perf -->
 
@@ -1085,10 +1086,24 @@
       </div>
       <button type="button" class="btn btn-primary" onclick="loadMonthlyPerformanceReport()">🔄 بارگذاری گزارش کارکرد</button>
       <div id="perfReportCards" style="margin-top:14px;"><div class="empty">ماه و سال را انتخاب کرده و «بارگذاری گزارش کارکرد» را بزنید.</div></div>
-      <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportPerformanceCSV()">⬇️ خروجی CSV</button>
+      <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportPerformanceCSV()">⬇️ خروجی اکسل (همه پرسنل)</button>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">خروجی فرم رسمی (PDF) — یک پرسنل</div>
+      <div class="hint" style="margin-top:-4px;">فرمِ چاپیِ کارکردِ ماهانه (تاریخ، ایامِ هفته، ورود/خروجِ اول و دوم، مرخصی، استراحت) برای یک پرسنلِ مشخص، آماده برای چاپ یا ذخیره به‌صورتِ PDF.</div>
+      <select id="pdfExportEmp"></select>
+      <button type="button" class="picker-display-btn" id="pdfExportEmpBtn"><span class="picker-display-text">انتخاب پرسنل</span><span class="picker-arrow">▾</span></button>
+      <div class="date-row">
+        <select id="pdfExportMonth"><option value="">ماه</option></select>
+        <select id="pdfExportYear"><option value="">سال</option></select>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="generatePerformancePdf()">🖨️ ساخت و چاپ / ذخیره PDF</button>
     </div>
     </div><!-- /admSec-performance -->
   </div>
+
+  <div id="pdfPrintArea" style="display:none;"></div>
 
   <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
 
@@ -1231,7 +1246,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-employee-performance-views"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-form-export"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3186,6 +3201,10 @@ async function refreshAdminSection(name){
   else if(name === 'performance'){
     await ensureEmployeesFresh();
     populateMonthYearFilter('perfReportMonth','perfReportYear', true);
+    populateMonthYearFilter('pdfExportMonth','pdfExportYear', true);
+    var pdfEmpSel = document.getElementById('pdfExportEmp');
+    pdfEmpSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+(e.employeeCode?(' (کد '+esc(e.employeeCode)+')'):'')+'</option>'; }).join('');
+    wireCustomPicker('pdfExportEmp', 'pdfExportEmpBtn', 'انتخاب پرسنل');
   }
   else if(name === 'settings'){
     var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
@@ -3292,7 +3311,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-employee-performance-views'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-form-export'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5140,6 +5159,72 @@ function exportPerformanceCSV(){
   link.href = URL.createObjectURL(blob);
   link.download = 'گزارش-کارکرد-'+document.getElementById('perfReportMonth').value+'-'+document.getElementById('perfReportYear').value+'.csv';
   link.click();
+}
+// ---------- Official print-form PDF export (admin only, one employee at a time) ----------
+async function generatePerformancePdf(){
+  var username = document.getElementById('pdfExportEmp').value;
+  var monthName = document.getElementById('pdfExportMonth').value;
+  var year = document.getElementById('pdfExportYear').value;
+  if(!username){ alert('یک پرسنل انتخاب کن'); return; }
+  if(!monthName || !year){ alert('ماه و سال را انتخاب کن'); return; }
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var res = await apiCall(function(){ return apiPost('getEmployeePerformanceDetail', {pin:adminPin, username:username, year:year, month:monthIdx}); });
+  if(!res.ok){ alert('دریافت اطلاعات ناموفق بود: ' + (res.error||'')); return; }
+
+  var daily = res.daily || [];
+  var t = res.totals || {};
+  var rowsHtml = daily.map(function(d){
+    var shift1 = d.shiftPairs[0] || {}, shift2 = d.shiftPairs[1] || {};
+    var noteParts = [];
+    if(d.isFriday) noteParts.push('جمعه');
+    if(d.isHoliday) noteParts.push('تعطیل رسمی');
+    if(d.statusLabel) noteParts.push(d.statusLabel);
+    return '<tr>'+
+      '<td>'+d.day+'</td>'+
+      '<td>'+esc(d.jalaliDate)+'</td>'+
+      '<td>'+esc(d.weekday||'')+'</td>'+
+      '<td>'+(shift1.inTime||'')+'</td>'+
+      '<td>'+(shift1.outTime||'')+'</td>'+
+      '<td>'+(shift2.inTime||'')+'</td>'+
+      '<td>'+(shift2.outTime||'')+'</td>'+
+      '<td>'+(d.leaveMin ? minutesToHM(d.leaveMin) : '')+'</td>'+
+      '<td>'+(d.breakMin ? minutesToHM(d.breakMin) : '')+'</td>'+
+      '<td style="font-size:10px;">'+esc(noteParts.join(' - '))+'</td>'+
+    '</tr>';
+  }).join('');
+
+  var html =
+    '<div style="font-family:var(--sans); direction:rtl; padding:16px;">'+
+      '<div style="text-align:center; font-weight:800; font-size:16px; margin-bottom:4px;">فرم ثبت ساعت ورود و خروج کارکنان</div>'+
+      '<div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:12px; border-bottom:1px solid #333; padding-bottom:8px;">'+
+        '<span><b>نام و نام‌خانوادگی:</b> '+esc(res.fullName)+(res.employeeCode?(' (کد '+esc(res.employeeCode)+')'):'')+'</span>'+
+        '<span><b>ماه:</b> '+esc(monthName)+' &nbsp; <b>سال:</b> '+esc(year)+'</span>'+
+      '</div>'+
+      '<table style="width:100%; border-collapse:collapse; font-size:11px;" border="1">'+
+        '<thead><tr style="background:#eee;">'+
+          '<th>روز</th><th>تاریخ</th><th>ایام هفته</th><th>ورود اول</th><th>خروج اول</th><th>ورود دوم</th><th>خروج دوم</th><th>مرخصی</th><th>استراحت</th><th>توضیحات</th>'+
+        '</tr></thead>'+
+        '<tbody>'+rowsHtml+'</tbody>'+
+      '</table>'+
+      '<table style="width:100%; border-collapse:collapse; font-size:11px; margin-top:14px;" border="1">'+
+        '<thead><tr style="background:#eee;">'+
+          '<th>موظفی</th><th>کارکرد</th><th>مفید</th><th>شب‌کاری</th><th>اضافه‌کاری</th><th>تعطیل‌کاری</th><th>جمعه‌کاری</th><th>مرخصی</th>'+
+        '</tr></thead>'+
+        '<tbody><tr>'+
+          '<td>'+minutesToHM(t.requiredMin)+'</td><td>'+minutesToHM(t.workedMin)+'</td><td>'+minutesToHM(t.usefulMin)+'</td><td>'+minutesToHM(t.nightMin)+'</td>'+
+          '<td>'+minutesToHM(t.overtimeMin)+'</td><td>'+minutesToHM(t.holidayMin)+'</td><td>'+minutesToHM(t.fridayMin)+'</td><td>'+minutesToHM(t.leaveMin)+'</td>'+
+        '</tr></tbody>'+
+      '</table>'+
+      '<div style="display:flex; justify-content:space-between; margin-top:40px; font-size:12px;">'+
+        '<span>امضاء و اثر انگشت کارگر: ____________________</span>'+
+        '<span>امضاء مدیر: ____________________</span>'+
+      '</div>'+
+    '</div>';
+
+  document.getElementById('pdfPrintArea').innerHTML = html;
+  document.body.classList.add('printing-pdf-form');
+  window.print();
+  setTimeout(function(){ document.body.classList.remove('printing-pdf-form'); }, 500);
 }
 async function loadStatusReport(status){
   var myReqId = ++_statusReportReqId;
