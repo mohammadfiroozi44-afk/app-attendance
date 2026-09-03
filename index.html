@@ -1240,7 +1240,7 @@
   </div><!-- /mainApp -->
 </div>
 
-<div id="pdfPrintArea" style="position:absolute; left:-9999px; top:0; width:210mm; background:#fff;"></div>
+<div id="pdfPrintArea" style="display:none; position:fixed; inset:0; z-index:99999; background:#fff; overflow:auto; color:#000;"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1250,7 +1250,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-clientside-generation"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-visible-overlay-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3315,7 +3315,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-clientside-generation'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-visible-overlay-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5257,7 +5257,16 @@ async function generatePerformancePdf(){
       '</div>'+
     '</div>';
 
-  document.getElementById('pdfPrintArea').innerHTML = html;
+  var captureEl = document.getElementById('pdfPrintArea');
+  captureEl.innerHTML = html;
+  // Briefly show this as a real, normal, in-viewport overlay (not display:none, and not
+  // positioned thousands of pixels off-screen) while html2canvas captures it — both of those
+  // other approaches turned out unreliable: display:none produced washed-out/near-invisible
+  // text (the app's own dark/light theme color variables were leaking into the capture), and
+  // extreme off-screen positioning was disrupting the whole page's scroll/layout afterward,
+  // leaving the drawer and other fixed UI visibly broken. A plain, briefly-visible overlay
+  // avoids both problems, at the cost of a very short visible flash of the form on screen.
+  captureEl.style.display = 'block';
 
   showAdminNotice('در حال ساختِ فایلِ PDF... چند لحظه صبر کن.');
   // Give the browser one tick to actually finish laying out the newly-inserted content
@@ -5271,8 +5280,9 @@ async function generatePerformancePdf(){
   // approaches using those were each unreliable in different ways on this device (silently
   // ignored, printed the wrong content, or crashed the installed app outright), while a
   // direct Blob download is the same reliable mechanism the CSV button has always used.
-  var captureEl = document.getElementById('pdfPrintArea');
   var canvas = await html2canvas(captureEl, {scale: 2, useCORS: true, backgroundColor: '#ffffff'});
+  captureEl.style.display = 'none';
+  captureEl.innerHTML = '';
   var imgData = canvas.toDataURL('image/jpeg', 0.92);
   var pdf = new jspdf.jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
   var pageWidth = pdf.internal.pageSize.getWidth();
@@ -5289,6 +5299,8 @@ async function generatePerformancePdf(){
   pdf.save(filename);
   clearAdminNotice();
  } catch(errPdf){
+  var cleanupEl = document.getElementById('pdfPrintArea');
+  if(cleanupEl){ cleanupEl.style.display = 'none'; cleanupEl.innerHTML = ''; }
   showAdminNotice('ساخت PDF ناموفق بود: ' + (errPdf && errPdf.message ? errPdf.message : String(errPdf)));
  }
 }
