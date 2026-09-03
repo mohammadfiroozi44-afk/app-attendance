@@ -847,19 +847,32 @@
       <label>نام پروژه</label>
       <input type="text" id="projFormName" placeholder="مثلاً: پروژه شهرک غرب">
 
-      <label>موقعیت روی نقشه (کلیک کن یا پین رو بکش)</label>
-      <div class="map-search-row">
-        <input type="text" id="mapSearchInput" placeholder="جستجوی آدرس یا نام محل...">
-        <button type="button" class="btn btn-ghost btn-small" onclick="searchMapAddress()">🔍</button>
+      <div class="date-row">
+        <div style="flex:1;"><label>استان</label><input type="text" id="projFormProvince" placeholder="مثلاً: خراسان رضوی"></div>
+        <div style="flex:1;"><label>شهر</label><input type="text" id="projFormCity" placeholder="مثلاً: مشهد"></div>
       </div>
-      <div id="projMap"></div>
-      <button type="button" class="btn btn-ghost" style="margin-bottom:14px;" onclick="useCurrentLocForProject()">📍 استفاده از موقعیت فعلی من</button>
-      <div class="field-mono" style="display:flex; gap:8px;">
-        <div style="flex:1;"><label>عرض جغرافیایی (lat)</label><input type="text" id="projFormLat" placeholder="35.7219"></div>
-        <div style="flex:1;"><label>طول جغرافیایی (lng)</label><input type="text" id="projFormLng" placeholder="51.3347"></div>
+
+      <label class="chk-item" style="width:100%; box-sizing:border-box; justify-content:space-between; margin-bottom:14px;">
+        <span>📍 این پروژه محدوده‌ی جغرافیاییِ مشخصی دارد</span>
+        <input type="checkbox" id="projFormRestricted" checked onchange="onProjRestrictedChange()">
+      </label>
+      <div class="hint" id="projRestrictedHint" style="margin-top:-8px;">اگر تیک این گزینه برداشته شود، کارمند می‌تواند از هر جای این شهر ورود/خروج بزند (مناسب برای مأموریت یا پروژه‌ای در شهر دیگر که مختصات دقیق ندارد) — مختصات و شعاع زیر نادیده گرفته می‌شود.</div>
+
+      <div id="projGeoFields">
+        <label>موقعیت روی نقشه (کلیک کن یا پین رو بکش)</label>
+        <div class="map-search-row">
+          <input type="text" id="mapSearchInput" placeholder="جستجوی آدرس یا نام محل...">
+          <button type="button" class="btn btn-ghost btn-small" onclick="searchMapAddress()">🔍</button>
+        </div>
+        <div id="projMap"></div>
+        <button type="button" class="btn btn-ghost" style="margin-bottom:14px;" onclick="useCurrentLocForProject()">📍 استفاده از موقعیت فعلی من</button>
+        <div class="field-mono" style="display:flex; gap:8px;">
+          <div style="flex:1;"><label>عرض جغرافیایی (lat)</label><input type="text" id="projFormLat" placeholder="35.7219"></div>
+          <div style="flex:1;"><label>طول جغرافیایی (lng)</label><input type="text" id="projFormLng" placeholder="51.3347"></div>
+        </div>
+        <label>شعاع مجاز (متر)</label>
+        <input type="number" id="projFormRadius" value="150">
       </div>
-      <label>شعاع مجاز (متر)</label>
-      <input type="number" id="projFormRadius" value="150">
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="projFormBtn" onclick="saveProject()">➕ افزودن پروژه</button>
         <button type="button" class="btn btn-ghost" id="projFormCancel" style="display:none;" onclick="cancelProjEdit()">لغو ویرایش</button>
@@ -1212,7 +1225,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-02-circular-clock"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-02-project-city-restricted"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3275,7 +3288,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-02-circular-clock'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-02-project-city-restricted'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3905,7 +3918,9 @@ function renderProjectList(){
   var list = !q ? projects : projects.filter(function(p){ return String(p.name||'').toLowerCase().indexOf(q)!==-1; });
   if(list.length===0){ box.innerHTML = '<div class="empty">پروژه‌ای با این نام یافت نشد</div>'; return; }
   box.innerHTML = list.map(function(p){
-    return '<div class="list-item"><div><b>'+esc(p.name)+'</b><div class="meta">'+Number(p.lat).toFixed(5)+', '+Number(p.lng).toFixed(5)+' · شعاع '+p.radius+' م</div></div>'+
+    var cityLine = (p.city || p.province) ? (esc([p.province, p.city].filter(Boolean).join(' — ')) + ' · ') : '';
+    var geoLine = (p.restricted === 'no') ? 'بدون محدودیتِ مختصات (کل شهر)' : (Number(p.lat).toFixed(5)+', '+Number(p.lng).toFixed(5)+' · شعاع '+p.radius+' م');
+    return '<div class="list-item"><div><b>'+esc(p.name)+'</b><div class="meta">'+cityLine+geoLine+'</div></div>'+
       '<div class="actions">'+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditProj(\''+p.id+'\')">✏️</button>'+
         '<button class="icon-btn del" title="حذف" onclick="deleteProject(\''+p.id+'\')">✕</button>'+
@@ -3917,15 +3932,30 @@ function startEditProj(id){
   if(!p) return;
   editingProjId = id;
   document.getElementById('projFormName').value = p.name;
+  document.getElementById('projFormCity').value = p.city || '';
+  document.getElementById('projFormProvince').value = p.province || '';
+  // Existing projects (saved before this field existed) have an empty "restricted" value,
+  // which means "restricted" by default — only the literal 'no' means unrestricted.
+  document.getElementById('projFormRestricted').checked = (p.restricted !== 'no');
+  onProjRestrictedChange();
   setProjLatLng(Number(p.lat), Number(p.lng), true);
   document.getElementById('projFormRadius').value = p.radius;
   document.getElementById('projFormBtn').textContent = '💾 بروزرسانی پروژه';
   document.getElementById('projFormCancel').style.display='block';
   document.getElementById('projFormName').scrollIntoView({behavior:'smooth', block:'center'});
 }
+function onProjRestrictedChange(){
+  var restricted = document.getElementById('projFormRestricted').checked;
+  document.getElementById('projGeoFields').style.display = restricted ? 'block' : 'none';
+  document.getElementById('projRestrictedHint').style.display = restricted ? 'none' : 'block';
+}
 function cancelProjEdit(){
   editingProjId = null;
   document.getElementById('projFormName').value='';
+  document.getElementById('projFormCity').value='';
+  document.getElementById('projFormProvince').value='';
+  document.getElementById('projFormRestricted').checked = true;
+  onProjRestrictedChange();
   document.getElementById('projFormLat').value='';
   document.getElementById('projFormLng').value='';
   document.getElementById('projFormRadius').value='150';
@@ -3934,18 +3964,23 @@ function cancelProjEdit(){
 }
 async function saveProject(){
   var name = document.getElementById('projFormName').value.trim();
+  var city = document.getElementById('projFormCity').value.trim();
+  var province = document.getElementById('projFormProvince').value.trim();
+  var restricted = document.getElementById('projFormRestricted').checked;
   var lat = parseFloat(document.getElementById('projFormLat').value);
   var lng = parseFloat(document.getElementById('projFormLng').value);
   var radius = parseInt(document.getElementById('projFormRadius').value) || 150;
-  if(!name || isNaN(lat) || isNaN(lng)){ alert('نام پروژه و مختصات را کامل وارد کنید'); return; }
+  if(!name){ alert('نام پروژه را وارد کن'); return; }
+  if(restricted && (isNaN(lat) || isNaN(lng))){ alert('برای پروژه‌ی محدود، مختصات را کامل وارد کن — یا تیک «محدوده‌ی مشخص دارد» را بردار.'); return; }
+  if(!restricted){ lat = lat || 0; lng = lng || 0; } // not used for geofencing when unrestricted, but keep the fields intact if already set
 
   var btn = document.getElementById('projFormBtn');
   btn.disabled = true;
   var res;
   if(editingProjId){
-    res = await apiCall(function(){ return apiPost('updateProject', {pin:adminPin, id:editingProjId, name:name, lat:lat, lng:lng, radius:radius}); });
+    res = await apiCall(function(){ return apiPost('updateProject', {pin:adminPin, id:editingProjId, name:name, lat:lat, lng:lng, radius:radius, city:city, province:province, restricted:restricted}); });
   } else {
-    res = await apiCall(function(){ return apiPost('addProject', {pin:adminPin, name:name, lat:lat, lng:lng, radius:radius}); });
+    res = await apiCall(function(){ return apiPost('addProject', {pin:adminPin, name:name, lat:lat, lng:lng, radius:radius, city:city, province:province, restricted:restricted}); });
   }
   btn.disabled = false;
   if(!res.ok){ showAdminNotice('ذخیره پروژه ناموفق بود: ' + (res.error||'')); return; }
@@ -4105,6 +4140,14 @@ function locateAndCheck(){
       document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
       document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
       if(locBadge) locBadge.textContent = '✅ بدون محدودیت مکانی';
+      if(window.refreshSwipeState) refreshSwipeState();
+      return;
+    }
+    if(chosenProject.restricted === 'no'){
+      setStatus('✅ موقعیت ثبت شد (این پروژه محدودیتِ مکانیِ خاصی ندارد — کل شهر مجاز است).<br>'+line1, 'ok');
+      document.getElementById('checkInBtn').disabled = (todayLastType === 'ورود');
+      document.getElementById('checkOutBtn').disabled = (todayLastType !== 'ورود');
+      if(locBadge) locBadge.textContent = '✅ بدون محدودیت مکانی (پروژه‌ی کل‌شهر)';
       if(window.refreshSwipeState) refreshSwipeState();
       return;
     }
