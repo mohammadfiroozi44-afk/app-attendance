@@ -1103,8 +1103,6 @@
     </div><!-- /admSec-performance -->
   </div>
 
-  <div id="pdfPrintArea" style="display:none;"></div>
-
   <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
 
   <div class="sheet-overlay" id="adminLogOverlay" onclick="closeAdminLogSheet()"></div>
@@ -1240,13 +1238,15 @@
   </div><!-- /mainApp -->
 </div>
 
+<div id="pdfPrintArea" style="display:none;"></div>
+
 <script>
 // =====================================================================
 // CONFIG — ADMIN: paste your Google Apps Script Web App URL here once.
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-actual-fix-pin-gate"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-print-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3311,7 +3311,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-actual-fix-pin-gate'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-print-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5148,16 +5148,18 @@ function renderPerfReportCards(){
 }
 function exportPerformanceCSV(){
   if(_perfReportResults.length === 0){ alert('اول گزارش را بارگذاری کن.'); return; }
-  var header = ['نام','کد پرسنلی'].concat(PERF_METRIC_LABELS.map(function(m){ return m.label; }));
+  var monthName = document.getElementById('perfReportMonth').value;
+  var yearVal = document.getElementById('perfReportYear').value;
+  var header = ['نام','کد پرسنلی','ماه','سال'].concat(PERF_METRIC_LABELS.map(function(m){ return m.label; }));
   var rows = [header.join(',')];
   _perfReportResults.forEach(function(r){
-    var line = ['"'+r.fullName+'"', r.employeeCode||''].concat(PERF_METRIC_LABELS.map(function(m){ return minutesToHM(r[m.key]); }));
+    var line = ['"'+r.fullName+'"', r.employeeCode||'', monthName, yearVal].concat(PERF_METRIC_LABELS.map(function(m){ return minutesToHM(r[m.key]); }));
     rows.push(line.join(','));
   });
   var blob = new Blob(['\ufeff'+rows.join('\n')], {type:'text/csv;charset=utf-8;'});
   var link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = 'گزارش-کارکرد-'+document.getElementById('perfReportMonth').value+'-'+document.getElementById('perfReportYear').value+'.csv';
+  link.download = 'گزارش-کارکرد-'+monthName+'-'+yearVal+'.csv';
   link.click();
 }
 // ---------- Official print-form PDF export (admin only, one employee at a time) ----------
@@ -5223,8 +5225,13 @@ async function generatePerformancePdf(){
 
   document.getElementById('pdfPrintArea').innerHTML = html;
   document.body.classList.add('printing-pdf-form');
-  window.print();
-  setTimeout(function(){ document.body.classList.remove('printing-pdf-form'); }, 500);
+  // A short delay before print() lets the browser actually repaint with the new class
+  // applied first — calling print() in the very same tick can fire before the layout change
+  // takes effect, which is exactly what was printing the live admin page instead of the form.
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ document.body.classList.remove('printing-pdf-form'); }, 500);
+  }, 150);
 }
 async function loadStatusReport(status){
   var myReqId = ++_statusReportReqId;
