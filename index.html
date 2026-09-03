@@ -223,6 +223,8 @@
     #tabEmpBtn, #tabAdminBtn, .req-tabs, .day-nav { display:none !important; }
     body.printing-pdf-form > *:not(#pdfPrintArea) { display:none !important; }
     body.printing-pdf-form #pdfPrintArea { display:block !important; }
+    body.printing-pdf-form { margin:0 !important; }
+    @page{ size:A4 portrait; margin:6mm; }
   }
 
   .hamburger-btn{
@@ -1246,7 +1248,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-print-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-onepage-vazir"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3311,7 +3313,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-print-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-onepage-vazir'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5173,6 +5175,10 @@ async function generatePerformancePdf(){
   var res = await apiCall(function(){ return apiPost('getEmployeePerformanceDetail', {pin:adminPin, username:username, year:year, month:monthIdx}); });
   if(!res.ok){ alert('دریافت اطلاعات ناموفق بود: ' + (res.error||'')); return; }
 
+  var PDF_FONT = "'Vazirmatn', Tahoma, sans-serif"; // hardcoded rather than var(--sans) — some
+  // print-to-PDF renderers don't reliably resolve CSS custom properties in the print pass,
+  // silently falling back to a generic serif font instead of the app's own webfont.
+
   var daily = res.daily || [];
   var t = res.totals || {};
   var rowsHtml = daily.map(function(d){
@@ -5181,7 +5187,11 @@ async function generatePerformancePdf(){
     if(d.isFriday) noteParts.push('جمعه');
     if(d.isHoliday) noteParts.push('تعطیل رسمی');
     if(d.statusLabel) noteParts.push(d.statusLabel);
-    return '<tr>'+
+    var isOffDay = d.isFriday || d.isHoliday;
+    // Off days (Friday/official holiday) get a visibly bigger, bold row — everything else
+    // stays compact so all 31 days plus the summary fit on a single page.
+    var rowStyle = isOffDay ? 'font-weight:800; font-size:9.5px;' : 'font-size:8px;';
+    return '<tr style="'+rowStyle+'">'+
       '<td>'+d.day+'</td>'+
       '<td>'+esc(d.jalaliDate)+'</td>'+
       '<td>'+esc(d.weekday||'')+'</td>'+
@@ -5191,33 +5201,38 @@ async function generatePerformancePdf(){
       '<td>'+(shift2.outTime||'')+'</td>'+
       '<td>'+(d.leaveMin ? minutesToHM(d.leaveMin) : '')+'</td>'+
       '<td>'+(d.breakMin ? minutesToHM(d.breakMin) : '')+'</td>'+
-      '<td style="font-size:10px;">'+esc(noteParts.join(' - '))+'</td>'+
+      '<td>'+esc(noteParts.join(' - '))+'</td>'+
     '</tr>';
   }).join('');
 
   var html =
-    '<div style="font-family:var(--sans); direction:rtl; padding:16px;">'+
-      '<div style="text-align:center; font-weight:800; font-size:16px; margin-bottom:4px;">فرم ثبت ساعت ورود و خروج کارکنان</div>'+
-      '<div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:12px; border-bottom:1px solid #333; padding-bottom:8px;">'+
+    '<div style="font-family:'+PDF_FONT+'; direction:rtl; padding:6mm;">'+
+      '<div style="text-align:center; font-weight:800; font-size:14px; margin-bottom:4px;">فرم ثبت ساعت ورود و خروج کارکنان</div>'+
+      '<div style="display:flex; justify-content:space-between; font-size:10.5px; margin-bottom:6px; border-bottom:1px solid #333; padding-bottom:5px;">'+
         '<span><b>نام و نام‌خانوادگی:</b> '+esc(res.fullName)+(res.employeeCode?(' (کد '+esc(res.employeeCode)+')'):'')+'</span>'+
         '<span><b>ماه:</b> '+esc(monthName)+' &nbsp; <b>سال:</b> '+esc(year)+'</span>'+
       '</div>'+
-      '<table style="width:100%; border-collapse:collapse; font-size:11px;" border="1">'+
-        '<thead><tr style="background:#eee;">'+
-          '<th>روز</th><th>تاریخ</th><th>ایام هفته</th><th>ورود اول</th><th>خروج اول</th><th>ورود دوم</th><th>خروج دوم</th><th>مرخصی</th><th>استراحت</th><th>توضیحات</th>'+
+      '<table style="width:100%; border-collapse:collapse; font-family:'+PDF_FONT+';" border="1">'+
+        '<thead><tr style="background:#eee; font-size:8px; font-weight:800;">'+
+          '<th style="padding:1px 2px;">روز</th><th style="padding:1px 2px;">تاریخ</th><th style="padding:1px 2px;">ایام هفته</th>'+
+          '<th style="padding:1px 2px;">ورود اول</th><th style="padding:1px 2px;">خروج اول</th><th style="padding:1px 2px;">ورود دوم</th><th style="padding:1px 2px;">خروج دوم</th>'+
+          '<th style="padding:1px 2px;">مرخصی</th><th style="padding:1px 2px;">استراحت</th><th style="padding:1px 2px;">توضیحات</th>'+
         '</tr></thead>'+
         '<tbody>'+rowsHtml+'</tbody>'+
       '</table>'+
-      '<table style="width:100%; border-collapse:collapse; font-size:11px; margin-top:14px;" border="1">'+
-        '<thead><tr style="background:#eee;">'+
-          '<th>موظفی</th><th>کارکرد</th><th>مفید</th><th>شب‌کاری</th><th>اضافه‌کاری</th><th>تعطیل‌کاری</th><th>جمعه‌کاری</th><th>مرخصی</th>'+
+      '<table style="width:100%; border-collapse:collapse; font-family:'+PDF_FONT+'; font-size:9px; margin-top:6px;" border="1">'+
+        '<thead><tr style="background:#eee; font-weight:800;">'+
+          '<th style="padding:2px;">موظفی</th><th style="padding:2px;">کارکرد</th><th style="padding:2px;">مفید</th><th style="padding:2px;">شب‌کاری</th>'+
+          '<th style="padding:2px;">اضافه‌کاری</th><th style="padding:2px;">تعطیل‌کاری</th><th style="padding:2px;">جمعه‌کاری</th><th style="padding:2px;">مرخصی</th>'+
         '</tr></thead>'+
         '<tbody><tr>'+
-          '<td>'+minutesToHM(t.requiredMin)+'</td><td>'+minutesToHM(t.workedMin)+'</td><td>'+minutesToHM(t.usefulMin)+'</td><td>'+minutesToHM(t.nightMin)+'</td>'+
-          '<td>'+minutesToHM(t.overtimeMin)+'</td><td>'+minutesToHM(t.holidayMin)+'</td><td>'+minutesToHM(t.fridayMin)+'</td><td>'+minutesToHM(t.leaveMin)+'</td>'+
+          '<td style="padding:2px; text-align:center;">'+minutesToHM(t.requiredMin)+'</td><td style="padding:2px; text-align:center;">'+minutesToHM(t.workedMin)+'</td>'+
+          '<td style="padding:2px; text-align:center;">'+minutesToHM(t.usefulMin)+'</td><td style="padding:2px; text-align:center;">'+minutesToHM(t.nightMin)+'</td>'+
+          '<td style="padding:2px; text-align:center;">'+minutesToHM(t.overtimeMin)+'</td><td style="padding:2px; text-align:center;">'+minutesToHM(t.holidayMin)+'</td>'+
+          '<td style="padding:2px; text-align:center;">'+minutesToHM(t.fridayMin)+'</td><td style="padding:2px; text-align:center;">'+minutesToHM(t.leaveMin)+'</td>'+
         '</tr></tbody>'+
       '</table>'+
-      '<div style="display:flex; justify-content:space-between; margin-top:40px; font-size:12px;">'+
+      '<div style="display:flex; justify-content:space-between; margin-top:16px; font-size:9.5px;">'+
         '<span>امضاء و اثر انگشت کارگر: ____________________</span>'+
         '<span>امضاء مدیر: ____________________</span>'+
       '</div>'+
