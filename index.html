@@ -1252,7 +1252,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-two-step-print"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-print-beforeafter-events"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3318,7 +3318,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-two-step-print'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-print-beforeafter-events'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5279,20 +5279,27 @@ async function generatePerformancePdf(){
  }
 }
 function triggerActualPrint(){
-  document.body.classList.add('printing-pdf-form');
-  document.title = window._pdfTitleToUse || document.title;
-  function cleanupAfterPrint(){
+ try {
+  function onBeforePrint(){
+    document.body.classList.add('printing-pdf-form');
+    document.title = window._pdfTitleToUse || document.title;
+  }
+  function onAfterPrint(){
     document.body.classList.remove('printing-pdf-form');
     document.title = window._pdfOriginalTitle || document.title;
-    window.removeEventListener('afterprint', cleanupAfterPrint);
+    window.removeEventListener('beforeprint', onBeforePrint);
+    window.removeEventListener('afterprint', onAfterPrint);
   }
-  // onafterprint (not a fixed setTimeout) is what actually matters here — some print/PDF
-  // renderers keep re-rendering the LIVE page for as long as the system print dialog stays
-  // open, so reverting the print-only view on a short arbitrary timer (before the person had
-  // even finished choosing "Save as PDF") was exactly what made the saved file come out as a
-  // screenshot of the ordinary app screen instead of the form.
-  window.addEventListener('afterprint', cleanupAfterPrint);
-  window.print(); // called directly inside this click handler — nothing async before it
+  // Using the browser's own beforeprint/afterprint events (rather than toggling the class
+  // ourselves right before calling print()) is the standard, reliable way to do this —
+  // the browser sequences these correctly around its OWN print rendering pass, instead of us
+  // guessing when that rendering actually happens.
+  window.addEventListener('beforeprint', onBeforePrint);
+  window.addEventListener('afterprint', onAfterPrint);
+  window.print();
+ } catch(errPrint){
+  showAdminNotice('باز کردنِ پنجره‌ی چاپ ناموفق بود: ' + (errPrint && errPrint.message ? errPrint.message : String(errPrint)));
+ }
 }
 async function loadStatusReport(status){
   var myReqId = ++_statusReportReqId;
