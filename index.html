@@ -585,42 +585,30 @@
     </div>
     </div><!-- /empSec-history -->
 
-    <div class="emp-section" id="empSec-daily" style="display:none; padding-bottom:70px;">
-    <div class="req-hero">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <button type="button" class="cal-icon-btn" onclick="openCalPicker('daily')">📅</button>
-        <div style="font-weight:800; font-size:15px;">عملکرد روزانه</div>
-        <div style="width:34px;"></div>
+    <div class="emp-section" id="empSec-daily" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">عملکرد روزانه</div>
+      <div class="hint" style="margin-top:-4px;">ریزِ کارکرد، موظفی، مفید، اضافه‌کاری، مرخصی، شب‌کاری، جمعه‌کاری و تعطیل‌کاری برای هر روزِ ماه.</div>
+      <div class="date-row">
+        <select id="dailyPerfMonth"><option value="">ماه</option></select>
+        <select id="dailyPerfYear"><option value="">سال</option></select>
       </div>
-    </div>
-    <div class="card" style="border-radius:0 0 14px 14px; margin-top:-1px;">
-      <div id="dailyStatsCards"><div class="empty">در حال بارگذاری...</div></div>
-      <div class="divider"></div>
-      <div class="eyebrow">تردد ها</div>
-      <div id="dailyTraffic" class="list-item"><div class="meta">--:-- تا --:--</div></div>
-    </div>
-    <div class="day-nav">
-      <button type="button" onclick="navDailyDay(1)">‹ روز بعد</button>
-      <div id="dailyDateLabel">—</div>
-      <button type="button" onclick="navDailyDay(-1)">روز قبل ›</button>
+      <button type="button" class="btn btn-primary" onclick="loadDailyPerf()">🔄 بارگذاری</button>
+      <div id="dailyStatsCards" style="margin-top:14px;"><div class="empty">ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
     </div>
     </div><!-- /empSec-daily -->
 
     <div class="emp-section" id="empSec-perf" style="display:none;">
-    <div class="req-hero">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <button type="button" class="cal-icon-btn" onclick="openCalPicker('perf')">📅</button>
-        <div style="text-align:center;">
-          <div style="font-weight:800; font-size:15px;">کارکرد</div>
-          <div class="req-hero-range" id="perfRangeLabel">—</div>
-        </div>
-        <button type="button" class="cal-icon-btn" onclick="printMyPerf()" title="چاپ / ذخیره PDF">🖨️</button>
+    <div class="card">
+      <div class="eyebrow">کارکرد</div>
+      <div class="hint" style="margin-top:-4px;">جمعِ ماهانه‌ی کارکرد، موظفی، مفید، اضافه‌کاری، مرخصی، شب‌کاری، جمعه‌کاری و تعطیل‌کاری.</div>
+      <div class="date-row">
+        <select id="perfMonth"><option value="">ماه</option></select>
+        <select id="perfYear"><option value="">سال</option></select>
       </div>
-    </div>
-    <div class="card" style="border-radius:0 0 14px 14px; margin-top:-1px;">
-      <div id="perfStatsCards"><div class="empty">در حال بارگذاری...</div></div>
-      <div class="divider"></div>
-      <div class="list-item"><div><b>روز کارکرد (روز)</b></div><span class="mono" id="perfWorkDays">۰</span></div>
+      <button type="button" class="btn btn-primary" onclick="loadMyPerf()">🔄 بارگذاری</button>
+      <div id="perfStatsCards" style="margin-top:14px;"><div class="empty">ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
+      <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="printMyPerf()">🖨️ چاپ / ذخیره PDF</button>
     </div>
     </div><!-- /empSec-perf -->
 
@@ -1084,26 +1072,22 @@
         <div id="statusReportList" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</div>
       </div>
     </div>
+    </div><!-- /admSec-report -->
 
+    <div class="admin-section" id="admSec-performance" style="display:none;">
     <div class="card">
-      <div class="eyebrow">گزارش کارکرد ماهانه</div>
+      <div class="eyebrow">کارکردها</div>
       <div class="hint" style="margin-top:-4px;">جمعِ ساعتِ کارکرد، موظفی، مفید، اضافه‌کاری، مرخصی، شب‌کاری، جمعه‌کاری و تعطیل‌کاری برای هر پرسنل در یک ماه — بر اساسِ شیفتِ استاندارد ۷:۳۰ تا ۱۴:۵۰ و موظفیِ روزانه‌ی ۷:۲۰.</div>
+      <input type="text" id="perfFilterSearch" placeholder="فیلتر با نام یا کد پرسنلی" class="field-mono" oninput="renderPerfReportCards()">
       <div class="date-row">
         <select id="perfReportMonth"><option value="">ماه</option></select>
         <select id="perfReportYear"><option value="">سال</option></select>
       </div>
       <button type="button" class="btn btn-primary" onclick="loadMonthlyPerformanceReport()">🔄 بارگذاری گزارش کارکرد</button>
-      <div style="overflow-x:auto; margin-top:14px;">
-        <table id="perfReportTable">
-          <thead><tr>
-            <th>پرسنل</th><th>کارکرد</th><th>موظفی</th><th>مفید</th><th>اضافه‌کاری</th><th>مرخصی</th><th>شب‌کاری</th><th>جمعه‌کاری</th><th>تعطیل‌کاری</th><th>استراحت</th><th>جمعِ کلِ اضافه‌کاری</th>
-          </tr></thead>
-          <tbody id="perfReportBody"><tr><td colspan="11" class="empty">ماه و سال را انتخاب کرده و «بارگذاری گزارش کارکرد» را بزنید.</td></tr></tbody>
-        </table>
-      </div>
+      <div id="perfReportCards" style="margin-top:14px;"><div class="empty">ماه و سال را انتخاب کرده و «بارگذاری گزارش کارکرد» را بزنید.</div></div>
       <button type="button" class="btn btn-ghost" style="margin-top:12px;" onclick="exportPerformanceCSV()">⬇️ خروجی CSV</button>
     </div>
-    </div><!-- /admSec-report -->
+    </div><!-- /admSec-performance -->
   </div>
 
   <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
@@ -1220,6 +1204,7 @@
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon">📨</span> درخواست‌ها</div>
     <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon">📴</span> تردد ناقص</div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon">📊</span> گزارش</div>
+    <div class="drawer-item" id="admMenu-performance" onclick="showAdminSection('performance')"><span class="dicon">⏱️</span> کارکردها</div>
     <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon">⚙️</span> تنظیمات</div>
     <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon">🕐</span> ثبت‌ها</div>
     <div class="drawer-item" onclick="refreshCurrentAdminSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
@@ -1231,6 +1216,8 @@
     <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon">📍</span> ثبت تردد</div>
     <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon">📨</span> درخواست‌ها</div>
     <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon">📋</span> سوابق من</div>
+    <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon">⏱️</span> کارکرد من</div>
+    <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon">📆</span> عملکرد روزانه</div>
     <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
     <div class="drawer-item" onclick="employeeLogout()"><span class="dicon">🚪</span> خروج از حساب</div>
   </div>
@@ -1244,7 +1231,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-02-monthly-payroll-report"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-employee-performance-views"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2216,18 +2203,6 @@ function confirmCalPicker(){
   var scope = calState.scope;
   var start = calState.rangeStart, end = calState.rangeEnd || calState.rangeStart;
   if(!start){ closeCalPicker(); return; }
-  if(scope === 'daily'){
-    dailyViewKey = start;
-    closeCalPicker();
-    loadDailyPerf();
-    return;
-  }
-  if(scope === 'perf'){
-    perfRangeStart = start; perfRangeEnd = end;
-    closeCalPicker();
-    loadMyPerf();
-    return;
-  }
   reqState[scope].dateStart = start;
   reqState[scope].dateEnd = end;
   var label = document.getElementById(scope+'ReqRangeLabel');
@@ -3132,7 +3107,7 @@ async function submitLeaveFromSheet(){
 }
 
 function showEmpSection(name){
-  ['checkin','request','history'].forEach(function(s){
+  ['checkin','request','history','perf','daily'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -3143,6 +3118,12 @@ function showEmpSection(name){
   else if(name === 'history'){
     populateMonthYearFilter('myHistFilterMonth','myHistFilterYear', true);
     document.getElementById('myHistoryList').innerHTML = '<div class="empty">ماه و سال موردنظر را انتخاب کرده و «بارگذاری سوابق» را بزنید.</div>';
+  }
+  else if(name === 'perf'){
+    populateMonthYearFilter('perfMonth','perfYear', true);
+  }
+  else if(name === 'daily'){
+    populateMonthYearFilter('dailyPerfMonth','dailyPerfYear', true);
   }
   pushSectionHistory(name, name === 'checkin');
   closeDrawer();
@@ -3155,7 +3136,7 @@ function refreshCurrentAdminSection(){
   refreshAdminSection(active);
 }
 function showAdminSection(name){
-  ['dashboard','employees','projects','requests','offline','report','settings'].forEach(function(s){
+  ['dashboard','employees','projects','requests','offline','report','performance','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -3201,6 +3182,9 @@ async function refreshAdminSection(name){
     document.getElementById('normalReportView').style.display = 'block';
     document.getElementById('statusReportView').style.display = 'none';
     document.getElementById('logTableBody').innerHTML = '<tr><td colspan="6" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</td></tr>';
+  }
+  else if(name === 'performance'){
+    await ensureEmployeesFresh();
     populateMonthYearFilter('perfReportMonth','perfReportYear', true);
   }
   else if(name === 'settings'){
@@ -3308,7 +3292,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-02-monthly-payroll-report'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-employee-performance-views'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5088,53 +5072,68 @@ function minutesToHM(mins){
   return (neg?'-':'') + h + ':' + (m<10?'0':'') + m;
 }
 var _perfReportResults = [];
+var PERF_METRIC_LABELS = [
+  {key:'workedMin', label:'ساعت کارکرد'},
+  {key:'requiredMin', label:'ساعت موظفی'},
+  {key:'usefulMin', label:'ساعت مفید'},
+  {key:'overtimeMin', label:'اضافه‌کاری'},
+  {key:'leaveMin', label:'مرخصی'},
+  {key:'nightMin', label:'شب‌کاری'},
+  {key:'fridayMin', label:'جمعه‌کاری'},
+  {key:'holidayMin', label:'تعطیل‌کاری'},
+  {key:'breakMin', label:'استراحت'},
+  {key:'grandOvertimeMin', label:'جمعِ کلِ اضافه‌کاری'}
+];
 async function loadMonthlyPerformanceReport(){
   var monthName = document.getElementById('perfReportMonth').value;
   var year = document.getElementById('perfReportYear').value;
-  var tbody = document.getElementById('perfReportBody');
+  var box = document.getElementById('perfReportCards');
   if(!monthName || !year){
-    tbody.innerHTML = '<tr><td colspan="11" class="empty">ماه و سال را انتخاب کنید.</td></tr>';
+    box.innerHTML = '<div class="empty">ماه و سال را انتخاب کنید.</div>';
     return;
   }
-  tbody.innerHTML = '<tr><td colspan="11" class="empty">در حال بارگذاری...</td></tr>';
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
   var monthIdx = jMonths.indexOf(monthName) + 1;
   var res = await apiCall(function(){ return apiPost('getMonthlyPerformanceReport', {pin:adminPin, year:year, month:monthIdx}); });
   if(!res.ok){
-    tbody.innerHTML = '<tr><td colspan="11" class="empty">دریافت گزارش ناموفق بود: '+esc(res.error||'')+'</td></tr>';
+    box.innerHTML = '<div class="empty">دریافت گزارش ناموفق بود: '+esc(res.error||'')+'</div>';
     return;
   }
   _perfReportResults = res.results || [];
+  renderPerfReportCards();
+}
+function renderPerfReportCards(){
+  var box = document.getElementById('perfReportCards');
+  if(!box) return;
   if(_perfReportResults.length === 0){
-    tbody.innerHTML = '<tr><td colspan="11" class="empty">موردی یافت نشد.</td></tr>';
+    box.innerHTML = '<div class="empty">ماه و سال را انتخاب کرده و «بارگذاری گزارش کارکرد» را بزنید.</div>';
     return;
   }
-  tbody.innerHTML = _perfReportResults.map(function(r){
-    return '<tr>'+
-      '<td>'+esc(r.fullName)+(r.employeeCode?(' <span class="mono" style="font-size:11px; color:#847a63;">(کد '+esc(r.employeeCode)+')</span>'):'')+'</td>'+
-      '<td class="mono">'+minutesToHM(r.workedMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.requiredMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.usefulMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.overtimeMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.leaveMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.nightMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.fridayMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.holidayMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.breakMin)+'</td>'+
-      '<td class="mono">'+minutesToHM(r.grandOvertimeMin)+'</td>'+
-    '</tr>';
+  var q = (document.getElementById('perfFilterSearch').value||'').trim().toLowerCase();
+  var list = !q ? _perfReportResults : _perfReportResults.filter(function(r){
+    return String(r.fullName||'').toLowerCase().indexOf(q)!==-1 || String(r.employeeCode||'').toLowerCase().indexOf(q)!==-1;
+  });
+  if(list.length === 0){ box.innerHTML = '<div class="empty">با این فیلتر پرسنلی یافت نشد.</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    var rows = PERF_METRIC_LABELS.map(function(m){
+      return '<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid var(--border-soft);">'+
+        '<span style="color:var(--muted); font-size:13px;">'+m.label+'</span>'+
+        '<span class="mono" style="font-weight:700;">'+minutesToHM(r[m.key])+'</span>'+
+      '</div>';
+    }).join('');
+    return '<div class="card" style="margin-bottom:12px;">'+
+      '<div class="eyebrow" style="margin-bottom:6px;">'+esc(r.fullName)+(r.employeeCode?(' <span class="mono" style="font-size:12px; color:var(--muted);">(کد '+esc(r.employeeCode)+')</span>'):'')+'</div>'+
+      rows+
+    '</div>';
   }).join('');
 }
 function exportPerformanceCSV(){
   if(_perfReportResults.length === 0){ alert('اول گزارش را بارگذاری کن.'); return; }
-  var header = ['نام','کد پرسنلی','ساعت کارکرد','ساعت موظفی','ساعت مفید','اضافه‌کاری','مرخصی','شب‌کاری','جمعه‌کاری','تعطیل‌کاری','استراحت','جمع کل اضافه‌کاری'];
+  var header = ['نام','کد پرسنلی'].concat(PERF_METRIC_LABELS.map(function(m){ return m.label; }));
   var rows = [header.join(',')];
   _perfReportResults.forEach(function(r){
-    rows.push([
-      '"'+r.fullName+'"', r.employeeCode||'',
-      minutesToHM(r.workedMin), minutesToHM(r.requiredMin), minutesToHM(r.usefulMin),
-      minutesToHM(r.overtimeMin), minutesToHM(r.leaveMin), minutesToHM(r.nightMin),
-      minutesToHM(r.fridayMin), minutesToHM(r.holidayMin), minutesToHM(r.breakMin), minutesToHM(r.grandOvertimeMin)
-    ].join(','));
+    var line = ['"'+r.fullName+'"', r.employeeCode||''].concat(PERF_METRIC_LABELS.map(function(m){ return minutesToHM(r[m.key]); }));
+    rows.push(line.join(','));
   });
   var blob = new Blob(['\ufeff'+rows.join('\n')], {type:'text/csv;charset=utf-8;'});
   var link = document.createElement('a');
@@ -5505,70 +5504,66 @@ function computeStatsGeneric(logs, leaves, holidaySet, shiftDur, startKey, endKe
   stats.excessMin = stats.overtimeMin;
   return stats;
 }
-async function computeMyStats(startKey, endKey){
-  var logsRes = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
-  var leavesRes = await apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}); });
-  var holRes = await apiCall(function(){ return apiGet('holidaysPublic'); });
-  var logs = logsRes.ok ? (logsRes.logs||[]) : [];
-  var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved'; }) : [];
-  var holidaySet = {};
-  if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate]=true; });
-  return computeStatsGeneric(logs, leaves, holidaySet, shiftDurationMinutes(), startKey, endKey);
-}
-function renderStatsCards(containerId, stats){
-  var cards = [
-    {label:'حضور در شیفت', val: formatMinutesHHMM(stats.presentMin), color:'#e8e3f5'},
-    {label:'جمع غیبت و کسری کار', val: formatMinutesHHMM(stats.absentMin), color:'#e3f0e8'},
-    {label:'اضافه‌کاری', val: formatMinutesHHMM(stats.overtimeMin), color:'#f0ecd8'},
-    {label:'ماموریت', val: formatMinutesHHMM(stats.missionMin), color:'#f2e3f0'},
-    {label:'مرخصی استحقاقی', val: formatMinutesHHMM(stats.entitledMin), color:'#dbe8f2'},
-    {label:'مرخصی استعلاجی', val: formatMinutesHHMM(stats.sickMin), color:'#e2f0e5'},
-    {label:'مرخصی بدون‌حقوق', val: formatMinutesHHMM(stats.unpaidMin), color:'#f2e0dc'},
-    {label:'مازاد حضور', val: formatMinutesHHMM(stats.excessMin), color:'#e6e0f2'}
-  ];
-  document.getElementById(containerId).innerHTML = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">' +
-    cards.map(function(c){
-      return '<div style="background:'+c.color+'; border-radius:11px; padding:12px;">'+
-        '<div class="mono" style="font-weight:800; font-size:15px; color:var(--navy);">'+c.val+'</div>'+
-        '<div style="font-size:11.5px; color:#7a7360; margin-top:2px;">'+c.label+'</div></div>';
-    }).join('') + '</div>';
-}
-
-// ---------- عملکرد روزانه (daily) ----------
-var dailyViewKey = null;
+// ---------- عملکرد روزانه (daily) و کارکرد (monthly) — using the same payroll metrics as the admin's "کارکردها" report ----------
 async function loadDailyPerf(){
-  if(dailyViewKey === null){
-    var today = new Date();
-    var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
-    dailyViewKey = tj[0]*10000+tj[1]*100+tj[2];
+  var monthName = document.getElementById('dailyPerfMonth').value;
+  var year = document.getElementById('dailyPerfYear').value;
+  var box = document.getElementById('dailyStatsCards');
+  if(!monthName || !year){
+    box.innerHTML = '<div class="empty">ماه و سال را انتخاب کنید.</div>';
+    return;
   }
-  document.getElementById('dailyDateLabel').textContent = keyToLabel(dailyViewKey);
-  var stats = await computeMyStats(dailyViewKey, dailyViewKey);
-  renderStatsCards('dailyStatsCards', stats);
-  document.getElementById('dailyTraffic').innerHTML = '<div class="meta">ورود: '+(stats.checkinTime||'--:--')+' &nbsp;|&nbsp; خروج: '+(stats.checkoutTime||'--:--')+'</div>';
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var res = await apiCall(function(){ return apiPost('getMyPerformance', {username: loggedInEmployee.username, year:year, month:monthIdx}); });
+  if(!res.ok){
+    box.innerHTML = '<div class="empty">دریافت اطلاعات ناموفق بود: '+esc(res.error||'')+'</div>';
+    return;
+  }
+  var daily = res.daily || [];
+  if(daily.length === 0){ box.innerHTML = '<div class="empty">موردی یافت نشد.</div>'; return; }
+  box.innerHTML = daily.map(function(d){
+    var tag = d.isFriday ? ' <span class="badge badge-bound">جمعه</span>' : (d.isHoliday ? ' <span class="badge badge-bound">تعطیل</span>' : '');
+    var statusTag = d.statusLabel ? (' <span class="badge badge-bound">'+esc(d.statusLabel)+'</span>') : '';
+    var rowsHtml = PERF_METRIC_LABELS_DAILY.map(function(m){
+      return '<div style="display:flex; justify-content:space-between; padding:5px 2px;">'+
+        '<span style="color:var(--muted); font-size:12.5px;">'+m.label+'</span>'+
+        '<span class="mono" style="font-weight:700; font-size:13px;">'+minutesToHM(d[m.key])+'</span>'+
+      '</div>';
+    }).join('');
+    return '<div class="card" style="margin-bottom:10px; padding:12px;">'+
+      '<div style="font-weight:700; font-size:13.5px; margin-bottom:4px;">'+d.day+' '+monthName+tag+statusTag+'</div>'+
+      rowsHtml+
+    '</div>';
+  }).join('');
 }
-function navDailyDay(dir){
-  var y=Math.floor(dailyViewKey/10000), m=Math.floor((dailyViewKey%10000)/100), d=dailyViewKey%100;
-  d += dir;
-  if(d < 1){ m--; if(m<1){m=12;y--;} d=jalaliMonthLength(m,y); }
-  else if(d > jalaliMonthLength(m,y)){ d=1; m++; if(m>12){m=1;y++;} }
-  dailyViewKey = y*10000+m*100+d;
-  loadDailyPerf();
-}
-
-// ---------- کارکرد (range) ----------
-var perfRangeStart = null, perfRangeEnd = null;
+var PERF_METRIC_LABELS_DAILY = [
+  {key:'workedMin', label:'کارکرد'}, {key:'requiredMin', label:'موظفی'}, {key:'usefulMin', label:'مفید'},
+  {key:'overtimeMin', label:'اضافه‌کاری'}, {key:'leaveMin', label:'مرخصی'}, {key:'nightMin', label:'شب‌کاری'},
+  {key:'fridayMin', label:'جمعه‌کاری'}, {key:'holidayMin', label:'تعطیل‌کاری'}
+];
 async function loadMyPerf(){
-  if(perfRangeStart === null){
-    var today = new Date();
-    var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
-    perfRangeStart = tj[0]*10000+tj[1]*100+1;
-    perfRangeEnd = tj[0]*10000+tj[1]*100+tj[2];
+  var monthName = document.getElementById('perfMonth').value;
+  var year = document.getElementById('perfYear').value;
+  var box = document.getElementById('perfStatsCards');
+  if(!monthName || !year){
+    box.innerHTML = '<div class="empty">ماه و سال را انتخاب کنید.</div>';
+    return;
   }
-  document.getElementById('perfRangeLabel').textContent = keyToLabel(perfRangeStart) + ' تا ' + keyToLabel(perfRangeEnd);
-  var stats = await computeMyStats(perfRangeStart, perfRangeEnd);
-  renderStatsCards('perfStatsCards', stats);
-  document.getElementById('perfWorkDays').textContent = stats.presentDays;
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var res = await apiCall(function(){ return apiPost('getMyPerformance', {username: loggedInEmployee.username, year:year, month:monthIdx}); });
+  if(!res.ok){
+    box.innerHTML = '<div class="empty">دریافت اطلاعات ناموفق بود: '+esc(res.error||'')+'</div>';
+    return;
+  }
+  var t = res.totals || {};
+  box.innerHTML = PERF_METRIC_LABELS.map(function(m){
+    return '<div style="display:flex; justify-content:space-between; align-items:center; padding:9px 4px; border-bottom:1px solid var(--border-soft);">'+
+      '<span style="color:var(--muted); font-size:13.5px;">'+m.label+'</span>'+
+      '<span class="mono" style="font-weight:700; font-size:15px;">'+minutesToHM(t[m.key])+'</span>'+
+    '</div>';
+  }).join('');
 }
 function printMyPerf(){ window.print(); }
 
