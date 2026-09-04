@@ -221,9 +221,6 @@
   @media print{
     #adminGate, #empLoginGate, .hamburger-btn, .cal-icon-btn, .req-fab, .side-drawer, .drawer-overlay,
     #tabEmpBtn, #tabAdminBtn, .req-tabs, .day-nav { display:none !important; }
-    body.printing-pdf-form > *:not(#pdfPrintArea) { display:none !important; }
-    body.printing-pdf-form #pdfPrintArea { display:block !important; }
-    body.printing-pdf-form { margin:0 !important; }
     @page{ size:A4 portrait; margin:6mm; }
   }
 
@@ -1092,15 +1089,15 @@
     </div>
 
     <div class="card">
-      <div class="eyebrow">خروجی فرم رسمی (PDF) — یک پرسنل</div>
-      <div class="hint" style="margin-top:-4px;">فرمِ چاپیِ کارکردِ ماهانه (تاریخ، ایامِ هفته، ورود/خروجِ اول و دوم، مرخصی، استراحت) برای یک پرسنلِ مشخص، آماده برای چاپ یا ذخیره به‌صورتِ PDF.</div>
+      <div class="eyebrow">خروجی فرم رسمی (اکسل) — یک پرسنل</div>
+      <div class="hint" style="margin-top:-4px;">فرمِ کارکردِ ماهانه (تاریخ، ایامِ هفته، ورود/خروجِ اول و دوم، مرخصی، استراحت) برای یک پرسنلِ مشخص، به‌صورتِ فایلِ اکسل — قابلِ تبدیل به PDF از خودِ اکسل/شیت هم هست.</div>
       <select id="pdfExportEmp"></select>
       <button type="button" class="picker-display-btn" id="pdfExportEmpBtn"><span class="picker-display-text">انتخاب پرسنل</span><span class="picker-arrow">▾</span></button>
       <div class="date-row">
         <select id="pdfExportMonth"><option value="">ماه</option></select>
         <select id="pdfExportYear"><option value="">سال</option></select>
       </div>
-      <button type="button" class="btn btn-primary" onclick="generatePerformancePdf()">⬇️ دانلود PDF</button>
+      <button type="button" class="btn btn-primary" onclick="generateEmployeeFormExcel()">⬇️ دانلود اکسل</button>
     </div>
     </div><!-- /admSec-performance -->
   </div>
@@ -1240,17 +1237,13 @@
   </div><!-- /mainApp -->
 </div>
 
-<div id="pdfPrintArea" style="display:none; position:fixed; inset:0; z-index:99999; background:#fff; overflow:auto; color:#000;"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 // =====================================================================
 // CONFIG — ADMIN: paste your Google Apps Script Web App URL here once.
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-revert-default-render"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-employee-form-excel"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3315,7 +3308,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-revert-default-render'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-employee-form-excel'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5167,7 +5160,7 @@ function exportPerformanceCSV(){
   link.click();
 }
 // ---------- Official print-form PDF export (admin only, one employee at a time) ----------
-async function generatePerformancePdf(){
+async function generateEmployeeFormExcel(){
  try {
   var username = document.getElementById('pdfExportEmp').value;
   var monthName = document.getElementById('pdfExportMonth').value;
@@ -5178,152 +5171,56 @@ async function generatePerformancePdf(){
   var res = await apiCall(function(){ return apiPost('getEmployeePerformanceDetail', {pin:adminPin, username:username, year:year, month:monthIdx}); });
   if(!res.ok){ alert('دریافت اطلاعات ناموفق بود: ' + (res.error||'')); return; }
 
-  // Deliberately NOT 'Vazirmatn' here, even though that's the app's normal font — Vazirmatn
-  // is loaded from Google Fonts (an external, cross-origin resource), and combined with
-  // foreignObjectRendering (needed below to fix Persian letter shaping), referencing it
-  // taints the canvas: toDataURL() then silently returns a solid black image instead of
-  // throwing an error, which is exactly what the saved PDF turned out to be. Tahoma is a
-  // built-in system font with solid Persian/Arabic support and involves no network request
-  // at all, so there's nothing left that could taint the canvas.
-  var PDF_FONT = "Tahoma, sans-serif";
-
   var daily = res.daily || [];
   var t = res.totals || {};
   var missionDaysCount = daily.filter(function(d){ return d.statusLabel === 'ماموریت'; }).length;
 
-  var rowsHtml = daily.map(function(d){
+  // CSV instead of an image-based PDF — Persian/RTL text is just plain data here, so there's
+  // no font-shaping or canvas-rendering pipeline that could scramble it. This sidesteps every
+  // problem the html2canvas/jsPDF approach kept running into (garbled letters, canvas
+  // tainting from web fonts, black output) — Excel/Sheets renders the text correctly on its
+  // own, and can convert to PDF locally if that's still needed.
+  var rows = [];
+  rows.push(['فرم ثبت ساعت ورود و خروج کارکنان']);
+  rows.push(['نام و نام‌خانوادگی', res.fullName + (res.employeeCode ? (' (کد '+res.employeeCode+')') : ''), 'ماه', monthName, 'سال', year]);
+  rows.push([]);
+  rows.push(['روز','تاریخ','ایام هفته','ورود اول','خروج اول','ورود دوم','خروج دوم','مرخصی','استراحت','توضیحات']);
+  daily.forEach(function(d){
     var shift1 = d.shiftPairs[0] || {}, shift2 = d.shiftPairs[1] || {};
     var noteParts = [];
     if(d.isFriday) noteParts.push('جمعه');
     if(d.isHoliday) noteParts.push('تعطیل رسمی');
-    // Mission is deliberately excluded from the note — a mission day can still have real
-    // check-in/out times, so it must never overwrite/hide those in the time columns.
     if(d.statusLabel && d.statusLabel !== 'ماموریت') noteParts.push(d.statusLabel);
-    var isOffDay = d.isFriday || d.isHoliday;
-    // Off days (Friday/official holiday) get a visibly bigger, bold row — everything else
-    // stays as compact as possible so all 31 days plus the summary fit on a single page.
-    var rowStyle = isOffDay ? 'font-weight:800; font-size:9.5px;' : 'font-size:8px;';
-    // When there's genuinely no shift time (no attendance that day) AND a non-mission status
-    // marker exists (Off/leave/absence), show that word directly in place of the blank first
-    // check-in cell instead of leaving it empty — much clearer at a glance than an empty box.
-    // Friday/holiday deliberately do NOT get their own fallback text here — that would just
-    // repeat what the "ایام هفته" column and the توضیحات note already say for that same row.
-    var shift1InCell = shift1.inTime || '';
-    if(!shift1InCell && d.statusLabel && d.statusLabel !== 'ماموریت'){
-      shift1InCell = d.statusLabel;
-    }
-    // Year is already shown once in the header ("سال: ...") — repeating it in every single
-    // row's date cell was overflowing that narrow column and wrapping onto its own line,
-    // visually looking like the date had "spilled into the next cell".
-    var shortDate = String(d.jalaliDate||'').split(' ').slice(0,2).join(' ');
-    return '<tr style="'+rowStyle+' line-height:1;">'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+d.day+'</td>'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+esc(shortDate)+'</td>'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+esc(d.weekday||'')+'</td>'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+esc(shift1InCell)+'</td>'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+(shift1.outTime||'')+'</td>'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+(shift2.inTime||'')+'</td>'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+(shift2.outTime||'')+'</td>'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+(d.leaveMin ? minutesToHM(d.leaveMin) : '')+'</td>'+
-      '<td style="padding:0 2px; white-space:nowrap;">'+(d.breakMin ? minutesToHM(d.breakMin) : '')+'</td>'+
-      '<td style="padding:0 2px;">'+esc(noteParts.join(' - '))+'</td>'+
-    '</tr>';
-  }).join('');
+    var shift1In = shift1.inTime || '';
+    if(!shift1In && d.statusLabel && d.statusLabel !== 'ماموریت'){ shift1In = d.statusLabel; }
+    rows.push([
+      d.day, d.jalaliDate, d.weekday||'', shift1In, shift1.outTime||'', shift2.inTime||'', shift2.outTime||'',
+      d.leaveMin ? minutesToHM(d.leaveMin) : '', d.breakMin ? minutesToHM(d.breakMin) : '', noteParts.join(' - ')
+    ]);
+  });
+  rows.push([]);
+  rows.push(['موظفی','کارکرد','مفید','شب‌کاری','اضافه‌کاری','تعطیل‌کاری','جمعه‌کاری','مرخصی','تعداد روز ماموریت']);
+  rows.push([
+    minutesToHM(t.requiredMin), minutesToHM(t.workedMin), minutesToHM(t.usefulMin), minutesToHM(t.nightMin),
+    minutesToHM(t.overtimeMin), minutesToHM(t.holidayMin), minutesToHM(t.fridayMin), minutesToHM(t.leaveMin), missionDaysCount
+  ]);
+  rows.push([]);
+  rows.push(['امضاء و اثر انگشت کارگر:', '', '', '', '', 'امضاء مدیر:']);
 
-  var html =
-    '<div id="pdfFormContent" style="font-family:'+PDF_FONT+'; direction:rtl; padding:4mm; width:210mm; box-sizing:border-box; background:#fff; color:#000;">'+
-      '<div style="text-align:center; font-weight:800; font-size:12px; margin-bottom:3px;">فرم ثبت ساعت ورود و خروج کارکنان</div>'+
-      '<div style="display:flex; justify-content:space-between; font-size:9px; margin-bottom:4px; border-bottom:1px solid #333; padding-bottom:3px;">'+
-        '<span><b>نام و نام‌خانوادگی:</b> '+esc(res.fullName)+(res.employeeCode?(' (کد '+esc(res.employeeCode)+')'):'')+'</span>'+
-        '<span><b>ماه:</b> '+esc(monthName)+' &nbsp; <b>سال:</b> '+esc(year)+'</span>'+
-      '</div>'+
-      '<table style="width:100%; border-collapse:collapse; table-layout:fixed; font-family:'+PDF_FONT+';" border="1">'+
-        '<thead><tr style="background:#eee; font-size:7px; font-weight:800; line-height:1;">'+
-          '<th style="padding:1px 2px; width:4%;">روز</th><th style="padding:1px 2px; width:9%;">تاریخ</th><th style="padding:1px 2px; width:8%;">ایام هفته</th>'+
-          '<th style="padding:1px 2px; width:9%;">ورود اول</th><th style="padding:1px 2px; width:9%;">خروج اول</th><th style="padding:1px 2px; width:9%;">ورود دوم</th><th style="padding:1px 2px; width:9%;">خروج دوم</th>'+
-          '<th style="padding:1px 2px; width:8%;">مرخصی</th><th style="padding:1px 2px; width:8%;">استراحت</th><th style="padding:1px 2px; width:27%;">توضیحات</th>'+
-        '</tr></thead>'+
-        '<tbody>'+rowsHtml+'</tbody>'+
-      '</table>'+
-      '<table style="width:100%; border-collapse:collapse; font-family:'+PDF_FONT+'; font-size:8px; margin-top:4px;" border="1">'+
-        '<thead><tr style="background:#eee; font-weight:800; line-height:1;">'+
-          '<th style="padding:1px;">موظفی</th><th style="padding:1px;">کارکرد</th><th style="padding:1px;">مفید</th><th style="padding:1px;">شب‌کاری</th>'+
-          '<th style="padding:1px;">اضافه‌کاری</th><th style="padding:1px;">تعطیل‌کاری</th><th style="padding:1px;">جمعه‌کاری</th><th style="padding:1px;">مرخصی</th><th style="padding:1px;">تعداد روز ماموریت</th>'+
-        '</tr></thead>'+
-        '<tbody><tr style="line-height:1;">'+
-          '<td style="padding:1px; text-align:center;">'+minutesToHM(t.requiredMin)+'</td><td style="padding:1px; text-align:center;">'+minutesToHM(t.workedMin)+'</td>'+
-          '<td style="padding:1px; text-align:center;">'+minutesToHM(t.usefulMin)+'</td><td style="padding:1px; text-align:center;">'+minutesToHM(t.nightMin)+'</td>'+
-          '<td style="padding:1px; text-align:center;">'+minutesToHM(t.overtimeMin)+'</td><td style="padding:1px; text-align:center;">'+minutesToHM(t.holidayMin)+'</td>'+
-          '<td style="padding:1px; text-align:center;">'+minutesToHM(t.fridayMin)+'</td><td style="padding:1px; text-align:center;">'+minutesToHM(t.leaveMin)+'</td>'+
-          '<td style="padding:1px; text-align:center;">'+missionDaysCount+'</td>'+
-        '</tr></tbody>'+
-      '</table>'+
-      '<div style="display:flex; justify-content:space-between; margin-top:10px; font-size:8.5px;">'+
-        '<span>امضاء و اثر انگشت کارگر: ____________________</span>'+
-        '<span>امضاء مدیر: ____________________</span>'+
-      '</div>'+
-    '</div>';
+  var csvText = rows.map(function(r){
+    return r.map(function(cell){
+      var s = String(cell === undefined || cell === null ? '' : cell);
+      return '"' + s.replace(/"/g,'""') + '"';
+    }).join(',');
+  }).join('\n');
 
-  var wrapperEl = document.getElementById('pdfPrintArea');
-  wrapperEl.innerHTML = html;
-  // Briefly show this as a real, normal, in-viewport overlay (not display:none, and not
-  // positioned thousands of pixels off-screen) while html2canvas captures it — both of those
-  // other approaches turned out unreliable: display:none produced washed-out/near-invisible
-  // text (the app's own dark/light theme color variables were leaking into the capture), and
-  // extreme off-screen positioning was disrupting the whole page's scroll/layout afterward,
-  // leaving the drawer and other fixed UI visibly broken. A plain, briefly-visible overlay
-  // avoids both problems, at the cost of a very short visible flash of the form on screen.
-  wrapperEl.style.display = 'block';
-
-  showAdminNotice('در حال ساختِ فایلِ PDF... چند لحظه صبر کن.');
-  // Give the browser one tick to actually finish laying out the newly-inserted content
-  // before capturing it — otherwise html2canvas can grab it mid-render.
-  await new Promise(function(resolve){ setTimeout(resolve, 60); });
-
-  // Capture the FIXED-WIDTH inner form div specifically — not the full-screen wrapper around
-  // it. The wrapper stretches to the whole viewport (position:fixed; inset:0), so capturing
-  // IT meant html2canvas grabbed the entire phone-screen-sized area (mostly blank space below
-  // the actual short form), which is exactly what was producing a wrongly-proportioned/wrong-
-  // sized PDF page once that odd aspect ratio got fitted into an A4 page.
-  var captureEl = document.getElementById('pdfFormContent');
-
-  // Renders the ALREADY correctly-styled HTML (Persian text, RTL, fonts, table borders —
-  // everything built above) into an image, then embeds that image into a real PDF file and
-  // triggers a normal file download — exactly like the working CSV export already does.
-  // This deliberately avoids window.print()/window.open() entirely: three different
-  // approaches using those were each unreliable in different ways on this device (silently
-  // ignored, printed the wrong content, or crashed the installed app outright), while a
-  // direct Blob download is the same reliable mechanism the CSV button has always used.
-  //
-  // foreignObjectRendering:true (tried in several follow-up attempts, including detaching the
-  // Google Fonts <link> from the document during capture) was meant to fix Persian letter
-  // shaping by using the browser's own real text rendering — but it kept producing a solid
-  // black file no matter what was tried, which is a far worse outcome than imperfect-but-
-  // visible text. Reliability wins here: back to html2canvas's default (non-SVG) rendering,
-  // which reliably produces real, visible output. letterRendering:true and a higher scale
-  // factor still help the default renderer's own text shaping somewhat.
-  var canvas = await html2canvas(captureEl, {scale: 4, useCORS: true, backgroundColor: '#ffffff', letterRendering: true});
-  wrapperEl.style.display = 'none';
-  wrapperEl.innerHTML = '';
-  var imgData = canvas.toDataURL('image/jpeg', 0.92);
-  var pdf = new jspdf.jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
-  var pageWidth = pdf.internal.pageSize.getWidth();
-  var pageHeight = pdf.internal.pageSize.getHeight();
-  var imgWidthMm = pageWidth;
-  var imgHeightMm = (canvas.height * imgWidthMm) / canvas.width;
-  if(imgHeightMm > pageHeight){
-    imgHeightMm = pageHeight;
-    imgWidthMm = (canvas.width * imgHeightMm) / canvas.height;
-  }
-  var xOffset = (pageWidth - imgWidthMm) / 2;
-  pdf.addImage(imgData, 'JPEG', xOffset, 0, imgWidthMm, imgHeightMm);
-  var filename = res.fullName + (res.employeeCode ? ('-'+res.employeeCode) : '') + '-ترددیار.pdf';
-  pdf.save(filename);
-  clearAdminNotice();
- } catch(errPdf){
-  var cleanupEl = document.getElementById('pdfPrintArea');
-  if(cleanupEl){ cleanupEl.style.display = 'none'; cleanupEl.innerHTML = ''; }
-  showAdminNotice('ساخت PDF ناموفق بود: ' + (errPdf && errPdf.message ? errPdf.message : String(errPdf)));
+  var blob = new Blob(['\ufeff'+csvText], {type:'text/csv;charset=utf-8;'});
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = res.fullName + (res.employeeCode ? ('-'+res.employeeCode) : '') + '-ترددیار.csv';
+  link.click();
+ } catch(errXls){
+  showAdminNotice('ساخت فایل ناموفق بود: ' + (errXls && errXls.message ? errXls.message : String(errXls)));
  }
 }
 async function loadStatusReport(status){
