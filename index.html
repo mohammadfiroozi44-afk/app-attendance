@@ -1250,7 +1250,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-tahoma-font-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-detach-fontlink-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3315,7 +3315,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-tahoma-font-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-detach-fontlink-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5300,7 +5300,25 @@ async function generatePerformancePdf(){
   // saved file, confirmed from screenshots), because that option only changes HOW html2canvas
   // measures/positions text it draws itself; it doesn't make html2canvas understand Arabic-
   // script letter joining. Using the real rendering engine sidesteps that limitation entirely.
-  var canvas = await html2canvas(captureEl, {scale: 3, useCORS: true, backgroundColor: '#ffffff', letterRendering: true, foreignObjectRendering: true});
+  //
+  // Switching the FORM's own font to Tahoma wasn't enough to stop the resulting canvas from
+  // being tainted (still came out solid black) — foreignObjectRendering appears to taint on
+  // the mere PRESENCE of a cross-origin @font-face reference anywhere in the document, not
+  // just ones the captured element itself uses. The page's global Vazirmatn <link> is still
+  // sitting in <head> throughout, regardless of what font this form asks for. So: physically
+  // detach that stylesheet link from the document for the few moments of the actual capture,
+  // then put it straight back — nothing else on the page needs it for that brief window since
+  // the print-form overlay is covering everything anyway.
+  var fontLinkEls = Array.prototype.slice.call(document.querySelectorAll('link[href*="fonts.googleapis.com"]'));
+  var fontLinkParents = fontLinkEls.map(function(el){ return el.parentNode; });
+  fontLinkEls.forEach(function(el){ el.parentNode.removeChild(el); });
+
+  var canvas;
+  try {
+    canvas = await html2canvas(captureEl, {scale: 3, useCORS: true, backgroundColor: '#ffffff', letterRendering: true, foreignObjectRendering: true});
+  } finally {
+    fontLinkEls.forEach(function(el, i){ fontLinkParents[i].appendChild(el); });
+  }
   wrapperEl.style.display = 'none';
   wrapperEl.innerHTML = '';
   var imgData = canvas.toDataURL('image/jpeg', 0.92);
