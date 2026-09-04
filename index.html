@@ -1245,7 +1245,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-04-perday-project-and-lock-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-04-overtime-formula-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3355,7 +3355,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-04-perday-project-and-lock-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-04-overtime-formula-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5144,7 +5144,8 @@ var PERF_METRIC_LABELS = [
   {key:'nightMin', label:'شب‌کاری'},
   {key:'fridayMin', label:'جمعه‌کاری'},
   {key:'holidayMin', label:'تعطیل‌کاری'},
-  {key:'breakMin', label:'استراحت'},
+  {key:'breakMin', label:'استراحت (روزهای عادی)'},
+  {key:'holidayBreakMin', label:'استراحت (جمعه/تعطیل)'},
   {key:'grandOvertimeMin', label:'جمعِ کلِ اضافه‌کاری'}
 ];
 async function loadMonthlyPerformanceReport(){
@@ -5261,10 +5262,11 @@ async function generateEmployeeFormExcel(){
     ]);
   });
   rows.push([]);
-  rows.push(['موظفی','کارکرد','مفید','شب‌کاری','اضافه‌کاری','تعطیل‌کاری','جمعه‌کاری','مرخصی','تعداد روز ماموریت']);
+  rows.push(['موظفی','کارکرد','مفید','شب‌کاری','اضافه‌کاری','تعطیل‌کاری','جمعه‌کاری','مرخصی','استراحت (عادی)','استراحت (جمعه/تعطیل)','جمعِ کلِ اضافه‌کاری','تعداد روز ماموریت']);
   rows.push([
     minutesToHM(t.requiredMin), minutesToHM(t.workedMin), minutesToHM(t.usefulMin), minutesToHM(t.nightMin),
-    minutesToHM(t.overtimeMin), minutesToHM(t.holidayMin), minutesToHM(t.fridayMin), minutesToHM(t.leaveMin), missionDaysCount
+    minutesToHM(t.overtimeMin), minutesToHM(t.holidayMin), minutesToHM(t.fridayMin), minutesToHM(t.leaveMin),
+    minutesToHM(t.breakMin), minutesToHM(t.holidayBreakMin), minutesToHM(t.grandOvertimeMin), missionDaysCount
   ]);
   rows.push([]);
   rows.push(['امضاء و اثر انگشت کارگر:', '', '', '', '', 'امضاء مدیر:']);
