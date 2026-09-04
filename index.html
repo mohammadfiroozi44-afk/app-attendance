@@ -1243,7 +1243,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-employee-form-excel"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-excel-date-slash-format"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3308,7 +3308,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-employee-form-excel'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-excel-date-slash-format'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5175,6 +5175,18 @@ async function generateEmployeeFormExcel(){
   var t = res.totals || {};
   var missionDaysCount = daily.filter(function(d){ return d.statusLabel === 'ماموریت'; }).length;
 
+  // "13 مرداد 1405" -> "1405/06/13", since that's the format wanted in the exported file.
+  function toSlashDate(jalaliDateStr){
+    var parts = String(jalaliDateStr||'').trim().split(' ');
+    if(parts.length < 3) return jalaliDateStr;
+    var day = parseInt(parts[0], 10);
+    var mIdx = jMonths.indexOf(parts[1]) + 1;
+    var yr = parts[parts.length-1];
+    if(!day || !mIdx) return jalaliDateStr;
+    var pad2local = function(n){ return (n<10?'0':'')+n; };
+    return yr + '/' + pad2local(mIdx) + '/' + pad2local(day);
+  }
+
   // CSV instead of an image-based PDF — Persian/RTL text is just plain data here, so there's
   // no font-shaping or canvas-rendering pipeline that could scramble it. This sidesteps every
   // problem the html2canvas/jsPDF approach kept running into (garbled letters, canvas
@@ -5194,7 +5206,7 @@ async function generateEmployeeFormExcel(){
     var shift1In = shift1.inTime || '';
     if(!shift1In && d.statusLabel && d.statusLabel !== 'ماموریت'){ shift1In = d.statusLabel; }
     rows.push([
-      d.day, d.jalaliDate, d.weekday||'', shift1In, shift1.outTime||'', shift2.inTime||'', shift2.outTime||'',
+      d.day, toSlashDate(d.jalaliDate), d.weekday||'', shift1In, shift1.outTime||'', shift2.inTime||'', shift2.outTime||'',
       d.leaveMin ? minutesToHM(d.leaveMin) : '', d.breakMin ? minutesToHM(d.breakMin) : '', noteParts.join(' - ')
     ]);
   });
