@@ -1243,7 +1243,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-excel-mission-notes"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-04-bulk-fixed-time-display-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2503,13 +2503,21 @@ function applyFixedTimeToRange(){
   var toDay = parseInt(document.getElementById('bulkRangeTo').value, 10);
   if(!fromDay || !toDay){ alert('بازه روزها رو انتخاب کن'); return; }
   if(fromDay > toDay){ var tmp = fromDay; fromDay = toDay; toDay = tmp; }
+  var appliedCount = 0;
   for(var d=fromDay; d<=toDay; d++){
     var inEl = document.getElementById('bulkDay'+d+'In');
     var outEl = document.getElementById('bulkDay'+d+'Out');
     if(inEl && inEl.disabled) continue; // skip days marked as leave/absence
-    if(inEl && fixedIn) inEl.value = fixedIn;
-    if(outEl && fixedOut) outEl.value = fixedOut;
+    // Setting .value directly does NOT update the visible custom time-picker button (that
+    // hidden native input isn't what's shown on screen — see wireCustomTimePicker), so
+    // without also syncing the display here, every day silently got the right value
+    // underneath while the buttons kept showing "ساعت ورود"/"ساعت خروج", making it look
+    // like clicking "اعمال" had done nothing at all.
+    if(inEl && fixedIn){ inEl.value = fixedIn; syncTimeDisplay('bulkDay'+d+'In', 'bulkDay'+d+'InBtn'); }
+    if(outEl && fixedOut){ outEl.value = fixedOut; syncTimeDisplay('bulkDay'+d+'Out', 'bulkDay'+d+'OutBtn'); }
+    appliedCount++;
   }
+  if(appliedCount === 0){ alert('هیچ روزی تو این بازه اعمال نشد — احتمالاً همه‌شون علامتِ مرخصی/غیبت دارن.'); return; }
 }
 function normTimeForSubmit(raw){
   var p = (raw||'').split(':');
@@ -3308,7 +3316,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-excel-mission-notes'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-04-bulk-fixed-time-display-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
