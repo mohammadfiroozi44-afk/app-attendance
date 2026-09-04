@@ -1250,7 +1250,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-foreignobject-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-tahoma-font-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3315,7 +3315,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-foreignobject-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-tahoma-font-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5178,9 +5178,14 @@ async function generatePerformancePdf(){
   var res = await apiCall(function(){ return apiPost('getEmployeePerformanceDetail', {pin:adminPin, username:username, year:year, month:monthIdx}); });
   if(!res.ok){ alert('دریافت اطلاعات ناموفق بود: ' + (res.error||'')); return; }
 
-  var PDF_FONT = "'Vazirmatn', Tahoma, sans-serif"; // hardcoded rather than var(--sans) — some
-  // print-to-PDF renderers don't reliably resolve CSS custom properties in the print pass,
-  // silently falling back to a generic serif font instead of the app's own webfont.
+  // Deliberately NOT 'Vazirmatn' here, even though that's the app's normal font — Vazirmatn
+  // is loaded from Google Fonts (an external, cross-origin resource), and combined with
+  // foreignObjectRendering (needed below to fix Persian letter shaping), referencing it
+  // taints the canvas: toDataURL() then silently returns a solid black image instead of
+  // throwing an error, which is exactly what the saved PDF turned out to be. Tahoma is a
+  // built-in system font with solid Persian/Arabic support and involves no network request
+  // at all, so there's nothing left that could taint the canvas.
+  var PDF_FONT = "Tahoma, sans-serif";
 
   var daily = res.daily || [];
   var t = res.totals || {};
@@ -5201,13 +5206,11 @@ async function generatePerformancePdf(){
     // When there's genuinely no shift time (no attendance that day) AND a non-mission status
     // marker exists (Off/leave/absence), show that word directly in place of the blank first
     // check-in cell instead of leaving it empty — much clearer at a glance than an empty box.
+    // Friday/holiday deliberately do NOT get their own fallback text here — that would just
+    // repeat what the "ایام هفته" column and the توضیحات note already say for that same row.
     var shift1InCell = shift1.inTime || '';
     if(!shift1InCell && d.statusLabel && d.statusLabel !== 'ماموریت'){
       shift1InCell = d.statusLabel;
-    } else if(!shift1InCell && d.isFriday){
-      shift1InCell = 'جمعه';
-    } else if(!shift1InCell && d.isHoliday){
-      shift1InCell = 'تعطیل';
     }
     // Year is already shown once in the header ("سال: ...") — repeating it in every single
     // row's date cell was overflowing that narrow column and wrapping onto its own line,
