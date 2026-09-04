@@ -1184,6 +1184,8 @@
           <input type="time" id="bulkFixedOut">
           <button type="button" class="picker-display-btn" id="bulkFixedOutBtn" style="margin-bottom:0;"><span class="picker-display-text">ساعت خروج</span><span class="picker-arrow">🕐</span></button>
         </div>
+        <label style="margin-top:6px; font-size:12px;">پروژه (اختیاری — اگه این بازه همه‌شون یک پروژه بودن)</label>
+        <select id="bulkFixedProj"><option value="">— بدون تغییرِ پروژه —</option></select>
         <div class="date-row" style="margin-top:6px; align-items:center;">
           <span style="font-size:12px; flex-shrink:0;">از روز</span>
           <select id="bulkRangeFrom"></select>
@@ -1243,7 +1245,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-04-bulk-fixed-time-display-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-04-perday-project-and-lock-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2399,6 +2401,12 @@ async function loadMonthDaysForBulkEntry(){
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
           '<button type="button" class="icon-btn" title="فقط همین روز رو ذخیره کن" onclick="saveSingleBulkDay('+d+')" style="flex-shrink:0;">💾</button>'+
         '</div>'+
+        '<div class="date-row" style="margin:0 0 2px; padding:0 4px;'+(hasData?' background:#eaf3ec;':'')+'">'+
+          '<span style="width:70px; flex-shrink:0; font-size:11px; color:var(--muted); align-self:center;">پروژه</span>'+
+          '<select id="bulkDay'+d+'Proj" style="flex:1; margin-bottom:0; font-size:12px;">'+
+            projects.map(function(p){ return '<option'+(((inE&&inE.project)||(outE&&outE.project))===p.name?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+
+          '</select>'+
+        '</div>'+
         '<div class="date-row" style="margin-bottom:8px; padding:0 4px 4px; font-size:12px;'+(hasData?' background:#eaf3ec; border-radius:0 0 8px 8px;':'')+'">'+
           '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Leave" onchange="onBulkDayStatusChange('+d+',\'leave\')" '+(hasLeave?'checked':'')+' '+(leaveIsMultiDay?'disabled':'')+'> 🏖 مرخصی'+leaveNote+'</label>'+
           '<label style="display:flex; align-items:center; gap:4px; flex:1;"><input type="checkbox" id="bulkDay'+d+'Absence" onchange="onBulkDayStatusChange('+d+',\'absence\')" '+(isAbsenceChecked?'checked':'')+'> ❌ غیبت</label>'+
@@ -2414,6 +2422,8 @@ async function loadMonthDaysForBulkEntry(){
     }
     wireCustomTimePicker('bulkFixedIn', 'bulkFixedInBtn', 'ساعت ورودِ ثابت');
     wireCustomTimePicker('bulkFixedOut', 'bulkFixedOutBtn', 'ساعت خروجِ ثابت');
+    document.getElementById('bulkFixedProj').innerHTML = '<option value="">— بدون تغییرِ پروژه —</option>' +
+      projects.map(function(p){ return '<option>'+esc(p.name)+'</option>'; }).join('');
     document.getElementById('bulkFixedTimeBox').style.display = 'block';
     document.getElementById('bulkSubmitBtn').style.display = 'block';
     var dayOpts = '';
@@ -2435,6 +2445,8 @@ function onBulkDayStatusChange(d, kind){
   var missionChk = document.getElementById('bulkDay'+d+'Mission');
   var inEl = document.getElementById('bulkDay'+d+'In');
   var outEl = document.getElementById('bulkDay'+d+'Out');
+  var inBtn = document.getElementById('bulkDay'+d+'InBtn');
+  var outBtn = document.getElementById('bulkDay'+d+'OutBtn');
   if(kind === 'leave' && leaveChk.checked){ absenceChk.checked = false; offChk.checked = false; missionChk.checked = false; }
   if(kind === 'absence' && absenceChk.checked){ leaveChk.checked = false; offChk.checked = false; missionChk.checked = false; }
   if(kind === 'off' && offChk.checked){ leaveChk.checked = false; absenceChk.checked = false; missionChk.checked = false; }
@@ -2444,6 +2456,14 @@ function onBulkDayStatusChange(d, kind){
   if(kind === 'mission' && !missionChk.checked){ inEl.value = ''; outEl.value = ''; } // unchecking mission clears its times too
   inEl.disabled = locked;
   outEl.disabled = locked;
+  // The visible time-picker BUTTON is a separate element from this hidden native input (see
+  // wireCustomTimePicker) — disabling only the input left the button clickable while locked,
+  // and worse, re-enabling the input on uncheck never re-enabled the button at all, since
+  // nothing here ever touched it. Both need to move together.
+  if(inBtn) inBtn.disabled = locked;
+  if(outBtn) outBtn.disabled = locked;
+  syncTimeDisplay('bulkDay'+d+'In', 'bulkDay'+d+'InBtn', '—');
+  syncTimeDisplay('bulkDay'+d+'Out', 'bulkDay'+d+'OutBtn', '—');
 }
 function clearBulkDay(d){
   if(!confirm(d + 'ام این ماه پاک بشه؟ (با زدن «ثبت همه» حذف نهایی می‌شه)')) return;
@@ -2498,7 +2518,8 @@ function applyBulkPasteText(){
 function applyFixedTimeToRange(){
   var fixedIn = document.getElementById('bulkFixedIn').value;
   var fixedOut = document.getElementById('bulkFixedOut').value;
-  if(!fixedIn && !fixedOut){ alert('حداقل یکی از ساعت ورود یا خروج رو وارد کن'); return; }
+  var fixedProj = document.getElementById('bulkFixedProj').value;
+  if(!fixedIn && !fixedOut && !fixedProj){ alert('حداقل یکی از ساعت ورود، خروج یا پروژه رو وارد کن'); return; }
   var fromDay = parseInt(document.getElementById('bulkRangeFrom').value, 10);
   var toDay = parseInt(document.getElementById('bulkRangeTo').value, 10);
   if(!fromDay || !toDay){ alert('بازه روزها رو انتخاب کن'); return; }
@@ -2507,6 +2528,7 @@ function applyFixedTimeToRange(){
   for(var d=fromDay; d<=toDay; d++){
     var inEl = document.getElementById('bulkDay'+d+'In');
     var outEl = document.getElementById('bulkDay'+d+'Out');
+    var projEl = document.getElementById('bulkDay'+d+'Proj');
     if(inEl && inEl.disabled) continue; // skip days marked as leave/absence
     // Setting .value directly does NOT update the visible custom time-picker button (that
     // hidden native input isn't what's shown on screen — see wireCustomTimePicker), so
@@ -2515,6 +2537,7 @@ function applyFixedTimeToRange(){
     // like clicking "اعمال" had done nothing at all.
     if(inEl && fixedIn){ inEl.value = fixedIn; syncTimeDisplay('bulkDay'+d+'In', 'bulkDay'+d+'InBtn'); }
     if(outEl && fixedOut){ outEl.value = fixedOut; syncTimeDisplay('bulkDay'+d+'Out', 'bulkDay'+d+'OutBtn'); }
+    if(projEl && fixedProj){ projEl.value = fixedProj; }
     appliedCount++;
   }
   if(appliedCount === 0){ alert('هیچ روزی تو این بازه اعمال نشد — احتمالاً همه‌شون علامتِ مرخصی/غیبت دارن.'); return; }
@@ -2551,7 +2574,8 @@ async function saveSingleBulkDay(d){
   statusEl.style.display = 'none';
   try {
     var username = document.getElementById('adminLogEmp').value;
-    var project = document.getElementById('adminLogProj').value;
+    var projEl = document.getElementById('bulkDay'+d+'Proj');
+    var project = projEl ? projEl.value : document.getElementById('adminLogProj').value;
     if(!username){ alert('یک پرسنل انتخاب کن'); return; }
     var empObj = employees.filter(function(e){ return e.username === username; })[0];
     var employeeFullName = empObj ? empObj.fullName : '';
@@ -2756,7 +2780,6 @@ async function submitMonthlyBulkLog(){
   statusEl.style.display = 'none';
   try {
     var username = document.getElementById('adminLogEmp').value;
-    var project = document.getElementById('adminLogProj').value;
     if(!username){ alert('یک پرسنل انتخاب کن'); return; }
     var empObj = employees.filter(function(e){ return e.username === username; })[0];
     var employeeFullName = empObj ? empObj.fullName : '';
@@ -2775,6 +2798,9 @@ async function submitMonthlyBulkLog(){
     for(var d=1; d<=daysCount; d++){
       var jalaliDate = d + ' ' + monthName + ' ' + year;
       var ex = existing[d] || {};
+      var projElD = document.getElementById('bulkDay'+d+'Proj');
+      var project = projElD ? projElD.value : ''; // per-day project — a person isn't
+      // necessarily on the same project for the whole month, so each day now carries its own
       var leaveChk = document.getElementById('bulkDay'+d+'Leave');
       var absenceChk = document.getElementById('bulkDay'+d+'Absence');
       var offChk = document.getElementById('bulkDay'+d+'Off');
@@ -2806,9 +2832,9 @@ async function submitMonthlyBulkLog(){
         // also save the mission's start/end time as real Log entries, so it shows up in the report — same diff logic as a normal day
         if(mStartTime){
           if(ex.inId){
-            if(ex.inTime !== mStartTime || ex.inProject !== project) toUpdate.push({id: ex.inId, jalaliDate: jalaliDate, time: mStartTime, type:'in'});
+            if(ex.inTime !== mStartTime || ex.inProject !== project) toUpdate.push({id: ex.inId, jalaliDate: jalaliDate, time: mStartTime, type:'in', project: project});
           } else {
-            toCreate.push({jalaliDate: jalaliDate, time: mStartTime, type:'in'});
+            toCreate.push({jalaliDate: jalaliDate, time: mStartTime, type:'in', project: project});
           }
         } else if(ex.inId){
           toDelete.push(ex.inId);
@@ -2821,9 +2847,9 @@ async function submitMonthlyBulkLog(){
             mOutDate = mnd.day + ' ' + jMonths[mnd.monthIdx-1] + ' ' + mnd.year;
           }
           if(ex.outId){
-            if(ex.outTime !== mEndTime || ex.outDate !== mOutDate || ex.outProject !== project) toUpdate.push({id: ex.outId, jalaliDate: mOutDate, time: mEndTime, type:'out'});
+            if(ex.outTime !== mEndTime || ex.outDate !== mOutDate || ex.outProject !== project) toUpdate.push({id: ex.outId, jalaliDate: mOutDate, time: mEndTime, type:'out', project: project});
           } else {
-            toCreate.push({jalaliDate: mOutDate, time: mEndTime, type:'out'});
+            toCreate.push({jalaliDate: mOutDate, time: mEndTime, type:'out', project: project});
           }
         } else if(ex.outId){
           toDelete.push(ex.outId);
@@ -2845,9 +2871,9 @@ async function submitMonthlyBulkLog(){
       if(inVal){
         var inTime = normTimeForSubmit(inVal);
         if(ex.inId){
-          if(ex.inTime !== inTime || ex.inProject !== project) toUpdate.push({id: ex.inId, jalaliDate: jalaliDate, time: inTime, type:'in'});
+          if(ex.inTime !== inTime || ex.inProject !== project) toUpdate.push({id: ex.inId, jalaliDate: jalaliDate, time: inTime, type:'in', project: project});
         } else {
-          toCreate.push({jalaliDate: jalaliDate, time: inTime, type:'in'});
+          toCreate.push({jalaliDate: jalaliDate, time: inTime, type:'in', project: project});
         }
       } else if(ex.inId){
         toDelete.push(ex.inId);
@@ -2862,9 +2888,9 @@ async function submitMonthlyBulkLog(){
           outDate = nd.day + ' ' + jMonths[nd.monthIdx-1] + ' ' + nd.year;
         }
         if(ex.outId){
-          if(ex.outTime !== outTime || ex.outDate !== outDate || ex.outProject !== project) toUpdate.push({id: ex.outId, jalaliDate: outDate, time: outTime, type:'out'});
+          if(ex.outTime !== outTime || ex.outDate !== outDate || ex.outProject !== project) toUpdate.push({id: ex.outId, jalaliDate: outDate, time: outTime, type:'out', project: project});
         } else {
-          toCreate.push({jalaliDate: outDate, time: outTime, type:'out'});
+          toCreate.push({jalaliDate: outDate, time: outTime, type:'out', project: project});
         }
       } else if(ex.outId){
         toDelete.push(ex.outId);
@@ -2933,31 +2959,44 @@ async function submitMonthlyBulkLog(){
       stepProgress('ثبت مرخصی‌ها/ماموریت‌ها...');
     }
     if(toCreate.length){
-      var res = await apiCall(function(){ return apiPost('adminAddLogBatch', {
-        pin: adminPin, username: username, project: project, entries: toCreate
-      }); });
-      if(!res.ok){
-        var msg = res.error === 'must_be_after_last_entry'
-          ? 'ترتیب ساعت‌ها تو همین فرم به‌هم ریخته — دور ساعت (' + (res.at||'') + ') رو با روزهای کناریش چک کن.'
-          : res.error === 'duplicate_entry'
-          ? 'یه ثبت دقیقاً با همین تاریخ/ساعت (' + (res.at||'') + ') از قبل موجوده.'
-          : res.error === 'expected_checkout_first'
-          ? 'دو ورود پشت‌سرهم بدون خروج بینشون — دور ساعت (' + (res.at||'') + ') یه خروج قبلش کم داره (مثلاً برای شیفت شب، خروج روز بعد رو هم پر کن).'
-          : res.error === 'expected_checkin_first'
-          ? 'خروج بدون ورودِ باز قبلش — دور ساعت (' + (res.at||'') + ') یه ورود قبلش کم داره.'
-          : (res.error || 'خطای شبکه');
-        statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msg;
-        statusEl.style.display = 'block';
-        showAdminNotice('ثبت گروهی ناموفق بود: ' + msg);
-        window._submissionInProgress = false;
-        hideBulkProgress();
-        return;
+      // adminAddLogBatch only accepts ONE project for the whole batch call, but entries here
+      // can each carry a different per-day project now — group by project and issue one call
+      // per distinct group instead of one call for everything.
+      var createGroups = {};
+      toCreate.forEach(function(e){
+        var key = e.project || '';
+        if(!createGroups[key]) createGroups[key] = [];
+        createGroups[key].push({jalaliDate: e.jalaliDate, time: e.time, type: e.type});
+      });
+      var groupKeys = Object.keys(createGroups);
+      for(var gi=0; gi<groupKeys.length; gi++){
+        var gProject = groupKeys[gi];
+        var res = await apiCall(function(){ return apiPost('adminAddLogBatch', {
+          pin: adminPin, username: username, project: gProject, entries: createGroups[gProject]
+        }); });
+        if(!res.ok){
+          var msg = res.error === 'must_be_after_last_entry'
+            ? 'ترتیب ساعت‌ها تو همین فرم به‌هم ریخته — دور ساعت (' + (res.at||'') + ') رو با روزهای کناریش چک کن.'
+            : res.error === 'duplicate_entry'
+            ? 'یه ثبت دقیقاً با همین تاریخ/ساعت (' + (res.at||'') + ') از قبل موجوده.'
+            : res.error === 'expected_checkout_first'
+            ? 'دو ورود پشت‌سرهم بدون خروج بینشون — دور ساعت (' + (res.at||'') + ') یه خروج قبلش کم داره (مثلاً برای شیفت شب، خروج روز بعد رو هم پر کن).'
+            : res.error === 'expected_checkin_first'
+            ? 'خروج بدون ورودِ باز قبلش — دور ساعت (' + (res.at||'') + ') یه ورود قبلش کم داره.'
+            : (res.error || 'خطای شبکه');
+          statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msg;
+          statusEl.style.display = 'block';
+          showAdminNotice('ثبت گروهی ناموفق بود: ' + msg);
+          window._submissionInProgress = false;
+          hideBulkProgress();
+          return;
+        }
       }
       stepProgress('ثبت ورود/خروج‌های جدید...');
     }
     if(toUpdate.length){
       var updatesPayload = toUpdate.map(function(u){
-        return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: project, type: u.type};
+        return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: u.project, type: u.type};
       });
       var ures = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: updatesPayload}); });
       if(!ures.ok){
@@ -3316,7 +3355,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-04-bulk-fixed-time-display-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-04-perday-project-and-lock-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
