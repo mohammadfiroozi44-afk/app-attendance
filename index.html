@@ -1250,7 +1250,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-detach-fontlink-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-revert-default-render"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3315,7 +3315,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-detach-fontlink-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-revert-default-render'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5202,7 +5202,7 @@ async function generatePerformancePdf(){
     var isOffDay = d.isFriday || d.isHoliday;
     // Off days (Friday/official holiday) get a visibly bigger, bold row — everything else
     // stays as compact as possible so all 31 days plus the summary fit on a single page.
-    var rowStyle = isOffDay ? 'font-weight:800; font-size:8.5px;' : 'font-size:7px;';
+    var rowStyle = isOffDay ? 'font-weight:800; font-size:9.5px;' : 'font-size:8px;';
     // When there's genuinely no shift time (no attendance that day) AND a non-mission status
     // marker exists (Off/leave/absence), show that word directly in place of the blank first
     // check-in cell instead of leaving it empty — much clearer at a glance than an empty box.
@@ -5294,31 +5294,15 @@ async function generatePerformancePdf(){
   // approaches using those were each unreliable in different ways on this device (silently
   // ignored, printed the wrong content, or crashed the installed app outright), while a
   // direct Blob download is the same reliable mechanism the CSV button has always used.
-  // foreignObjectRendering:true routes the capture through the browser's OWN real HTML/text
-  // rendering (via an SVG <foreignObject>) instead of html2canvas's own manual glyph-drawing
-  // logic — letterRendering alone didn't fix the garbled Persian text (still visible in the
-  // saved file, confirmed from screenshots), because that option only changes HOW html2canvas
-  // measures/positions text it draws itself; it doesn't make html2canvas understand Arabic-
-  // script letter joining. Using the real rendering engine sidesteps that limitation entirely.
   //
-  // Switching the FORM's own font to Tahoma wasn't enough to stop the resulting canvas from
-  // being tainted (still came out solid black) — foreignObjectRendering appears to taint on
-  // the mere PRESENCE of a cross-origin @font-face reference anywhere in the document, not
-  // just ones the captured element itself uses. The page's global Vazirmatn <link> is still
-  // sitting in <head> throughout, regardless of what font this form asks for. So: physically
-  // detach that stylesheet link from the document for the few moments of the actual capture,
-  // then put it straight back — nothing else on the page needs it for that brief window since
-  // the print-form overlay is covering everything anyway.
-  var fontLinkEls = Array.prototype.slice.call(document.querySelectorAll('link[href*="fonts.googleapis.com"]'));
-  var fontLinkParents = fontLinkEls.map(function(el){ return el.parentNode; });
-  fontLinkEls.forEach(function(el){ el.parentNode.removeChild(el); });
-
-  var canvas;
-  try {
-    canvas = await html2canvas(captureEl, {scale: 3, useCORS: true, backgroundColor: '#ffffff', letterRendering: true, foreignObjectRendering: true});
-  } finally {
-    fontLinkEls.forEach(function(el, i){ fontLinkParents[i].appendChild(el); });
-  }
+  // foreignObjectRendering:true (tried in several follow-up attempts, including detaching the
+  // Google Fonts <link> from the document during capture) was meant to fix Persian letter
+  // shaping by using the browser's own real text rendering — but it kept producing a solid
+  // black file no matter what was tried, which is a far worse outcome than imperfect-but-
+  // visible text. Reliability wins here: back to html2canvas's default (non-SVG) rendering,
+  // which reliably produces real, visible output. letterRendering:true and a higher scale
+  // factor still help the default renderer's own text shaping somewhat.
+  var canvas = await html2canvas(captureEl, {scale: 4, useCORS: true, backgroundColor: '#ffffff', letterRendering: true});
   wrapperEl.style.display = 'none';
   wrapperEl.innerHTML = '';
   var imgData = canvas.toDataURL('image/jpeg', 0.92);
