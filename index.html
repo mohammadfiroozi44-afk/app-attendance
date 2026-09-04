@@ -1245,7 +1245,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-04-overtime-formula-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-04-nightshift-presence-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3355,7 +3355,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-04-overtime-formula-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-04-nightshift-presence-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4849,11 +4849,25 @@ async function loadDashboard(){
   todayLogsAllUsers.forEach(function(e){ if(e.type === 'ورود') hadAttendanceTodayUsers[e.username] = true; });
   var byUserLogs = {};
   logs.forEach(function(e){ (byUserLogs[e.username] = byUserLogs[e.username] || []).push(e); });
+  var PRESENCE_HOURS_LIMIT = 17; // an open check-in older than this is treated as forgotten/overdue, not "still present"
+  var nowMsDash = new Date().getTime();
   var presentNowUsers = {}; // currently checked in — latest log entry overall is ورود, with no خروج after it yet
-  Object.keys(hadAttendanceTodayUsers).forEach(function(username){
-    var userLogs = (byUserLogs[username] || []).slice().sort(function(a,b){ return isoCompare(a.isoTimestamp, b.isoTimestamp); });
+  // Checking only users who show up in TODAY's own logs was the bug: a night-shift employee
+  // (e.g. a guard) who checked in yesterday evening and hasn't checked out yet never appears
+  // in hadAttendanceTodayUsers at all (their check-in is dated yesterday), so they silently
+  // never counted as present no matter how recently they'd checked in. Checking every
+  // employee's own latest log entry — regardless of which calendar day it started — and
+  // judging by ELAPSED TIME instead of calendar date fixes this the same way getOpenSessions
+  // already correctly does for the "تردد ناقص" admin tool.
+  Object.keys(byUserLogs).forEach(function(username){
+    var userLogs = byUserLogs[username].slice().sort(function(a,b){ return isoCompare(a.isoTimestamp, b.isoTimestamp); });
     var latest = userLogs[userLogs.length-1];
-    if(latest && latest.type === 'ورود') presentNowUsers[username] = true;
+    if(!latest || latest.type !== 'ورود') return;
+    var hoursSinceCheckin = (nowMsDash - new Date(latest.isoTimestamp).getTime()) / 3600000;
+    if(hoursSinceCheckin <= PRESENCE_HOURS_LIMIT){
+      presentNowUsers[username] = true;
+      hadAttendanceTodayUsers[username] = true; // also counts toward "کل حضور امروز" and removes them from "غایب"
+    }
   });
   var todayLogs = todayLogsAllUsers;
   var presentUsersToday = presentNowUsers;
@@ -4890,7 +4904,11 @@ async function loadDashboard(){
   var todayPairs = allPairsForToday.filter(function(p){
     var inIsToday = p.inE && p.inE.jalaliDate === todayStr;
     var outIsToday = p.outE && p.outE.jalaliDate === todayStr;
-    return inIsToday || outIsToday;
+    // Also include a still-open check-in (no checkout yet) that started before today but is
+    // still within the same "currently present" window used above — otherwise a night-shift
+    // employee stayed invisible here too, right up until the moment they finally checked out.
+    var stillOpenAndRecent = !p.outE && p.inE && presentNowUsers[p.username] && (nowMsDash - new Date(p.inE.isoTimestamp).getTime())/3600000 <= PRESENCE_HOURS_LIMIT;
+    return inIsToday || outIsToday || stillOpenAndRecent;
   }).sort(function(a,b){ return String(b.sortKey).localeCompare(String(a.sortKey)); });
   if(todayPairs.length === 0){
     trafficBox.innerHTML = '<div class="empty">هنوز تردی ثبت نشده</div>';
