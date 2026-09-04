@@ -1250,7 +1250,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-03-pdf-text-cellfit-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-03-pdf-foreignobject-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3315,7 +3315,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-03-pdf-text-cellfit-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-03-pdf-foreignobject-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5228,7 +5228,7 @@ async function generatePerformancePdf(){
   }).join('');
 
   var html =
-    '<div style="font-family:'+PDF_FONT+'; direction:rtl; padding:4mm; page-break-inside:avoid;">'+
+    '<div id="pdfFormContent" style="font-family:'+PDF_FONT+'; direction:rtl; padding:4mm; width:210mm; box-sizing:border-box; background:#fff; color:#000;">'+
       '<div style="text-align:center; font-weight:800; font-size:12px; margin-bottom:3px;">فرم ثبت ساعت ورود و خروج کارکنان</div>'+
       '<div style="display:flex; justify-content:space-between; font-size:9px; margin-bottom:4px; border-bottom:1px solid #333; padding-bottom:3px;">'+
         '<span><b>نام و نام‌خانوادگی:</b> '+esc(res.fullName)+(res.employeeCode?(' (کد '+esc(res.employeeCode)+')'):'')+'</span>'+
@@ -5261,8 +5261,8 @@ async function generatePerformancePdf(){
       '</div>'+
     '</div>';
 
-  var captureEl = document.getElementById('pdfPrintArea');
-  captureEl.innerHTML = html;
+  var wrapperEl = document.getElementById('pdfPrintArea');
+  wrapperEl.innerHTML = html;
   // Briefly show this as a real, normal, in-viewport overlay (not display:none, and not
   // positioned thousands of pixels off-screen) while html2canvas captures it — both of those
   // other approaches turned out unreliable: display:none produced washed-out/near-invisible
@@ -5270,12 +5270,19 @@ async function generatePerformancePdf(){
   // extreme off-screen positioning was disrupting the whole page's scroll/layout afterward,
   // leaving the drawer and other fixed UI visibly broken. A plain, briefly-visible overlay
   // avoids both problems, at the cost of a very short visible flash of the form on screen.
-  captureEl.style.display = 'block';
+  wrapperEl.style.display = 'block';
 
   showAdminNotice('در حال ساختِ فایلِ PDF... چند لحظه صبر کن.');
   // Give the browser one tick to actually finish laying out the newly-inserted content
   // before capturing it — otherwise html2canvas can grab it mid-render.
   await new Promise(function(resolve){ setTimeout(resolve, 60); });
+
+  // Capture the FIXED-WIDTH inner form div specifically — not the full-screen wrapper around
+  // it. The wrapper stretches to the whole viewport (position:fixed; inset:0), so capturing
+  // IT meant html2canvas grabbed the entire phone-screen-sized area (mostly blank space below
+  // the actual short form), which is exactly what was producing a wrongly-proportioned/wrong-
+  // sized PDF page once that odd aspect ratio got fitted into an A4 page.
+  var captureEl = document.getElementById('pdfFormContent');
 
   // Renders the ALREADY correctly-styled HTML (Persian text, RTL, fonts, table borders —
   // everything built above) into an image, then embeds that image into a real PDF file and
@@ -5284,13 +5291,15 @@ async function generatePerformancePdf(){
   // approaches using those were each unreliable in different ways on this device (silently
   // ignored, printed the wrong content, or crashed the installed app outright), while a
   // direct Blob download is the same reliable mechanism the CSV button has always used.
-  // letterRendering:true is the documented html2canvas fix for exactly the garbled/reshaped
-  // text seen with Persian and other complex/cursive scripts — without it, html2canvas can
-  // measure and place whole text runs using assumptions that don't hold for Arabic-script
-  // letter joining, scrambling how the letters end up positioned relative to each other.
-  var canvas = await html2canvas(captureEl, {scale: 3, useCORS: true, backgroundColor: '#ffffff', letterRendering: true});
-  captureEl.style.display = 'none';
-  captureEl.innerHTML = '';
+  // foreignObjectRendering:true routes the capture through the browser's OWN real HTML/text
+  // rendering (via an SVG <foreignObject>) instead of html2canvas's own manual glyph-drawing
+  // logic — letterRendering alone didn't fix the garbled Persian text (still visible in the
+  // saved file, confirmed from screenshots), because that option only changes HOW html2canvas
+  // measures/positions text it draws itself; it doesn't make html2canvas understand Arabic-
+  // script letter joining. Using the real rendering engine sidesteps that limitation entirely.
+  var canvas = await html2canvas(captureEl, {scale: 3, useCORS: true, backgroundColor: '#ffffff', letterRendering: true, foreignObjectRendering: true});
+  wrapperEl.style.display = 'none';
+  wrapperEl.innerHTML = '';
   var imgData = canvas.toDataURL('image/jpeg', 0.92);
   var pdf = new jspdf.jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
   var pageWidth = pdf.internal.pageSize.getWidth();
