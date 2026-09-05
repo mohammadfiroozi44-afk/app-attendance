@@ -1245,7 +1245,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-04-nightshift-presence-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-04-monthly-second-shift"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2320,16 +2320,31 @@ async function loadMonthDaysForBulkEntry(){
     }
     var dayInMap = {};
     var dayOutMap = {};
+    var dayIn2Map = {};
+    var dayOut2Map = {};
     var outCarryoverMap = {};
+    var out2CarryoverMap = {};
     var inPairOutDateMap = {}; // dateKey -> the jalaliDate of THIS SAME pair's own outE, or null if genuinely no outE at all
+    // Group whole PAIRS by the day they belong to first — a pair "belongs" to the day its
+    // check-in started on, or (for a carryover checkout with no check-in of its own) the day
+    // the checkout itself landed on. allPairs is already in chronological order, so the first
+    // pair found for a given day is naturally "shift 1" and a second one is "shift 2" — this
+    // replaces the old logic that just overwrote a single in/out slot and silently lost
+    // whichever pair it saw last whenever a day genuinely had two separate shifts.
+    var pairsByDayKey = {};
     allPairs.forEach(function(p){
-      if(p.inE){
-        dayInMap[normDateKey(p.inE.jalaliDate)] = p.inE;
-        inPairOutDateMap[normDateKey(p.inE.jalaliDate)] = p.outE ? p.outE.jalaliDate : null;
-      }
-      if(p.outE){
-        dayOutMap[normDateKey(p.outE.jalaliDate)] = p.outE;
-        outCarryoverMap[normDateKey(p.outE.jalaliDate)] = !p.inE || (normDateKey(p.inE.jalaliDate) !== normDateKey(p.outE.jalaliDate));
+      var kDay = p.inE ? normDateKey(p.inE.jalaliDate) : normDateKey(p.outE.jalaliDate);
+      if(!pairsByDayKey[kDay]) pairsByDayKey[kDay] = [];
+      pairsByDayKey[kDay].push(p);
+    });
+    Object.keys(pairsByDayKey).forEach(function(kDay){
+      var dayPairs = pairsByDayKey[kDay];
+      var p1 = dayPairs[0], p2 = dayPairs[1];
+      if(p1.inE){ dayInMap[kDay] = p1.inE; inPairOutDateMap[kDay] = p1.outE ? p1.outE.jalaliDate : null; }
+      if(p1.outE){ dayOutMap[kDay] = p1.outE; outCarryoverMap[kDay] = !p1.inE || (normDateKey(p1.inE.jalaliDate) !== kDay); }
+      if(p2){
+        if(p2.inE) dayIn2Map[kDay] = p2.inE;
+        if(p2.outE){ dayOut2Map[kDay] = p2.outE; out2CarryoverMap[kDay] = !p2.inE || (normDateKey(p2.inE.jalaliDate) !== kDay); }
       }
     });
 
@@ -2344,9 +2359,14 @@ async function loadMonthDaysForBulkEntry(){
       var dateKeyNorm = d + '|' + monthName + '|' + year;
       var inE = dayInMap[dateKeyNorm] || null;
       var outE = dayOutMap[dateKeyNorm] || null;
+      var in2E = dayIn2Map[dateKeyNorm] || null;
+      var out2E = dayOut2Map[dateKeyNorm] || null;
       var inTimeNorm = inE ? normTimeForSubmit(inE.time) : null;
       var outTimeNorm = outE ? normTimeForSubmit(outE.time) : null;
+      var in2TimeNorm = in2E ? normTimeForSubmit(in2E.time) : null;
+      var out2TimeNorm = out2E ? normTimeForSubmit(out2E.time) : null;
       var outIsCarryover = !!outCarryoverMap[dateKeyNorm];
+      var out2IsCarryover = !!out2CarryoverMap[dateKeyNorm];
       var dateKey = year*10000 + monthIdx*100 + d;
       var matchingLeave = empLeaves.filter(function(l){
         var sKey = jalaliDateSortKeyClient(l.startDate);
@@ -2363,11 +2383,14 @@ async function loadMonthDaysForBulkEntry(){
       window._bulkExisting[d] = {
         inId: inE ? inE.id : null, inTime: inTimeNorm, inProject: inE ? inE.project : null,
         outId: outE ? outE.id : null, outTime: outTimeNorm, outDate: outE ? outE.jalaliDate : null, outProject: outE ? outE.project : null,
+        in2Id: in2E ? in2E.id : null, in2Time: in2TimeNorm, in2Project: in2E ? in2E.project : null,
+        out2Id: out2E ? out2E.id : null, out2Time: out2TimeNorm, out2Date: out2E ? out2E.jalaliDate : null, out2Project: out2E ? out2E.project : null,
         leaveId: matchingLeave ? matchingLeave.id : null, leaveIsMultiDay: leaveIsMultiDay,
         missionId: matchingMission ? matchingMission.id : null,
         missionStartTime: matchingMission ? matchingMission.startTime : null, missionEndTime: matchingMission ? matchingMission.endTime : null
       };
       var hasData = inE || outE;
+      var hasSecondShiftData = in2E || out2E;
       var persistedStatus = dayStatusMap[dateStr] || null; // 'غیبت' | 'off' | null, from a previous save
       var isOffChecked = persistedStatus ? (persistedStatus === 'off') : (isHol && !hasData);
       var isAbsenceChecked = persistedStatus === 'غیبت';
@@ -2378,6 +2401,8 @@ async function loadMonthDaysForBulkEntry(){
       // if this is a mission day, pre-fill the time fields with the mission's own start/end (not a regular check-in/out)
       var displayInTime = hasMission ? (matchingMission.startTime||'') : (inTimeNorm?inTimeNorm.slice(0,5):'');
       var displayOutTime = hasMission ? (matchingMission.endTime||'') : (outTimeNorm?outTimeNorm.slice(0,5):'');
+      var displayIn2Time = in2TimeNorm ? in2TimeNorm.slice(0,5) : '';
+      var displayOut2Time = out2TimeNorm ? out2TimeNorm.slice(0,5) : '';
       var thisPairOutDate = inPairOutDateMap.hasOwnProperty(dateKeyNorm) ? inPairOutDateMap[dateKeyNorm] : undefined;
       var inNote = '';
       if(!hasMission && inE){
@@ -2388,6 +2413,7 @@ async function loadMonthDaysForBulkEntry(){
         }
       }
       var outNote = (!hasMission && outIsCarryover) ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
+      var out2Note = out2IsCarryover ? '<div style="font-size:10px; color:#3b4a8f;">⬅️ ادامه دیشب</div>' : '';
       var leaveNote = leaveIsMultiDay ? '<div style="font-size:10px; color:#8a5a10;">بخشی از مرخصیِ چندروزه — از تب «درخواست‌ها» ویرایش کن</div>' : '';
       rows.push(
         '<div class="date-row" id="bulkRow'+d+'" style="align-items:center; margin-bottom:2px;'+(hasData?' background:#eaf3ec; border-radius:8px 8px 0 0; padding:4px;':'')+'">'+
@@ -2400,6 +2426,18 @@ async function loadMonthDaysForBulkEntry(){
             outNote+'</div>'+
           (hasData ? '<button type="button" class="icon-btn del" title="پاک‌کردن ساعت‌های این روز" onclick="clearBulkDay('+d+')" style="flex-shrink:0;">✕</button>' : '<span style="width:28px; flex-shrink:0;"></span>')+
           '<button type="button" class="icon-btn" title="فقط همین روز رو ذخیره کن" onclick="saveSingleBulkDay('+d+')" style="flex-shrink:0;">💾</button>'+
+        '</div>'+
+        '<div class="date-row" style="margin:0 0 2px; padding:0 4px;'+(hasData?' background:#eaf3ec;':'')+'">'+
+          '<label style="display:flex; align-items:center; gap:4px; flex:1; font-size:11px; color:var(--muted);"><input type="checkbox" id="bulkDay'+d+'HasSecond" onchange="onBulkDaySecondToggle('+d+')" '+(hasSecondShiftData?'checked':'')+' '+(timeLocked?'disabled':'')+'> دارای ورود/خروج دوم</label>'+
+        '</div>'+
+        '<div class="date-row" id="bulkRow'+d+'Second" style="align-items:center; margin-bottom:2px; display:'+(hasSecondShiftData?'flex':'none')+';'+(hasData?' background:#eaf3ec;':'')+'">'+
+          '<span style="width:70px; flex-shrink:0; font-size:11px; color:var(--muted); align-self:center;">شیفت دوم</span>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'In2" style="width:100%;" value="'+esc(displayIn2Time)+'" '+(timeLocked?'disabled':'')+'>'+
+            '<button type="button" class="picker-display-btn" id="bulkDay'+d+'In2Btn" style="padding:8px 10px; margin-bottom:0; font-size:13px;" '+(timeLocked?'disabled':'')+'><span class="picker-display-text">—</span><span class="picker-arrow">🕐</span></button></div>'+
+          '<div style="flex:1;"><input type="time" id="bulkDay'+d+'Out2" style="width:100%;" value="'+esc(displayOut2Time)+'" '+(timeLocked?'disabled':'')+'>'+
+            '<button type="button" class="picker-display-btn" id="bulkDay'+d+'Out2Btn" style="padding:8px 10px; margin-bottom:0; font-size:13px;" '+(timeLocked?'disabled':'')+'><span class="picker-display-text">—</span><span class="picker-arrow">🕐</span></button>'+
+            out2Note+'</div>'+
+          '<span style="width:28px; flex-shrink:0;"></span>'+
         '</div>'+
         '<div class="date-row" style="margin:0 0 2px; padding:0 4px;'+(hasData?' background:#eaf3ec;':'')+'">'+
           '<span style="width:70px; flex-shrink:0; font-size:11px; color:var(--muted); align-self:center;">پروژه</span>'+
@@ -2419,6 +2457,8 @@ async function loadMonthDaysForBulkEntry(){
     for(var dw=1; dw<=daysCount; dw++){
       wireCustomTimePicker('bulkDay'+dw+'In', 'bulkDay'+dw+'InBtn', 'ساعت ورود — '+dw+' '+monthName, '—');
       wireCustomTimePicker('bulkDay'+dw+'Out', 'bulkDay'+dw+'OutBtn', 'ساعت خروج — '+dw+' '+monthName, '—');
+      wireCustomTimePicker('bulkDay'+dw+'In2', 'bulkDay'+dw+'In2Btn', 'ساعت ورودِ دوم — '+dw+' '+monthName, '—');
+      wireCustomTimePicker('bulkDay'+dw+'Out2', 'bulkDay'+dw+'Out2Btn', 'ساعت خروجِ دوم — '+dw+' '+monthName, '—');
     }
     wireCustomTimePicker('bulkFixedIn', 'bulkFixedInBtn', 'ساعت ورودِ ثابت');
     wireCustomTimePicker('bulkFixedOut', 'bulkFixedOutBtn', 'ساعت خروجِ ثابت');
@@ -2436,6 +2476,19 @@ async function loadMonthDaysForBulkEntry(){
     toSel.value = String(daysCount);
   } catch(err){
     box.innerHTML = '<div class="empty">⛔ خطا در بارگذاری: ' + esc(err && err.message ? err.message : String(err)) + '</div>';
+  }
+}
+function onBulkDaySecondToggle(d){
+  var checked = document.getElementById('bulkDay'+d+'HasSecond').checked;
+  var rowEl = document.getElementById('bulkRow'+d+'Second');
+  rowEl.style.display = checked ? 'flex' : 'none';
+  if(!checked){
+    // Clearing on uncheck (not just hiding) — leaving stale values behind would otherwise
+    // silently re-submit a second shift's old times even after the admin turned it off.
+    document.getElementById('bulkDay'+d+'In2').value = '';
+    document.getElementById('bulkDay'+d+'Out2').value = '';
+    syncTimeDisplay('bulkDay'+d+'In2', 'bulkDay'+d+'In2Btn', '—');
+    syncTimeDisplay('bulkDay'+d+'Out2', 'bulkDay'+d+'Out2Btn', '—');
   }
 }
 function onBulkDayStatusChange(d, kind){
@@ -2464,6 +2517,13 @@ function onBulkDayStatusChange(d, kind){
   if(outBtn) outBtn.disabled = locked;
   syncTimeDisplay('bulkDay'+d+'In', 'bulkDay'+d+'InBtn', '—');
   syncTimeDisplay('bulkDay'+d+'Out', 'bulkDay'+d+'OutBtn', '—');
+  // Leave/absence/Off means no work at all that day, so a second shift makes no sense
+  // alongside it — lock and clear it the same way the first shift's fields are handled above.
+  var hasSecondChk = document.getElementById('bulkDay'+d+'HasSecond');
+  if(hasSecondChk){
+    hasSecondChk.disabled = locked;
+    if(locked && hasSecondChk.checked){ hasSecondChk.checked = false; onBulkDaySecondToggle(d); }
+  }
 }
 function clearBulkDay(d){
   if(!confirm(d + 'ام این ماه پاک بشه؟ (با زدن «ثبت همه» حذف نهایی می‌شه)')) return;
@@ -2479,6 +2539,8 @@ function clearBulkDay(d){
   document.getElementById('bulkDay'+d+'Absence').checked = false;
   document.getElementById('bulkDay'+d+'Off').checked = false;
   document.getElementById('bulkDay'+d+'Mission').checked = false;
+  document.getElementById('bulkDay'+d+'HasSecond').checked = false;
+  onBulkDaySecondToggle(d);
 }
 function toggleBulkPasteBox(){
   var box = document.getElementById('bulkPasteBox');
@@ -2720,6 +2782,45 @@ async function saveSingleBulkDay(d){
       toDeleteS.push(ex.outId);
     }
 
+    var hasSecondChkS = document.getElementById('bulkDay'+d+'HasSecond');
+    var in2ValS = document.getElementById('bulkDay'+d+'In2') ? document.getElementById('bulkDay'+d+'In2').value : '';
+    var out2ValS = document.getElementById('bulkDay'+d+'Out2') ? document.getElementById('bulkDay'+d+'Out2').value : '';
+    if(hasSecondChkS && hasSecondChkS.checked){
+      if(in2ValS){
+        var in2TimeS = normTimeForSubmit(in2ValS);
+        if(ex.in2Id){
+          if(ex.in2Time !== in2TimeS || ex.in2Project !== project) toUpdateS.push({id: ex.in2Id, jalaliDate: jalaliDate, time: in2TimeS, type:'in'});
+        } else {
+          toCreateS.push({jalaliDate: jalaliDate, time: in2TimeS, type:'in'});
+        }
+      } else if(ex.in2Id){
+        toDeleteS.push(ex.in2Id);
+      }
+      if(out2ValS){
+        var out2TimeS = normTimeForSubmit(out2ValS);
+        var out2DateS = jalaliDate;
+        // A second check-in can never be legally BEFORE the first shift's checkout — the
+        // backend enforces this too (strict chronological + alternating in/out order), this
+        // just also lets the overnight-rollover date get computed the same way shift 1 does.
+        var isOvernight2S = in2ValS && (timeToMinutesClient(out2TimeS) < timeToMinutesClient(normTimeForSubmit(in2ValS)));
+        if(isOvernight2S){
+          var nd2S = nextJalaliDay(d, monthIdx, year);
+          out2DateS = nd2S.day + ' ' + jMonths[nd2S.monthIdx-1] + ' ' + nd2S.year;
+        }
+        if(ex.out2Id){
+          if(ex.out2Time !== out2TimeS || ex.out2Date !== out2DateS || ex.out2Project !== project) toUpdateS.push({id: ex.out2Id, jalaliDate: out2DateS, time: out2TimeS, type:'out'});
+        } else {
+          toCreateS.push({jalaliDate: out2DateS, time: out2TimeS, type:'out'});
+        }
+      } else if(ex.out2Id){
+        toDeleteS.push(ex.out2Id);
+      }
+    } else {
+      // checkbox unchecked — remove any previously-saved second shift for this day
+      if(ex.in2Id) toDeleteS.push(ex.in2Id);
+      if(ex.out2Id) toDeleteS.push(ex.out2Id);
+    }
+
     await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
       pin: adminPin, username: username, allDatesInMonth: [jalaliDate], entries: []
     }); });
@@ -2894,6 +2995,45 @@ async function submitMonthlyBulkLog(){
         }
       } else if(ex.outId){
         toDelete.push(ex.outId);
+      }
+
+      var hasSecondChk = document.getElementById('bulkDay'+d+'HasSecond');
+      var in2Val = document.getElementById('bulkDay'+d+'In2') ? document.getElementById('bulkDay'+d+'In2').value : '';
+      var out2Val = document.getElementById('bulkDay'+d+'Out2') ? document.getElementById('bulkDay'+d+'Out2').value : '';
+      if(hasSecondChk && hasSecondChk.checked){
+        if(in2Val){
+          var in2Time = normTimeForSubmit(in2Val);
+          if(ex.in2Id){
+            if(ex.in2Time !== in2Time || ex.in2Project !== project) toUpdate.push({id: ex.in2Id, jalaliDate: jalaliDate, time: in2Time, type:'in', project: project});
+          } else {
+            toCreate.push({jalaliDate: jalaliDate, time: in2Time, type:'in', project: project});
+          }
+        } else if(ex.in2Id){
+          toDelete.push(ex.in2Id);
+        }
+        if(out2Val){
+          var out2Time = normTimeForSubmit(out2Val);
+          var out2Date = jalaliDate;
+          // A second check-in can never legally land before the first shift's checkout — the
+          // backend enforces this too (strict chronological + alternating in/out order); this
+          // just also handles the overnight-rollover date the same way the first shift does.
+          var isOvernight2 = in2Val && (timeToMinutesClient(out2Time) < timeToMinutesClient(normTimeForSubmit(in2Val)));
+          if(isOvernight2){
+            var nd2 = nextJalaliDay(d, monthIdx, year);
+            out2Date = nd2.day + ' ' + jMonths[nd2.monthIdx-1] + ' ' + nd2.year;
+          }
+          if(ex.out2Id){
+            if(ex.out2Time !== out2Time || ex.out2Date !== out2Date || ex.out2Project !== project) toUpdate.push({id: ex.out2Id, jalaliDate: out2Date, time: out2Time, type:'out', project: project});
+          } else {
+            toCreate.push({jalaliDate: out2Date, time: out2Time, type:'out', project: project});
+          }
+        } else if(ex.out2Id){
+          toDelete.push(ex.out2Id);
+        }
+      } else {
+        // checkbox unchecked — remove any previously-saved second shift for this day
+        if(ex.in2Id) toDelete.push(ex.in2Id);
+        if(ex.out2Id) toDelete.push(ex.out2Id);
       }
     }
 
@@ -3355,7 +3495,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-04-nightshift-presence-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-04-monthly-second-shift'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
