@@ -1245,7 +1245,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-04-monthly-second-shift"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-04-checkedout-today-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3495,7 +3495,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-04-monthly-second-shift'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-04-checkedout-today-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5029,7 +5029,17 @@ async function loadDashboard(){
   document.getElementById('dashLeave').textContent = leaveCount;
   document.getElementById('dashAbsent').textContent = isTodayHoliday ? '🎌' : absentCount;
   var leftEl = document.getElementById('dashLeftToday');
-  if(leftEl) leftEl.textContent = Math.max(0, hadAttendanceCount - presentCount);
+  if(leftEl){
+    // Was computed as (hadAttendanceCount − presentCount) — but that misses anyone whose
+    // check-in happened yesterday (a night shift) and who checked out today: they're not in
+    // hadAttendanceTodayUsers (their check-in isn't dated today), and they're no longer in
+    // presentNowUsers either (they've since checked out), so the subtraction never counted
+    // them at all. Counting everyone with an actual checkout entry dated today directly
+    // avoids that gap regardless of which day their check-in happened to start on.
+    var checkedOutTodayUsers = {};
+    logs.forEach(function(e){ if(e.type === 'خروج' && e.jalaliDate === todayStr) checkedOutTodayUsers[e.username] = true; });
+    leftEl.textContent = Object.keys(checkedOutTodayUsers).length;
+  }
 
   var pendingReq = reqRes.ok ? (reqRes.requests||[]).filter(function(r){return r.status==='pending';}) : [];
   var pendingLeave = leavesRes.ok ? leaves.length!==undefined ? (leavesRes.leaves||[]).filter(function(r){return r.status==='pending';}) : [] : [];
