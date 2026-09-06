@@ -102,18 +102,25 @@
     z-index:80;
   }
   #globalProgressBar{
-    display:none; position:fixed; top:0; left:0; right:0; height:3px; z-index:99999;
-    background:#eee7d6; overflow:hidden;
+    display:none; position:fixed; inset:0; z-index:99999;
+    align-items:center; justify-content:center; pointer-events:none;
   }
-  #globalProgressBar .fill{
-    height:100%; width:30%;
-    background:linear-gradient(90deg,#2e7d4f,#e8892f);
-    animation: globalProgressSlide 1s infinite linear;
+  #globalProgressBar .spinner-badge{
+    position:relative; width:112px; height:112px; border-radius:50%;
+    background:var(--paper); box-shadow:var(--sh-lg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
   }
-  @keyframes globalProgressSlide{
-    0%{ transform:translateX(-100%); }
-    100%{ transform:translateX(400%); }
+  #globalProgressBar .spinner-ring{
+    position:absolute; inset:-6px; border-radius:50%;
+    border:5px solid transparent; border-top-color:var(--cyan); border-right-color:var(--cyan);
+    animation: spinnerRotate .9s linear infinite;
   }
+  @keyframes spinnerRotate{
+    0%{ transform:rotate(0deg); }
+    100%{ transform:rotate(360deg); }
+  }
+  #globalProgressBar .spinner-icon{ font-size:28px; line-height:1; }
+  #globalProgressBar .spinner-label{ font-size:12px; font-weight:800; color:var(--navy); }
 
   .tabs{display:flex; gap:8px; margin-bottom:14px;}
 
@@ -447,7 +454,13 @@
     </div>
   </div>
 </div>
-<div id="globalProgressBar"><div class="fill"></div></div>
+<div id="globalProgressBar">
+  <div class="spinner-badge">
+    <div class="spinner-ring"></div>
+    <div class="spinner-icon">🕐</div>
+    <div class="spinner-label">ترددیار</div>
+  </div>
+</div>
 
 <div class="wrap">
 
@@ -1245,7 +1258,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-04-checkedout-today-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-05-center-spinner"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1680,7 +1693,7 @@ function endApiTracking(wasWrite){
 }
 function showGlobalProgress(){
   var bar = document.getElementById('globalProgressBar');
-  if(bar) bar.style.display = 'block';
+  if(bar) bar.style.display = 'flex';
 }
 function hideGlobalProgress(){
   var bar = document.getElementById('globalProgressBar');
@@ -3495,7 +3508,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-04-checkedout-today-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-05-center-spinner'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
