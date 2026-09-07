@@ -1258,7 +1258,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-05-spinner-safety-timeout"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-05-silent-notification-poll"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1676,9 +1676,9 @@ function isWriteAction(action){
   if(action === 'holidaysPublic') return false;
   return true;
 }
-function beginApiTracking(action){
+function beginApiTracking(action, silent){
   _activeApiCalls++;
-  showGlobalProgress();
+  if(!silent) showGlobalProgress();
   var isWrite = isWriteAction(action);
   if(isWrite){ _activeWriteCalls++; window._submissionInProgress = true; }
   return isWrite;
@@ -1733,9 +1733,9 @@ async function parseJsonResponse(res){
     };
   }
 }
-async function apiGet(action, params){
+async function apiGet(action, params, silent){
   var qs = new URLSearchParams(Object.assign({action:action}, params||{})).toString();
-  var wasWrite = beginApiTracking(action);
+  var wasWrite = beginApiTracking(action, silent);
   try {
     var res = await fetch(API_URL + '?' + qs, {method:'GET'});
     return await parseJsonResponse(res);
@@ -1743,8 +1743,8 @@ async function apiGet(action, params){
     endApiTracking(wasWrite);
   }
 }
-async function apiPost(action, payload){
-  var wasWrite = beginApiTracking(action);
+async function apiPost(action, payload, silent){
+  var wasWrite = beginApiTracking(action, silent);
   try {
     var res = await fetch(API_URL, {
       method:'POST',
@@ -1932,7 +1932,11 @@ async function pollAdminLogUpdates(){
   _adminPollInFlight = true;
   try{
     var cursor = adminLastSeenIso;
-    var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin, sinceIso: cursor}); });
+    // silent:true — this runs on its own 25-second timer purely to check for notifications,
+    // not because the person asked for anything just now, so it must never show the visible
+    // loading spinner. That's exactly what was popping the spinner up on the dashboard every
+    // 25 seconds even while the person was just sitting there looking at it.
+    var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin, sinceIso: cursor}, true); });
     if(!res.ok) return;
     var cursorMs = cursor ? new Date(cursor).getTime() : 0;
     var maxSeenMs = cursorMs;
@@ -3523,7 +3527,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-05-spinner-safety-timeout'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-05-silent-notification-poll'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
