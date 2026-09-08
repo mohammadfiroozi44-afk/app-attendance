@@ -1258,7 +1258,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-06-editform-and-notify-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-06-editform-dropdown-fallback"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3514,7 +3514,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-06-editform-and-notify-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-06-editform-dropdown-fallback'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5584,13 +5584,14 @@ function renderLogTable(){
       var sideE = isEditingIn ? p.inE : p.outE;
       var existingId = sideE ? sideE.id : null;
       var refE = p.inE || p.outE;
-      // Matching by the STATIC .employee name string (rather than the reliable .username id)
-      // was the bug — if that string didn't exactly match any current employee's fullName for
-      // ANY reason (stale row data from before a rename, a stray space, etc.), NO <option>
-      // ended up marked selected, and the browser just silently displays whichever employee
-      // happens to be first in the list instead — showing a completely different person for
-      // an open/incomplete pair that has no matching side to read a name back off of.
-      var empOpts = employees.map(function(emp){ return '<option'+(emp.username===refE.username?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
+      // Match by username first (reliable, since it's the true identity key), but fall back
+      // to matching the .employee name string if THIS row happens to have no username at all
+      // (some older/admin-entered rows never got one) — matching by username alone left the
+      // dropdown showing nothing whenever that field was empty, which is worse than the
+      // original bug this was meant to fix. Falling back keeps both cases working.
+      var matchedEmpForEdit = employees.filter(function(emp){ return refE.username && emp.username === refE.username; })[0]
+        || employees.filter(function(emp){ return emp.fullName === refE.employee; })[0];
+      var empOpts = employees.map(function(emp){ return '<option'+(matchedEmpForEdit && emp.username===matchedEmpForEdit.username?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
       var prOpts = projects.map(function(pr){ return '<option'+(pr.name===refE.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
       var defaultDate = sideE ? sideE.jalaliDate : (refE ? refE.jalaliDate : jalaliString(new Date()));
       var timeVal = sideE ? normTimeForSubmit(sideE.time) : '';
