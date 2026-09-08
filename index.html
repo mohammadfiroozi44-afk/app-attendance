@@ -1258,7 +1258,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-05-excel-project-column"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-05-startup-flicker-shared-cursor"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1691,6 +1691,12 @@ function endApiTracking(wasWrite){
     if(_activeWriteCalls === 0) window._submissionInProgress = false;
   }
 }
+window._appStartupTime = Date.now();
+var STARTUP_GRACE_MS = 4500; // covers not just the splash screen itself, but the burst of
+// several concurrent initial data loads (projects, my logs, my requests, my leaves, offline
+// sync) that init() fires right after — those used to each flicker the spinner on and off as
+// they finished at slightly different times, even though nothing the person actually asked
+// for was still pending by that point.
 function showGlobalProgress(){
   // The splash sequence (own brand, then company brand) is its own presentation — showing
   // this spinner on top of it just covers up both logos with an unrelated loading circle,
@@ -1698,6 +1704,7 @@ function showGlobalProgress(){
   // still on screen; it resumes normally for every request after that.
   var splash = document.getElementById('splashScreen');
   if(splash && splash.style.display !== 'none') return;
+  if(Date.now() - window._appStartupTime < STARTUP_GRACE_MS) return;
   var bar = document.getElementById('globalProgressBar');
   if(bar) bar.style.display = 'flex';
   // Safety cap — a secondary, lower-priority background call (a silent refresh alongside the
@@ -1913,57 +1920,37 @@ function employeeLogout(){
 // ---------- Admin live check-in/check-out notifications ----------
 // Local (on-device) notifications only fire while the admin's browser tab/app is open —
 // there is no server-push here (see project notes on Firebase Cloud Messaging for that).
-// Polls for any log rows newer than the last one acknowledged and shows a notification for
-// each. The acknowledged cursor is persisted (not just held in a JS variable) specifically so
-// it survives page reloads/navigation and can never accidentally rewind and re-notify about
-// something already shown.
-var adminLastSeenIso = null;
+// The "already seen" cursor now lives on the SERVER (see getLogsSince in Code.gs), not in
+// this device's own localStorage — that was exactly why the same event kept re-notifying on
+// every separate device/browser session: each one tracked its own cursor from scratch and
+// had no way to know another device had already shown that same notification. The server
+// now advances a single shared cursor, so each event notifies exactly once in total.
 var _adminLogWatcherTimer = null;
 var _adminPollInFlight = false; // prevents overlapping polls from racing each other
-function getAdminNotifyCursor(){
-  try{ return localStorage.getItem('adminNotifyCursor') || null; }catch(e){ return null; }
-}
-function setAdminNotifyCursor(iso){
-  adminLastSeenIso = iso;
-  try{ localStorage.setItem('adminNotifyCursor', iso); }catch(e){}
-}
 async function pollAdminLogUpdates(){
   if(!adminPin || _adminPollInFlight) return;
   _adminPollInFlight = true;
   try{
-    var cursor = adminLastSeenIso;
     // silent:true — this runs on its own 25-second timer purely to check for notifications,
     // not because the person asked for anything just now, so it must never show the visible
     // loading spinner. That's exactly what was popping the spinner up on the dashboard every
     // 25 seconds even while the person was just sitting there looking at it.
-    var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin, sinceIso: cursor}, true); });
+    var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin}, true); });
     if(!res.ok) return;
-    var cursorMs = cursor ? new Date(cursor).getTime() : 0;
-    var maxSeenMs = cursorMs;
-    var maxSeenIso = cursor;
     (res.logs||[]).forEach(function(entry){
-      var entryMs = new Date(entry.isoTimestamp).getTime();
-      if(isNaN(entryMs) || entryMs <= cursorMs) return; // strictly newer than the acknowledged cursor only
       var typeLabel = entry.type === 'ورود' ? 'ورود زد' : 'خروج زد';
       var icon = entry.type === 'ورود' ? '✅' : '🚪';
       showLocalNotification(
         icon + ' ' + currentEmployeeName(entry.username, entry.employee) + ' ' + typeLabel,
         (entry.project ? entry.project + ' — ' : '') + 'ساعت ' + entry.time
       );
-      if(entryMs > maxSeenMs){ maxSeenMs = entryMs; maxSeenIso = entry.isoTimestamp; }
     });
-    // Advance the cursor to whichever is later: the newest entry actually seen, or the
-    // server's own clock (covers the case where nothing new happened this round).
-    var serverMs = res.serverNowIso ? new Date(res.serverNowIso).getTime() : maxSeenMs;
-    setAdminNotifyCursor(serverMs >= maxSeenMs ? res.serverNowIso : maxSeenIso);
   } finally {
     _adminPollInFlight = false;
   }
 }
 function startAdminLogWatcher(){
   if(_adminLogWatcherTimer) return; // already running — don't stack a second interval
-  adminLastSeenIso = getAdminNotifyCursor() || new Date().toISOString(); // first-ever run starts from now, not all of history
-  if(!getAdminNotifyCursor()) setAdminNotifyCursor(adminLastSeenIso);
   _adminLogWatcherTimer = setInterval(pollAdminLogUpdates, 25000);
 }
 function stopAdminLogWatcher(){
@@ -3527,7 +3514,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-05-excel-project-column'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-05-startup-flicker-shared-cursor'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
