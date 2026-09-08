@@ -1258,7 +1258,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-05-startup-flicker-shared-cursor"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-05-filename-monthyear"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3514,7 +3514,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-05-startup-flicker-shared-cursor'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-05-filename-monthyear'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5333,8 +5333,16 @@ var PERF_METRIC_LABELS = [
   {key:'holidayMin', label:'تعطیل‌کاری'},
   {key:'breakMin', label:'استراحت (روزهای عادی)'},
   {key:'holidayBreakMin', label:'استراحت (جمعه/تعطیل)'},
-  {key:'grandOvertimeMin', label:'جمعِ کلِ اضافه‌کاری'}
+  {key:'grandOvertimeMin', label:'جمعِ کلِ اضافه‌کاری'},
+  {key:'missionDaysCount', label:'تعداد روز ماموریت', isCount:true}
 ];
+// missionDaysCount is a plain count of days, not a duration — running it through
+// minutesToHM would treat e.g. 3 (days) as 3 MINUTES and print "0:03", which is wrong. Every
+// place that renders PERF_METRIC_LABELS needs to check isCount and skip the HH:MM formatting
+// for it specifically.
+function formatPerfMetric(m, value){
+  return m.isCount ? String(value||0) : minutesToHM(value);
+}
 async function loadMonthlyPerformanceReport(){
   var monthName = document.getElementById('perfReportMonth').value;
   var year = document.getElementById('perfReportYear').value;
@@ -5369,7 +5377,7 @@ function renderPerfReportCards(){
     var rows = PERF_METRIC_LABELS.map(function(m){
       return '<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid var(--border-soft);">'+
         '<span style="color:var(--muted); font-size:13px;">'+m.label+'</span>'+
-        '<span class="mono" style="font-weight:700;">'+minutesToHM(r[m.key])+'</span>'+
+        '<span class="mono" style="font-weight:700;">'+formatPerfMetric(m, r[m.key])+'</span>'+
       '</div>';
     }).join('');
     return '<div class="card" style="margin-bottom:12px;">'+
@@ -5382,10 +5390,18 @@ function exportPerformanceCSV(){
   if(_perfReportResults.length === 0){ alert('اول گزارش را بارگذاری کن.'); return; }
   var monthName = document.getElementById('perfReportMonth').value;
   var yearVal = document.getElementById('perfReportYear').value;
+  // Exports whichever employees are currently visible under the name/code filter — not
+  // always everyone that was originally loaded. If the filter is narrowed down to one
+  // person, the download should be just that person; clear the filter first to get everyone.
+  var q = (document.getElementById('perfFilterSearch').value||'').trim().toLowerCase();
+  var exportList = !q ? _perfReportResults : _perfReportResults.filter(function(r){
+    return String(r.fullName||'').toLowerCase().indexOf(q)!==-1 || String(r.employeeCode||'').toLowerCase().indexOf(q)!==-1;
+  });
+  if(exportList.length === 0){ alert('با این فیلتر پرسنلی یافت نشد.'); return; }
   var header = ['نام','کد پرسنلی','ماه','سال'].concat(PERF_METRIC_LABELS.map(function(m){ return m.label; }));
   var rows = [header.join(',')];
-  _perfReportResults.forEach(function(r){
-    var line = ['"'+r.fullName+'"', r.employeeCode||'', monthName, yearVal].concat(PERF_METRIC_LABELS.map(function(m){ return minutesToHM(r[m.key]); }));
+  exportList.forEach(function(r){
+    var line = ['"'+r.fullName+'"', r.employeeCode||'', monthName, yearVal].concat(PERF_METRIC_LABELS.map(function(m){ return formatPerfMetric(m, r[m.key]); }));
     rows.push(line.join(','));
   });
   var blob = new Blob(['\ufeff'+rows.join('\n')], {type:'text/csv;charset=utf-8;'});
@@ -5476,7 +5492,7 @@ async function generateEmployeeFormExcel(){
   var blob = new Blob(['\ufeff'+csvText], {type:'text/csv;charset=utf-8;'});
   var link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = res.fullName + (res.employeeCode ? ('-'+res.employeeCode) : '') + '-ترددیار.csv';
+  link.download = res.fullName + (res.employeeCode ? ('-'+res.employeeCode) : '') + '-' + monthName + '-' + year + '-ترددیار.csv';
   link.click();
  } catch(errXls){
   showAdminNotice('ساخت فایل ناموفق بود: ' + (errXls && errXls.message ? errXls.message : String(errXls)));
@@ -5902,7 +5918,7 @@ async function loadMyPerf(){
   box.innerHTML = PERF_METRIC_LABELS.map(function(m){
     return '<div style="display:flex; justify-content:space-between; align-items:center; padding:9px 4px; border-bottom:1px solid var(--border-soft);">'+
       '<span style="color:var(--muted); font-size:13.5px;">'+m.label+'</span>'+
-      '<span class="mono" style="font-weight:700; font-size:15px;">'+minutesToHM(t[m.key])+'</span>'+
+      '<span class="mono" style="font-weight:700; font-size:15px;">'+formatPerfMetric(m, t[m.key])+'</span>'+
     '</div>';
   }).join('');
 }
