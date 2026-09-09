@@ -959,6 +959,8 @@
       <button type="button" class="btn btn-ghost" onclick="backfillLogSourceBtn()">🏷️ پرکردن ستون دستی/اتومات برای داده‌های قدیمی</button>
       <div class="hint" style="margin-top:10px;">این گزینه مأموریت‌های تأییدشده‌ای که ساعت ورود و خروج آن‌ها هنوز به گزارش اضافه نشده را یافته و اضافه می‌کند؛ اجرای دوباره باعث ثبت تکراری نمی‌شود.</div>
       <button type="button" class="btn btn-ghost" onclick="backfillMissionLogsBtn()">🚗 اضافه‌کردن ساعتِ ماموریت‌های قدیمی به گزارش</button>
+      <div class="hint" style="margin-top:10px;">وقتی اسمِ یک پرسنل رو ویرایش می‌کنی، ثبت‌های قدیمیِ اون تو Logs، درخواست‌ها، مرخصی‌ها و... همچنان اسمِ قبلی رو نشون می‌دن. این گزینه اسمِ همه‌ی این ثبت‌های قدیمی رو (بر اساسِ شناسه‌ی کاربری، نه اسم) با اسمِ فعلیِ هر پرسنل به‌روز می‌کنه.</div>
+      <button type="button" class="btn btn-ghost" onclick="syncEmployeeNamesBtn()">🏷️ به‌روزرسانیِ نامِ پرسنل در همه‌ی شیت‌ها</button>
       <div class="hint" style="margin-top:10px;">این گزینه یک فیلتر (فلش‌های بالای ستون‌ها) به تمام شیت‌های اصلی گوگل‌شیت اضافه می‌کند. شیت Logs بر اساس تاریخ و ساعت واقعی مرتب می‌شود؛ سایر شیت‌ها فقط فیلتر دریافت می‌کنند و مرتب‌سازی آن‌ها از طریق فلش فیلتر امکان‌پذیر است.</div>
       <button type="button" class="btn btn-ghost" onclick="setupSheetFiltersBtn()">📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها</button>
       <div class="hint" style="margin-top:10px;">این گزینه بررسی می‌کند دیروز تعطیل بوده یا نه؛ در صورت تعطیل بودن، برای پرسنلی که تردد یا مرخصی/مأموریتی برای آن روز ثبت نشده، وضعیت «آف» را در سیستم ثبت می‌کند. این کار به‌صورت خودکار و روزانه هم قابل انجام است — برای فعال‌سازی زمان‌بندی خودکار، به راهنمای فنی مراجعه کنید.</div>
@@ -1142,6 +1144,7 @@
         <option value="out">خروج</option>
         <option value="leave">مرخصی (کل روز)</option>
         <option value="absence">غیبت</option>
+        <option value="off">Off (تعطیل)</option>
         <option value="mission">ماموریت (کل روز)</option>
       </select>
       <div id="adminLogLeaveCategoryRow" style="display:none;">
@@ -1258,7 +1261,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-06-block-orphan-checkout"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-06-name-sync-and-off-type"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3207,9 +3210,9 @@ function closeAdminLogSheet(){
 function onAdminLogTypeChange(){
   var type = document.getElementById('adminLogType').value;
   var isLeaveOrMission = (type === 'leave' || type === 'mission');
-  var isAbsence = (type === 'absence');
+  var isAbsenceOrOff = (type === 'absence' || type === 'off');
   document.getElementById('adminLogLeaveCategoryRow').style.display = (type === 'leave') ? 'block' : 'none';
-  document.getElementById('adminLogTimeRow').style.display = (isLeaveOrMission || isAbsence) ? 'none' : 'block';
+  document.getElementById('adminLogTimeRow').style.display = (isLeaveOrMission || isAbsenceOrOff) ? 'none' : 'block';
 }
 async function submitAdminLog(){
   var username = document.getElementById('adminLogEmp').value;
@@ -3231,11 +3234,11 @@ async function submitAdminLog(){
     return;
   }
 
-  if(type === 'absence'){
+  if(type === 'absence' || type === 'off'){
     var res = await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
       pin: adminPin, username: username,
       allDatesInMonth: [jalaliDate],
-      entries: [{jalaliDate: jalaliDate, status: 'غیبت'}]
+      entries: [{jalaliDate: jalaliDate, status: type === 'off' ? 'Off' : 'غیبت'}]
     }); });
     if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + (res.error||'')); return; }
     clearAdminNotice(); closeAdminLogSheet(); alert('ثبت شد.'); refreshCurrentAdminSection();
@@ -3500,6 +3503,16 @@ async function backfillLogSourceBtn(){
   clearAdminNotice();
   alert('انجام شد. از '+res.total+' ثبت، '+res.filled+' مورد پر شد (بقیه از قبل مقدار داشتن).');
 }
+async function syncEmployeeNamesBtn(){
+  if(!confirm('اسمِ همه‌ی ثبت‌های قدیمی تو Logs، درخواست‌ها، مرخصی‌ها و... با اسمِ فعلیِ هر پرسنل (بر اساسِ شناسه‌ی کاربری) به‌روز می‌شه. ادامه بدم؟')) return;
+  var btn = event.target;
+  btn.disabled = true; btn.textContent = 'در حال به‌روزرسانی...';
+  var res = await apiCall(function(){ return apiPost('syncEmployeeNamesEverywhere', {pin:adminPin}); });
+  btn.disabled = false; btn.textContent = '🏷️ به‌روزرسانیِ نامِ پرسنل در همه‌ی شیت‌ها';
+  if(!res.ok){ showAdminNotice('به‌روزرسانیِ نام‌ها ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  alert('انجام شد. '+res.fixed+' ردیف با اسمِ قدیمی، به‌روز شد.');
+}
 async function setupSheetFiltersBtn(){
   if(!confirm('یه فیلتر به همه‌ی شیت‌های اصلی اضافه می‌شه و Logs بر اساس تاریخ واقعی مرتب می‌شه. ادامه بدم؟')) return;
   var btn = event.target;
@@ -3518,7 +3531,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-06-block-orphan-checkout'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-06-name-sync-and-off-type'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
