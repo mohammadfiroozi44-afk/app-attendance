@@ -1258,7 +1258,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-06-editform-dropdown-fallback"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-06-block-orphan-checkout"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3142,6 +3142,8 @@ async function submitMonthlyBulkLog(){
             ? 'دو ورود پشت‌سرهم بدون خروج بینشون — دور ساعت (' + (res.at||'') + ') یه خروج قبلش کم داره (مثلاً برای شیفت شب، خروج روز بعد رو هم پر کن).'
             : res.error === 'expected_checkin_first'
             ? 'خروج بدون ورودِ باز قبلش — دور ساعت (' + (res.at||'') + ') یه ورود قبلش کم داره.'
+            : res.error === 'no_open_checkin'
+            ? 'این پرسنل قبل از این ساعت (' + (res.at||'') + ') هیچ ورودِ بازی نداره — اول باید یه ورود براش ثبت کنی.'
             : (res.error || 'خطای شبکه');
           statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msg;
           statusEl.style.display = 'block';
@@ -3254,6 +3256,8 @@ async function submitAdminLog(){
   if(!res.ok){
     var msg = res.error === 'must_be_after_last_entry'
       ? 'این ساعت زودتر از آخرین ثبت موجود این پرسنله. برای اصلاح ثبت‌های قدیمی، از ✏️ ویرایش توی گزارش استفاده کن، نه ثبت جدید.'
+      : res.error === 'no_open_checkin'
+      ? 'این پرسنل قبل از این ساعت، ورودِ باز (بدون خروج) نداره — اول باید ورودش رو ثبت کنی.'
       : (res.error || 'خطای شبکه');
     showAdminNotice('ثبت تردد ناموفق بود: ' + msg);
     return;
@@ -3514,7 +3518,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-06-editform-dropdown-fallback'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-06-block-orphan-checkout'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5666,6 +5670,7 @@ async function saveEditLogSingle(pairKey, side, existingId){
 
   function friendlyErr(err, at){
     if(err === 'time_conflict') return 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (at||'') + ') — یه ثانیه فرق بذار.';
+    if(err === 'no_open_checkin') return 'این پرسنل قبل از این ساعت، ورودِ باز (بدون خروج) نداره — اول باید ورودش رو ثبت کنی.';
     return err || 'خطای شبکه';
   }
 
