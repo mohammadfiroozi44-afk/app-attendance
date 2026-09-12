@@ -679,6 +679,7 @@
     <div class="card app-header-sticky" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
       <div style="display:flex; align-items:center; gap:10px;">
         <button type="button" class="hamburger-btn" onclick="toggleDrawer('emp')">☰</button>
+        <img id="empHeaderPhoto" style="display:none; width:32px; height:32px; border-radius:50%; object-fit:cover;">
         <span>خوش آمدید، <b id="empWelcomeName"></b></span>
       </div>
       <button type="button" class="btn btn-ghost btn-small" onclick="goToHomeSection()">🏠 خانه</button>
@@ -786,6 +787,14 @@
       <div id="dailyStatsCards" style="margin-top:14px;"><div class="empty">ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
     </div>
     </div><!-- /empSec-daily -->
+
+    <div class="emp-section" id="empSec-myshift" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">شیفت‌هایِ من</div>
+      <div class="hint" style="margin-top:-4px;" id="myShiftNameHint">در حالِ بارگذاری...</div>
+      <div id="myShiftTable"></div>
+    </div>
+    </div><!-- /empSec-myshift -->
 
     <div class="emp-section" id="empSec-perf" style="display:none;">
     <div class="card">
@@ -1596,6 +1605,7 @@
     <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon">📋</span> سوابق من</div>
     <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon">⏱️</span> کارکرد من</div>
     <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon">📆</span> عملکرد روزانه</div>
+    <div class="drawer-item" id="empMenu-myshift" onclick="showEmpSection('myshift')"><span class="dicon">🕗</span> شیفت‌هایِ من</div>
     <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
     <div class="drawer-item" onclick="employeeLogout()"><span class="dicon">🚪</span> خروج از حساب</div>
   </div>
@@ -1609,7 +1619,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-08-shift-calc-integration"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-09-swipe-state-and-newemp-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2202,6 +2212,9 @@ function enterEmployeeSession(empData){
   document.getElementById('empUsername').value='';
   document.getElementById('empPassword').value='';
   document.getElementById('empWelcomeName').textContent = empData.fullName + (empData.employeeCode ? ' (کد '+empData.employeeCode+')' : '');
+  var headerPhoto = document.getElementById('empHeaderPhoto');
+  if(empData.photoUrl){ headerPhoto.src = empData.photoUrl; headerPhoto.style.display = 'inline-block'; }
+  else { headerPhoto.style.display = 'none'; }
   document.getElementById('empLoginGate').style.display='none';
   document.getElementById('empView').style.display='block';
   loadProjectsPublic();
@@ -2244,7 +2257,7 @@ async function employeeLogin(){
     document.getElementById('empLoginHint').style.color = '#a32a2a';
     return;
   }
-  var empData = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || '', shiftType: res.shiftType||'', shiftStart: res.shiftStart||'', shiftEnd: res.shiftEnd||'', shiftRequiredMinutes: res.shiftRequiredMinutes||'', sessionVersion: res.sessionVersion||''};
+  var empData = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || '', shiftType: res.shiftType||'', shiftStart: res.shiftStart||'', shiftEnd: res.shiftEnd||'', shiftRequiredMinutes: res.shiftRequiredMinutes||'', sessionVersion: res.sessionVersion||'', photoUrl: res.photoUrl||''};
   await cacheEmployeeCreds(username, password, empData);
   enterEmployeeSession(empData);
 }
@@ -3681,7 +3694,7 @@ async function submitLeaveFromSheet(){
 }
 
 function showEmpSection(name){
-  ['checkin','request','history','perf','daily'].forEach(function(s){
+  ['checkin','request','history','perf','daily','myshift'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -3699,6 +3712,7 @@ function showEmpSection(name){
   else if(name === 'daily'){
     populateMonthYearFilter('dailyPerfMonth','dailyPerfYear', true);
   }
+  else if(name === 'myshift') loadMyShiftInfo();
   pushSectionHistory(name, name === 'checkin');
   closeDrawer();
 }
@@ -3709,7 +3723,14 @@ function refreshCurrentAdminSection(){
   }) || 'dashboard';
   refreshAdminSection(active);
 }
+var _lastAdminSection = null;
 function showAdminSection(name){
+  // Leaving "شیفت" without saving shouldn't leave stale, half-typed data sitting in the form
+  // for next time — reset it exactly the same way the "لغو ویرایش" button already does.
+  if(_lastAdminSection === 'shifts' && name !== 'shifts' && typeof cancelShiftEdit === 'function'){
+    cancelShiftEdit();
+  }
+  _lastAdminSection = name;
   ['dashboard','employees','projects','shifts','requests','offline','report','performance','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
@@ -3881,7 +3902,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-08-shift-calc-integration'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-09-swipe-state-and-newemp-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4225,8 +4246,18 @@ async function saveEmployee(){
       return;
     }
     clearAdminNotice();
-    cancelEmpEdit();
+    var wasNewEmployee = !editingEmpId;
+    var newEmployeeId = res.id;
     await loadEmployeesAdmin();
+    if(wasNewEmployee && newEmployeeId){
+      // Switch straight into edit mode for the employee just created, instead of resetting
+      // the form back to blank — this is what reveals the "شیفتِ اختصاصی" section (it only
+      // shows for an existing employee, since assigning a shift needs a real saved username),
+      // so the admin can assign a shift right away without an extra separate "edit" click.
+      startEditEmp(newEmployeeId);
+    } else {
+      cancelEmpEdit();
+    }
   }catch(e){
     console.error(e);
     var btn2 = document.getElementById('empFormBtn');
@@ -5422,7 +5453,21 @@ async function submitEntry(type){
     if(res.error === 'fingerprint_required') msg = 'تایید اثر انگشت لازم است. دوباره تلاش کنید.';
     if(res.error === 'already_checked_in') msg = 'شما قبلاً ورود زده‌اید و هنوز خروج نزده‌اید.';
     if(res.error === 'not_checked_in') msg = 'شما هنوز ورود نزده‌اید — ابتدا ورود بزنید.';
+    if(res.error === 'already_checked_in' || res.error === 'not_checked_in'){
+      // The frontend's assumed state (todayLastType, or the read-after-write guard above)
+      // just proved wrong — most likely an admin deleted/edited the log this was based on.
+      // Drop the stale guard immediately and force a fresh read instead of leaving the
+      // buttons/swipe stuck on the same wrong assumption for the rest of the session.
+      myLastKnownIso = null;
+      myLastKnownType = null;
+      loadMyLogs();
+    }
     if(res.error === 'daily_limit_reached') msg = 'شما امروز حداکثر تعداد ورود مجاز (۲ بار) را ثبت کرده‌اید. برای ثبت بیشتر، لازم است با مدیر هماهنگ کنید.';
+    if(res.error === 'outside_attendance_window'){
+      var winMsg = (res.windowStart && res.windowEnd) ? ('بازه‌ی مجاز: '+res.windowStart+' تا '+res.windowEnd)
+        : res.windowStart ? ('فقط از ساعتِ '+res.windowStart+' به بعد مجازید') : ('فقط تا ساعتِ '+res.windowEnd+' مجازید');
+      msg = 'خارج از بازه‌ی مجازِ ثبتِ تردد هستید. '+winMsg+'.';
+    }
     if(res.error === 'checkout_too_soon'){
       setStatus('⛔ حداقل باید ۵ دقیقه از ثبت ورودتان بگذرد تا بتوانید خروج بزنید.', 'err');
       return;
@@ -5449,6 +5494,7 @@ async function submitEntry(type){
   lastOpenCheckinDate = (type === 'in') ? (res.jalaliDate || serverTodayStr) : null;
   myLastKnownIso = res.isoTimestamp || new Date().toISOString();
   myLastKnownType = todayLastType;
+  myLastKnownSetAt = Date.now();
   updateTodayStatusHint();
   updateNightShiftCheckbox();
   // Location was already verified for this submission, so keep both buttons reflecting the
@@ -5472,6 +5518,13 @@ var serverTodayStr = null; // authoritative "today" from the server — using th
 // several check-ins in a row before the first one is ever visible in a fresh fetch.
 var myLastKnownIso = null;
 var myLastKnownType = null; // 'ورود' or 'خروج'
+var myLastKnownSetAt = 0; // Date.now() when the two fields above were last set — this guard is
+// only meant to bridge a few seconds of Sheets propagation delay right after a submission, not
+// to override the server's answer forever. Without an expiry, it kept re-asserting a check-in
+// that an admin had since deleted from the report — the log was gone server-side, but this
+// stale client-side memory kept insisting "you checked in" indefinitely for the rest of the
+// session, since nothing ever cleared it.
+var MY_LAST_KNOWN_GUARD_MS = 2*60000; // 2 minutes — comfortably longer than any real propagation lag, short enough that a genuine admin edit is reflected well within the same session
 
 async function loadMyLogs(){
   if(!loggedInEmployee) return;
@@ -5492,7 +5545,7 @@ async function loadMyLogs(){
   // submission we personally just got confirmed by the server, trust our own recent result
   // instead — otherwise a slightly-delayed read could silently flip state back and let
   // check-in be pressed again before the real data has caught up.
-  if(myLastKnownIso && (!lastServerEntry || new Date(myLastKnownIso).getTime() > new Date(lastServerEntry.isoTimestamp).getTime())){
+  if(myLastKnownIso && (Date.now() - myLastKnownSetAt) < MY_LAST_KNOWN_GUARD_MS && (!lastServerEntry || new Date(myLastKnownIso).getTime() > new Date(lastServerEntry.isoTimestamp).getTime())){
     lastServerType = myLastKnownType;
   }
   var lastQueuedType = queue.length ? (queue[queue.length-1].entry.type === 'in' ? 'ورود' : 'خروج') : null;
@@ -6116,6 +6169,7 @@ var PERF_METRIC_LABELS = [
   {key:'breakMin', label:'استراحت (روزهای عادی)'},
   {key:'holidayBreakMin', label:'استراحت (جمعه/تعطیل)'},
   {key:'grandOvertimeMin', label:'جمعِ کلِ اضافه‌کاری'},
+  {key:'extraPresenceMin', label:'مازادِ حضور (سقفِ اضافه‌کاری)'},
   {key:'missionDaysCount', label:'تعداد روز ماموریت', isCount:true}
 ];
 // missionDaysCount is a plain count of days, not a duration — running it through
@@ -6689,6 +6743,28 @@ var PERF_METRIC_LABELS_DAILY = [
   {key:'overtimeMin', label:'اضافه‌کاری'}, {key:'leaveMin', label:'مرخصی'}, {key:'nightMin', label:'شب‌کاری'},
   {key:'fridayMin', label:'جمعه‌کاری'}, {key:'holidayMin', label:'تعطیل‌کاری'}
 ];
+async function loadMyShiftInfo(){
+  var hint = document.getElementById('myShiftNameHint');
+  var table = document.getElementById('myShiftTable');
+  hint.textContent = 'در حالِ بارگذاری...';
+  table.innerHTML = '';
+  var res = await apiCall(function(){ return apiPost('getMyShiftInfo', {username: loggedInEmployee.username}); });
+  if(!res.ok){ hint.textContent = 'دریافتِ اطلاعاتِ شیفت ناموفق بود.'; return; }
+  hint.textContent = res.hasShift ? ('شیفتِ فعلیِ شما: «'+res.shiftName+'»') : 'شما شیفتِ اختصاصی ندارید — با «شیفتِ عادی» کار می‌کنید.';
+  var sched = res.weeklySchedule || [];
+  table.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%; font-size:13px; border-collapse:collapse;">' +
+    '<thead><tr><th style="text-align:right; padding:8px 6px;">روز</th><th style="padding:8px 6px;">وضعیت</th><th style="padding:8px 6px;">ساعت</th></tr></thead><tbody>' +
+    sched.map(function(d){
+      var timesHtml = !d.isWorkingDay ? '—' :
+        (esc(d.start1)+' تا '+esc(d.end1)) + (d.hasSecondPart ? ('<br>'+esc(d.start2)+' تا '+esc(d.end2)) : '');
+      return '<tr style="border-bottom:1px solid var(--border-soft);">' +
+        '<td style="padding:8px 6px;"><b>'+esc(d.day)+'</b></td>' +
+        '<td style="padding:8px 6px;">'+(d.isWorkingDay ? '<span class="badge-ok">کاری</span>' : '<span class="badge-off">تعطیل</span>')+'</td>' +
+        '<td style="padding:8px 6px;">'+timesHtml+'</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
 async function loadMyPerf(){
   var monthName = document.getElementById('perfMonth').value;
   var year = document.getElementById('perfYear').value;
@@ -6840,6 +6916,9 @@ function init(){
     try{
       loggedInEmployee = JSON.parse(savedEmp);
       document.getElementById('empWelcomeName').textContent = loggedInEmployee.fullName + (loggedInEmployee.employeeCode ? ' (کد '+loggedInEmployee.employeeCode+')' : '');
+      var headerPhotoInit = document.getElementById('empHeaderPhoto');
+      if(loggedInEmployee.photoUrl){ headerPhotoInit.src = loggedInEmployee.photoUrl; headerPhotoInit.style.display = 'inline-block'; }
+      else { headerPhotoInit.style.display = 'none'; }
       document.getElementById('empLoginGate').style.display='none';
       document.getElementById('empView').style.display='block';
       loadMyLogs();
