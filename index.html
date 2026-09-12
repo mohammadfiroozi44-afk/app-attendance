@@ -1680,7 +1680,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-10-shift-finish-button-clarity"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-10-myshift-day-detail-popup"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3983,7 +3983,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-10-shift-finish-button-clarity'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-10-myshift-day-detail-popup'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -7063,19 +7063,21 @@ async function loadMyShiftInfo(){
   var res = await apiCall(function(){ return apiPost('getMyShiftInfo', {username: loggedInEmployee.username, year: myShiftViewYear, month: myShiftViewMonth}); });
   if(!res.ok){ hint.textContent = 'دریافتِ اطلاعاتِ شیفت ناموفق بود.'; return; }
   myShiftDetailsCache = res.shiftDetails || null;
+  myShiftNameCache = res.shiftName || 'شیفتِ عادی';
+  myShiftDaysCache = res.days || [];
   if(res.hasCustomShift){
-    hint.innerHTML = 'شیفتِ فعلیِ شما: «'+esc(res.shiftName)+'» — <a href="javascript:void(0)" onclick="showMyShiftDetails()" style="color:var(--accent, #2563eb); text-decoration:underline;">دیدنِ قوانینِ این شیفت</a>';
+    hint.innerHTML = 'شیفتِ فعلیِ شما: «'+esc(res.shiftName)+'»';
   } else {
     hint.textContent = 'شما شیفتِ اختصاصی ندارید — با «شیفتِ عادی» کار می‌کنید.';
   }
-  var days = res.days || [];
-  table.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%; font-size:13px; border-collapse:collapse;">' +
+  var days = myShiftDaysCache;
+  table.innerHTML = '<div class="hint" style="margin-top:0;">برایِ دیدنِ همه‌یِ قوانینِ اون روز، رویِ هر روزی که می‌خوای بزن.</div><div style="overflow-x:auto;"><table style="width:100%; font-size:13px; border-collapse:collapse;">' +
     '<thead><tr><th style="text-align:right; padding:8px 6px;">روز</th><th style="padding:8px 6px;">وضعیت</th><th style="padding:8px 6px;">ساعت</th></tr></thead><tbody>' +
-    days.map(function(d){
+    days.map(function(d, idx){
       var timesHtml = !d.hasShift ? (d.isNormalOff ? 'تعطیل' : '<span style="color:var(--warning-dark, #a3701a);">بدونِ شیفت</span>') :
         d.isFlexibleHours ? 'ساعتی' :
         (esc(d.start1)+' تا '+esc(d.end1)) + (d.hasSecondPart ? ('<br>'+esc(d.start2)+' تا '+esc(d.end2)) : '');
-      return '<tr style="border-bottom:1px solid var(--border-soft);">' +
+      return '<tr style="border-bottom:1px solid var(--border-soft); cursor:pointer;" onclick="showMyShiftDayDetail('+idx+')">' +
         '<td style="padding:8px 6px;"><b>'+d.day+'</b></td>' +
         '<td style="padding:8px 6px;">'+(d.hasShift ? '<span class="badge-ok">کاری</span>' : '<span class="badge-off">'+(d.isNormalOff?'تعطیل':'بدونِ شیفت')+'</span>')+'</td>' +
         '<td style="padding:8px 6px;">'+timesHtml+'</td>' +
@@ -7084,6 +7086,42 @@ async function loadMyShiftInfo(){
     '</tbody></table></div>';
 }
 var myShiftDetailsCache = null;
+var myShiftNameCache = null;
+var myShiftDaysCache = [];
+// One combined popup per day — the day's own hours/status PLUS the shift's overall rules
+// (floating, allowances, overtime caps, attendance window), all in one place, matching what
+// tapping a single day is supposed to show.
+function showMyShiftDayDetail(idx){
+  var d = myShiftDaysCache[idx];
+  if(!d) return;
+  var lines = [];
+  lines.push('تاریخ: ' + d.jalaliDate);
+  lines.push('نامِ شیفت: ' + myShiftNameCache);
+  if(d.isNormalOff){
+    lines.push('وضعیت: تعطیل (جمعه)');
+  } else if(!d.hasShift){
+    lines.push('وضعیت: بدونِ شیفت — این روز برایِ شما تعریف نشده');
+  } else if(d.isFlexibleHours){
+    lines.push('وضعیت: ساعتی — هر ساعتی می‌تونید ورود/خروج بزنید، طبقِ قوانینِ عادی');
+  } else {
+    lines.push('قسمتِ اولِ روز: از ' + d.start1 + ' تا ' + d.end1);
+    if(d.hasSecondPart) lines.push('قسمتِ دومِ روز: از ' + d.start2 + ' تا ' + d.end2);
+  }
+  var det = myShiftDetailsCache;
+  if(det){
+    lines.push('———');
+    if(det.floatingMinutes) lines.push('زمانِ شناوری: '+det.floatingMinutes+' دقیقه');
+    if(det.floatBeforeShiftMinutes) lines.push('شناوریِ قبلِ شیفت: '+det.floatBeforeShiftMinutes+' دقیقه');
+    if(det.lateAllowedMinutes) lines.push('تاخیرِ مجاز: '+det.lateAllowedMinutes+' دقیقه');
+    if(det.earlyLeaveAllowedMinutes) lines.push('تعجیلِ مجاز: '+det.earlyLeaveAllowedMinutes+' دقیقه');
+    if(det.dailyOvertimeCapMinutes) lines.push('سقفِ اضافه‌کاریِ روزِ بدونِ شیفت: '+det.dailyOvertimeCapMinutes+' دقیقه');
+    if(det.otStartMinutes) lines.push('سقفِ اضافه‌کار از ابتدایِ شیفت: '+det.otStartMinutes+' دقیقه');
+    if(det.otMiddleMinutes) lines.push('سقفِ اضافه‌کار در میانه‌یِ شیفت: '+det.otMiddleMinutes+' دقیقه');
+    if(det.otEndMinutes) lines.push('سقفِ اضافه‌کار از انتهایِ شیفت: '+det.otEndMinutes+' دقیقه');
+    if(det.attendanceWindowStart || det.attendanceWindowEnd) lines.push('بازه‌یِ مجازِ ثبتِ تردد: '+(det.attendanceWindowStart||'—')+' تا '+(det.attendanceWindowEnd||'—'));
+  }
+  alert(lines.join('\n'));
+}
 function showMyShiftDetails(){
   if(!myShiftDetailsCache) return;
   var d = myShiftDetailsCache;
