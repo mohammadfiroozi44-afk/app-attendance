@@ -69,10 +69,7 @@
   html,body{margin:0;padding:0;}
   body{
     font-family:var(--sans);
-    background:
-      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/28px 28px,
-      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/28px 28px,
-      var(--navy);
+    background:var(--navy);
     color:var(--ink);
     min-height:100vh;
     padding:18px 14px 60px;
@@ -108,16 +105,18 @@
      ============================================================ */
   @media (min-width: 1024px){
     .wrap{ max-width: 1400px; }
+    /* Sidebar now opens/closes via the same hamburger button as mobile (not permanently
+       fixed open) — .side-drawer's own base open/close transform handles this already, so
+       nothing here needs to touch that; just the visual styling for whenever it IS open. */
     #admDrawer{
-      position:fixed; top:0; right:0; height:100vh; width:260px;
-      transform:translateX(0) !important; box-shadow:-2px 0 16px #00000014;
+      width:280px; box-shadow:-2px 0 16px #00000014;
       padding:0; background:linear-gradient(180deg, #0f1f36 0%, #1e3a5f 100%); border-left:none;
+      overflow-y:auto;
     }
     #admDrawer .drawer-header{
       padding:22px 20px; margin:0; border-bottom:1px solid #ffffff14; color:#fff;
       font-size:16px; display:flex; align-items:center; gap:10px;
     }
-    #admDrawer{ overflow-y:auto; }
     .drawer-nav-group-title{
       display:block; font-size:10px; text-transform:uppercase; color:#8aa0c2; padding:16px 18px 6px;
       font-weight:800; letter-spacing:.5px;
@@ -131,9 +130,6 @@
       background:linear-gradient(135deg, #4299e1 0%, #2c5282 100%); color:#fff;
       box-shadow:0 4px 12px #4299e14d; border:none;
     }
-    #adminView{ margin-right:280px; }
-    #adminView .hamburger-btn{ display:none; }
-    #drawerOverlay{ display:none !important; }
     #admSec-dashboard .card{ padding:22px 24px; }
     .dash-stat-grid{ grid-template-columns:repeat(5, 1fr); gap:16px; }
     .dash-stat-card{ border-radius:16px; padding:20px 18px; text-align:right; position:relative; overflow:hidden; box-shadow:var(--sh-sm); transition:transform .25s, box-shadow .25s; }
@@ -196,6 +192,62 @@
       color:var(--navy); font-weight:800; padding-bottom:14px; margin-bottom:18px;
       border-bottom:2px solid var(--border-soft);
     }
+
+    /* Button hover-lift — buttons already have gradients/shadows for every screen size,
+       this just adds the same "lifts up" feel on hover that a mouse-driven desktop site
+       benefits from (touch devices don't have hover at all, so this is desktop-only
+       naturally). Width/layout is left exactly as-is — many buttons rely on 100% width to
+       stack correctly inside forms, so only the hover motion/shadow changes here. */
+    .btn{ transition:transform .18s ease, box-shadow .18s ease, filter .15s ease; }
+    .btn-primary:hover, .btn-in:hover, .btn-out:hover{ transform:translateY(-2px); filter:brightness(1.05); }
+    .btn-ghost:hover{ background:var(--border-soft); }
+    .icon-btn{ transition:background .15s, transform .15s; }
+    .icon-btn:hover{ transform:translateY(-2px); }
+
+    /* Report ("گزارش") and کارکردها table/card views — same underlying rendering as mobile,
+       just more spacious and with a proper header row for the wide desktop layout. */
+    #admSec-report table, #admSec-performance table{ font-size:13.5px; }
+    #admSec-report th, #admSec-performance th{
+      background:var(--paper-2); font-size:12px; padding:12px 10px; position:sticky; top:0;
+    }
+    #admSec-report td, #admSec-performance td{ padding:11px 10px; }
+    #admSec-report tbody tr:hover, #admSec-performance tbody tr:hover{ background:#f7fafc; }
+    #perfReportCards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; }
+    #perfReportCards .card{ margin-bottom:0 !important; }
+
+    /* Login screens (admin + employee, same .pin-gate class) — a bit more premium-feeling
+       on a big screen: wider card, stronger shadow, a subtle top accent matching the
+       dashboard stat cards, centered vertically in the viewport rather than just top-margin. */
+    .pin-gate{
+      max-width:400px; margin:8vh auto; box-shadow:0 20px 50px -12px #0f2a434d;
+      position:relative; overflow:hidden; padding-top:26px;
+    }
+    .pin-gate::before{
+      content:''; position:absolute; top:0; right:0; left:0; height:5px;
+      background:linear-gradient(90deg, #4299e1, #2c5282);
+    }
+
+    /* Generic modal system for the Employees/Projects add-edit forms — wraps the EXACT SAME
+       form fields/ids used on mobile, just toggled between "always inline" (mobile, default,
+       untouched) and "opens as a centered overlay" (desktop only, via the .open class). */
+    .erp-modal-backdrop{ display:none; position:fixed; inset:0; background:#0f2a434d; z-index:2000; }
+    .erp-modal-backdrop.open{ display:block; }
+    .erp-modal-card{ display:none; }
+    .erp-modal-card.open{
+      display:block; position:fixed; top:50%; right:50%; transform:translate(50%,-50%);
+      z-index:2001; width:620px; max-width:90vw; max-height:86vh; overflow-y:auto;
+      box-shadow:0 25px 70px -15px #00000059;
+    }
+    .erp-modal-close{
+      position:absolute; top:14px; left:14px; background:var(--paper-2); border:none;
+      width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:15px; z-index:1;
+      display:flex; align-items:center; justify-content:center; color:var(--ink);
+    }
+    .erp-modal-close:hover{ background:var(--border-soft); }
+    .erp-modal-trigger{ display:inline-flex; width:auto; margin-bottom:14px; }
+  }
+  @media (max-width: 1023px){
+    .erp-modal-trigger{ display:none; } /* mobile keeps the form always inline — no trigger needed */
   }
   @media (max-width: 1023px){
     .dash-donut, .dash-bar-chart, .dash-charts-row{ display:none; }
@@ -969,8 +1021,13 @@ function toggleDesktopPreview(){
     <div class="admin-section" id="admSec-employees" style="display:none;">
     <div class="card">
       <div class="eyebrow">حساب‌های پرسنل</div>
+      <button type="button" class="btn btn-primary erp-modal-trigger" onclick="openAdminFormModal('emp')">➕ افزودن پرسنلِ جدید</button>
       <input type="text" id="empFilterSearch" placeholder="جستجو با نام، یوزرنیم یا کد پرسنلی" oninput="renderEmpList()">
       <div id="empList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    <div class="erp-modal-backdrop" id="empFormBackdrop" onclick="closeAdminFormModal('emp')"></div>
+    <div class="card erp-modal-card" id="empFormModal">
+      <button type="button" class="erp-modal-close" onclick="closeAdminFormModal('emp')">✕</button>
       <div class="divider"></div>
       <label>نام و نام خانوادگی</label>
       <input type="text" id="empFormName" placeholder="مثلاً: علی رضایی">
@@ -1009,8 +1066,13 @@ function toggleDesktopPreview(){
     <div class="admin-section" id="admSec-projects" style="display:none;">
     <div class="card">
       <div class="eyebrow">پروژه‌ها و محدوده مجاز</div>
+      <button type="button" class="btn btn-primary erp-modal-trigger" onclick="openAdminFormModal('proj')">➕ افزودن پروژه‌ی جدید</button>
       <input type="text" id="projFilterSearch" placeholder="جستجو با نام پروژه" oninput="renderProjectList()">
       <div id="projList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    <div class="erp-modal-backdrop" id="projFormBackdrop" onclick="closeAdminFormModal('proj')"></div>
+    <div class="card erp-modal-card" id="projFormModal">
+      <button type="button" class="erp-modal-close" onclick="closeAdminFormModal('proj')">✕</button>
       <div class="divider"></div>
       <label>نام پروژه</label>
       <input type="text" id="projFormName" placeholder="مثلاً: پروژه شهرک غرب">
@@ -1431,7 +1493,7 @@ function toggleDesktopPreview(){
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-07-desktop-preview-toggle"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-07-modal-forms-polish"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3701,7 +3763,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-07-desktop-preview-toggle'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-07-modal-forms-polish'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3874,6 +3936,26 @@ function getSelectedAllowedProjects(){
   var ids = Array.from(document.querySelectorAll('.proj-chk:checked')).map(function(c){ return c.value; });
   return ids.join(',');
 }
+// Generic open/close for the Employees/Projects add-edit modal (desktop only — see the
+// .erp-modal-* CSS; harmless no-op-looking class toggles on mobile since nothing there reacts
+// to them, so the form just stays inline exactly as before).
+function openAdminFormModal(key){
+  var modal = document.getElementById(key+'FormModal');
+  var backdrop = document.getElementById(key+'FormBackdrop');
+  if(modal) modal.classList.add('open');
+  if(backdrop) backdrop.classList.add('open');
+  if(key === 'proj' && typeof projMap !== 'undefined' && projMap){
+    // The map was likely initialized while its container was hidden (display:none inside the
+    // not-yet-open modal) — Leaflet needs a nudge once the container actually has real size.
+    setTimeout(function(){ projMap.invalidateSize(); }, 200);
+  }
+}
+function closeAdminFormModal(key){
+  var modal = document.getElementById(key+'FormModal');
+  var backdrop = document.getElementById(key+'FormBackdrop');
+  if(modal) modal.classList.remove('open');
+  if(backdrop) backdrop.classList.remove('open');
+}
 function startEditEmp(id){
   var emp = employees.find(function(e){ return e.id===id; });
   if(!emp) return;
@@ -3898,6 +3980,7 @@ function startEditEmp(id){
   btn.textContent = '💾 بروزرسانی پرسنل';
   document.getElementById('empFormCancel').style.display='block';
   document.getElementById('empFormName').scrollIntoView({behavior:'smooth', block:'center'});
+  openAdminFormModal('emp');
 }
 function cancelEmpEdit(){
   editingEmpId = null;
@@ -3916,6 +3999,7 @@ function cancelEmpEdit(){
   renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
+  closeAdminFormModal('emp');
 }
 async function saveEmployee(){
   try{
@@ -4356,6 +4440,7 @@ function startEditProj(id){
   document.getElementById('projFormBtn').textContent = '💾 بروزرسانی پروژه';
   document.getElementById('projFormCancel').style.display='block';
   document.getElementById('projFormName').scrollIntoView({behavior:'smooth', block:'center'});
+  openAdminFormModal('proj');
 }
 function onProjRestrictedChange(){
   var restricted = document.getElementById('projFormRestricted').checked;
@@ -4374,6 +4459,7 @@ function cancelProjEdit(){
   document.getElementById('projFormRadius').value='150';
   document.getElementById('projFormBtn').textContent = '➕ افزودن پروژه';
   document.getElementById('projFormCancel').style.display='none';
+  closeAdminFormModal('proj');
 }
 async function saveProject(){
   var name = document.getElementById('projFormName').value.trim();
