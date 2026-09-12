@@ -1238,7 +1238,7 @@
         <div id="shiftWeekTable"></div>
 
         <div class="btn-row">
-          <button type="button" class="btn btn-primary" id="shiftFormBtn" onclick="saveShift()">📅 ساختِ تقویم</button>
+          <button type="button" class="btn btn-primary" id="shiftFormBtn" onclick="saveShift()">✅ ثبت و ساختِ تقویم</button>
           <button type="button" class="btn btn-ghost" id="shiftFormCancel" style="display:none;" onclick="cancelShiftEdit()">لغو ویرایش</button>
         </div>
         <div id="shiftCalendarOpenRow" style="display:none; margin-top:10px;">
@@ -1247,7 +1247,11 @@
       </div>
 
       <div id="shiftSub-calendar" style="display:none;">
-        <button type="button" class="btn btn-ghost" onclick="switchShiftTab('define')" style="margin-bottom:10px;">‹ بازگشت به تعریفِ شیفت</button>
+        <div class="btn-row">
+          <button type="button" class="btn btn-ghost" onclick="switchShiftTab('define')">‹ بازگشت به تعریفِ شیفت</button>
+          <button type="button" class="btn btn-primary" onclick="finishShiftCalendarEditing()">✅ اتمام و بازگشت به لیستِ شیفت‌ها</button>
+        </div>
+        <div class="hint" style="margin-top:-4px;">همه‌یِ روزهایی که تو این تقویم تعریف/ویرایش/حذف/کپی می‌کنی، همون لحظه ذخیره می‌شن — این دکمه فقط برایِ خروج از این صفحه‌ست، نه یه ذخیره‌یِ جداگونه.</div>
         <div class="eyebrow" id="shiftCalTitle" style="font-size:14px;">تقویمِ شیفت</div>
         <div class="date-row">
           <button type="button" class="btn btn-ghost btn-small" onclick="navigateShiftCalMonth(-1)">‹</button>
@@ -1676,7 +1680,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-10-flexible-hours-and-year-range"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-10-shift-finish-button-clarity"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3979,7 +3983,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-10-flexible-hours-and-year-range'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-10-shift-finish-button-clarity'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4934,6 +4938,14 @@ function clearShiftClipboard(){
   shiftClipboard = null;
   renderShiftCalGrid();
 }
+function finishShiftCalendarEditing(){
+  // Nothing to save here — every add/edit/delete/copy in this calendar already persisted
+  // immediately via its own API call. This just resets the define-form state and takes the
+  // admin back to the shift list, giving them a clear, explicit "I'm done" action instead of
+  // leaving them wondering whether something still needs to be submitted.
+  cancelShiftEdit();
+  switchShiftTab('list');
+}
 async function copyShiftToNextYearBtn(){
   if(!(await showAppConfirm('همه‌ی روزهایِ تعریف‌شده‌ی این شیفت، با همون تاریخِ روز/ماه، به سالِ بعد کپی بشن؟'))) return;
   var res = await apiCall(function(){ return apiPost('copyShiftToNextYear', {pin:adminPin, shiftId:editingShiftId}); });
@@ -4997,7 +5009,7 @@ function startEditShift(id){
   // The per-date calendar (روزهایِ شیفت) only makes sense once the shift itself already
   // exists — reveal the button to manage it now that we're editing a real, saved shift.
   document.getElementById('shiftCalendarOpenRow').style.display = 'block';
-  document.getElementById('shiftFormBtn').textContent = '📅 ساختِ تقویم (بروزرسانی)';
+  document.getElementById('shiftFormBtn').textContent = '✅ ثبت و بروزرسانیِ تقویم';
   document.getElementById('shiftFormCancel').style.display = 'block';
   switchShiftTab('define');
   document.getElementById('shiftFormName').scrollIntoView({behavior:'smooth', block:'center'});
@@ -5020,7 +5032,7 @@ function cancelShiftEdit(){
   document.getElementById('shiftAdvToggleBtn').textContent = '➕ تنظیماتِ پیشرفته';
   document.getElementById('shiftCalendarOpenRow').style.display = 'none';
   renderShiftWeekTable();
-  document.getElementById('shiftFormBtn').textContent = '📅 ساختِ تقویم';
+  document.getElementById('shiftFormBtn').textContent = '✅ ثبت و ساختِ تقویم';
   document.getElementById('shiftFormCancel').style.display = 'none';
 }
 async function saveShift(){
@@ -5064,7 +5076,7 @@ async function saveShift(){
   await loadShiftsAdmin();
   document.getElementById('shiftFormCancel').style.display = 'block';
   document.getElementById('shiftCalendarOpenRow').style.display = 'block';
-  document.getElementById('shiftFormBtn').textContent = '📅 ساختِ تقویم (بروزرسانی)';
+  document.getElementById('shiftFormBtn').textContent = '✅ ثبت و بروزرسانیِ تقویم';
   openShiftCalendar();
 }
 async function deleteShiftConfirm(id){
