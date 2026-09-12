@@ -577,27 +577,6 @@
 </style>
 </head>
 <body>
-<!-- موقتی — فقط برای تستِ طراحیِ دسکتاپ روی گوشی، بدون کامپیوتر. هر وقت خاطرت رفت، همینو یادت بیار پاک کنیم. -->
-<button type="button" id="desktopPreviewToggle" onclick="toggleDesktopPreview()" style="position:fixed; bottom:14px; left:14px; z-index:99998; background:#1e3a5f; color:#fff; border:none; border-radius:10px; padding:8px 12px; font-family:'Vazirmatn',sans-serif; font-size:11px; font-weight:700; box-shadow:0 4px 14px #00000040; cursor:pointer;">🖥️ پیش‌نمایشِ دسکتاپ</button>
-<script>
-function toggleDesktopPreview(){
-  var vp = document.querySelector('meta[name="viewport"]');
-  var btn = document.getElementById('desktopPreviewToggle');
-  var active = document.documentElement.classList.contains('desktop-preview-active');
-  if(active){
-    vp.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1');
-    document.documentElement.classList.remove('desktop-preview-active');
-    btn.textContent = '🖥️ پیش‌نمایشِ دسکتاپ';
-  } else {
-    // Setting a fixed, wide viewport width is exactly the trick "Desktop site" mode in
-    // mobile browsers uses — it makes every @media (min-width:1024px) rule think the screen
-    // really is that wide, without needing an actual computer to test on.
-    vp.setAttribute('content', 'width=1400');
-    document.documentElement.classList.add('desktop-preview-active');
-    btn.textContent = '📱 برگشت به حالتِ موبایل';
-  }
-}
-</script>
 <div id="splashScreen" style="position:fixed; inset:0; z-index:5000; background:var(--navy); display:flex; align-items:center; justify-content:center;">
   <div id="splashOwnBrand" style="display:flex; flex-direction:column; align-items:center; gap:16px; color:var(--on-dark); text-align:center; padding:20px;">
     <img id="splashOwnBrandLogo" style="display:none; max-width:220px; max-height:110px; width:auto; height:auto; border-radius:14px; object-fit:contain;">
@@ -1042,6 +1021,9 @@ function toggleDesktopPreview(){
       </label>
       <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:14px;">
         <input type="checkbox" id="empFormFingerprint"> این پرسنل موقع ثبت تردد اثر انگشت هم نیاز داشته باشد (در گوشی‌های دارای این قابلیت)
+      </label>
+      <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:14px;">
+        <input type="checkbox" id="empFormNoDeviceLimit"> این پرسنل محدودیتِ گوشی نداشته باشد (بتواند با هر گوشی‌ای وارد شود)
       </label>
       <label>عنوان شغلی (اختیاری)</label>
       <input type="text" id="empFormJobTitle" placeholder="مثلاً: نگهبان، سرکارگر، تکنسین">
@@ -1493,7 +1475,7 @@ function toggleDesktopPreview(){
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-07-modal-forms-polish"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-08-no-device-limit-checkbox"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1711,9 +1693,10 @@ function closeCustomTimePicker(){
   document.getElementById('customTimePickerOverlay').style.display = 'none';
 }
 async function revealAdvancedTools(){
-  var enteredPin = prompt('این ابزارها به‌ندرت لازم می‌شوند. برای نمایش، رمزِ مدیر را دوباره وارد کنید:');
-  if(enteredPin === null) return;
-  if(String(enteredPin) !== String(adminPin)){
+  var enteredPassword = prompt('این ابزارها به‌ندرت لازم می‌شوند. برای نمایش، رمزِ جداگانه‌ی این بخش را وارد کنید:');
+  if(enteredPassword === null) return;
+  var res = await apiCall(function(){ return apiPost('checkAdvancedToolsPassword', {pin:adminPin, password:enteredPassword}); });
+  if(!res.ok){
     showAppAlert('رمز واردشده درست نیست.');
     return;
   }
@@ -2127,7 +2110,7 @@ async function employeeLogin(){
     document.getElementById('empLoginHint').style.color = '#a32a2a';
     return;
   }
-  var empData = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || '', shiftType: res.shiftType||'', shiftStart: res.shiftStart||'', shiftEnd: res.shiftEnd||'', shiftRequiredMinutes: res.shiftRequiredMinutes||''};
+  var empData = {username: res.username, fullName: res.fullName, employeeCode: res.employeeCode||'', freeZone: !!res.freeZone, fingerprintRequired: !!res.fingerprintRequired, allowedProjects: res.allowedProjects || '', shiftType: res.shiftType||'', shiftStart: res.shiftStart||'', shiftEnd: res.shiftEnd||'', shiftRequiredMinutes: res.shiftRequiredMinutes||'', sessionVersion: res.sessionVersion||''};
   await cacheEmployeeCreds(username, password, empData);
   enterEmployeeSession(empData);
 }
@@ -3763,7 +3746,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-07-modal-forms-polish'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-08-no-device-limit-checkbox'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -3966,6 +3949,7 @@ function startEditEmp(id){
   document.getElementById('empFormCode').value = emp.employeeCode || '';
   document.getElementById('empFormFreeZone').checked = !!emp.freeZone;
   document.getElementById('empFormFingerprint').checked = !!emp.fingerprintRequired;
+  document.getElementById('empFormNoDeviceLimit').checked = String(emp.noDeviceLimit||'').toLowerCase() === 'yes';
   document.getElementById('empFormJobTitle').value = emp.jobTitle || '';
   document.getElementById('empFormJobGroup').value = emp.jobGroup || '';
   document.getElementById('empFormNationalId').value = emp.nationalId || '';
@@ -3990,6 +3974,7 @@ function cancelEmpEdit(){
   document.getElementById('empFormCode').value='';
   document.getElementById('empFormFreeZone').checked = false;
   document.getElementById('empFormFingerprint').checked = false;
+  document.getElementById('empFormNoDeviceLimit').checked = false;
   document.getElementById('empFormJobTitle').value = '';
   document.getElementById('empFormJobGroup').value = '';
   document.getElementById('empFormNationalId').value = '';
@@ -4018,14 +4003,15 @@ async function saveEmployee(){
     var employeeCode = document.getElementById('empFormCode').value.trim();
     var freeZone = document.getElementById('empFormFreeZone').checked;
     var fingerprintReq = document.getElementById('empFormFingerprint').checked;
+    var noDeviceLimit = document.getElementById('empFormNoDeviceLimit').checked;
     var jobTitle = document.getElementById('empFormJobTitle').value.trim();
     var jobGroup = document.getElementById('empFormJobGroup').value.trim();
     var nationalId = document.getElementById('empFormNationalId').value.trim();
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
+      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
     }
     btn.disabled = false;
     if(!res.ok){
@@ -4917,8 +4903,25 @@ async function checkRealConnectivity(){
     isReallyOnline = false;
   }
   setConnBadge(isReallyOnline ? 'online' : 'offline');
-  if(isReallyOnline) syncOfflineQueue();
+  if(isReallyOnline){
+    syncOfflineQueue();
+    if(loggedInEmployee) checkEmployeeSessionValidity();
+  }
   return isReallyOnline;
+}
+// Runs alongside the existing 20-second connectivity check (piggybacking on it rather than
+// adding a whole separate timer) — confirms the admin hasn't edited this employee, reset
+// their device, or deactivated them since this phone's session began. If so, log out now
+// instead of silently letting a stale session keep working.
+async function checkEmployeeSessionValidity(){
+  if(!loggedInEmployee || !loggedInEmployee.sessionVersion) return; // nothing to compare against yet (older cached session, or brand new)
+  try{
+    var res = await apiCall(function(){ return apiPost('checkSessionVersion', {username: loggedInEmployee.username, sessionVersion: loggedInEmployee.sessionVersion}, true); });
+    if(res.ok && res.valid === false){
+      employeeLogout();
+      showAppAlert('اطلاعاتِ حسابِ شما توسطِ مدیر تغییر کرده (مثلاً رمز عوض شده یا دستگاه ریست شده) — لطفاً دوباره وارد شوید.');
+    }
+  }catch(e){ /* silent — a failed check just tries again on the next 20-second cycle */ }
 }
 function startConnectivityWatcher(){
   checkRealConnectivity();
