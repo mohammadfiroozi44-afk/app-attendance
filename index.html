@@ -1092,6 +1092,54 @@
     </div>
     </div><!-- /admSec-projects -->
 
+    <div class="admin-section" id="admSec-shifts" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">شیفت</div>
+      <div style="display:flex; gap:8px; margin-bottom:16px;">
+        <button type="button" class="btn btn-ghost" id="shiftTabBtn-define" onclick="switchShiftTab('define')">➕ تعریفِ شیفت</button>
+        <button type="button" class="btn btn-ghost" id="shiftTabBtn-list" onclick="switchShiftTab('list')">📋 لیستِ شیفت‌ها</button>
+      </div>
+
+      <div id="shiftSub-define">
+        <label>نامِ شیفت</label>
+        <input type="text" id="shiftFormName" placeholder="مثلاً: شیفتِ اداری">
+
+        <div class="date-row">
+          <div style="flex:1;">
+            <label>سالِ شیفت</label>
+            <select id="shiftFormYear"></select>
+          </div>
+          <div style="flex:1;">
+            <label>زمانِ شناوری (دقیقه)</label>
+            <input type="number" id="shiftFormFloating" placeholder="دقیقه" min="0">
+          </div>
+          <div style="flex:1;">
+            <label>سقفِ اضافه‌کاریِ روزانه (دقیقه)</label>
+            <input type="number" id="shiftFormOvertimeCap" placeholder="خالی = بدون محدودیت" min="0">
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-8px;">
+          <b>زمانِ شناوری:</b> بازه‌ای که کارمند می‌تواند از شروعِ شیفت تاخیر داشته باشد و در انتهایِ شیفت با اضافه‌کاری در همان روز جبران نماید.<br>
+          <b>سقفِ اضافه‌کاریِ روزانه:</b> برایِ سازمان‌هایی که میزانِ اضافه‌کاریِ مجاز مشخص است — اگر خالی بماند، محدودیتی اعمال نمی‌شود.
+        </div>
+
+        <div class="divider"></div>
+        <div class="eyebrow" style="font-size:13px;">برنامه‌ی هفتگی</div>
+        <div class="hint" style="margin-top:-6px;">برای هر روز، اول تیکِ «روزِ کاری» را بزن تا ساعتِ شروع/پایان فعال شود. اگر آن روز دو نوبتِ جدا از هم دارد (مثلاً صبح و عصر)، تیکِ «قسمتِ دوم» را هم بزن.</div>
+        <div id="shiftWeekTable"></div>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary" id="shiftFormBtn" onclick="saveShift()">💾 ذخیره‌ی شیفت</button>
+          <button type="button" class="btn btn-ghost" id="shiftFormCancel" style="display:none;" onclick="cancelShiftEdit()">لغو ویرایش</button>
+        </div>
+      </div>
+
+      <div id="shiftSub-list" style="display:none;">
+        <div id="shiftList"><div class="empty">در حال بارگذاری...</div></div>
+      </div>
+    </div>
+    </div><!-- /admSec-shifts -->
+
     <div class="admin-section" id="admSec-settings" style="display:none;">
     <div class="card">
       <div class="eyebrow">ظاهر برنامه</div>
@@ -1443,6 +1491,7 @@
     <div class="drawer-item active" id="admMenu-dashboard" onclick="showAdminSection('dashboard')"><span class="dicon">🏠</span> داشبورد</div>
     <div class="drawer-item" id="admMenu-employees" onclick="showAdminSection('employees')"><span class="dicon">👥</span> پرسنل</div>
     <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon">📍</span> پروژه‌ها</div>
+    <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon">🕗</span> شیفت</div>
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon">📨</span> درخواست‌ها</div>
     <div class="drawer-nav-group-title">گزارش‌ها</div>
     <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon">📴</span> تردد ناقص</div>
@@ -1475,7 +1524,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-08-no-device-limit-checkbox"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-08-shift-definitions"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3576,7 +3625,7 @@ function refreshCurrentAdminSection(){
   refreshAdminSection(active);
 }
 function showAdminSection(name){
-  ['dashboard','employees','projects','requests','offline','report','performance','settings'].forEach(function(s){
+  ['dashboard','employees','projects','shifts','requests','offline','report','performance','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -3604,6 +3653,7 @@ async function refreshAdminSection(name){
   else if(name === 'offline') await Promise.all([ensureEmployeesFresh(), loadPendingOffline(), loadOpenSessions()]);
   else if(name === 'employees') await loadEmployeesAdmin();
   else if(name === 'projects') await loadProjectsAdmin();
+  else if(name === 'shifts') await loadShiftsAdmin();
   else if(name === 'requests'){
     await ensureEmployeesFresh();
     populateMonthYearFilter('reqFilterMonth','reqFilterYear');
@@ -3746,7 +3796,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-08-no-device-limit-checkbox'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-08-shift-definitions'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4362,6 +4412,173 @@ async function loadProjectsPublic(){
       if(cached.length){ projects = cached; renderProjectSelect(); }
     }catch(e){}
   }
+}
+// ---------- Shift definitions ----------
+var SHIFT_DAY_NAMES = ['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه'];
+var shifts = [];
+var editingShiftId = null;
+function switchShiftTab(tab){
+  document.getElementById('shiftSub-define').style.display = (tab==='define') ? 'block' : 'none';
+  document.getElementById('shiftSub-list').style.display = (tab==='list') ? 'block' : 'none';
+  document.getElementById('shiftTabBtn-define').classList.toggle('btn-primary', tab==='define');
+  document.getElementById('shiftTabBtn-list').classList.toggle('btn-primary', tab==='list');
+  if(tab === 'list') renderShiftList();
+}
+function populateShiftYearSelect(){
+  var sel = document.getElementById('shiftFormYear');
+  if(sel.options.length) return; // already populated once — no need to rebuild every time
+  var todayD = new Date();
+  var tj = toJalaali(todayD.getFullYear(), todayD.getMonth()+1, todayD.getDate());
+  for(var y=tj[0]+1; y>=tj[0]-2; y--){ sel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+}
+function renderShiftWeekTable(existingSchedule){
+  var sched = existingSchedule || [];
+  var html = '<div style="overflow-x:auto;"><table style="width:100%; font-size:12.5px; border-collapse:collapse;">' +
+    '<thead><tr>' +
+    '<th style="text-align:right; padding:6px 4px;">روزِ کاری</th>' +
+    '<th style="padding:6px 4px;">شروع</th>' +
+    '<th style="padding:6px 4px;">پایان</th>' +
+    '<th style="padding:6px 4px;">قسمتِ دوم</th>' +
+    '<th style="padding:6px 4px;">شروع</th>' +
+    '<th style="padding:6px 4px;">پایان</th>' +
+    '</tr></thead><tbody>';
+  SHIFT_DAY_NAMES.forEach(function(dayName, i){
+    var d = sched[i] || {};
+    html += '<tr style="border-bottom:1px solid var(--border-soft);">' +
+      '<td style="padding:8px 4px; white-space:nowrap;"><label class="chk-item" style="margin:0; padding:0;"><input type="checkbox" id="shiftDay'+i+'Working" onchange="onShiftDayToggle('+i+')" '+(d.isWorkingDay?'checked':'')+'> '+dayName+'</label></td>' +
+      '<td style="padding:6px 4px;"><input type="time" id="shiftDay'+i+'Start1" value="'+(d.start1||'')+'" '+(d.isWorkingDay?'':'disabled')+' style="width:100%; margin:0;"></td>' +
+      '<td style="padding:6px 4px;"><input type="time" id="shiftDay'+i+'End1" value="'+(d.end1||'')+'" '+(d.isWorkingDay?'':'disabled')+' style="width:100%; margin:0;"></td>' +
+      '<td style="padding:6px 4px; text-align:center;"><input type="checkbox" id="shiftDay'+i+'Second" onchange="onShiftDayToggle('+i+')" '+(d.hasSecondPart?'checked':'')+' '+(d.isWorkingDay?'':'disabled')+'></td>' +
+      '<td style="padding:6px 4px;"><input type="time" id="shiftDay'+i+'Start2" value="'+(d.start2||'')+'" '+((d.isWorkingDay && d.hasSecondPart)?'':'disabled')+' style="width:100%; margin:0;"></td>' +
+      '<td style="padding:6px 4px;"><input type="time" id="shiftDay'+i+'End2" value="'+(d.end2||'')+'" '+((d.isWorkingDay && d.hasSecondPart)?'':'disabled')+' style="width:100%; margin:0;"></td>' +
+    '</tr>';
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('shiftWeekTable').innerHTML = html;
+}
+// Time cells for a day only make sense once that day is actually marked as a working day (or,
+// for the second pair, once "قسمتِ دوم" is also checked) — this keeps those two states in
+// sync every time either checkbox changes, exactly as asked: "برای فعال‌شدنِ سلول‌هایِ تایم
+// هم باید حتماً تیکِ روزِ هفته یا قسمتِ دوم خورده باشه".
+function onShiftDayToggle(i){
+  var working = document.getElementById('shiftDay'+i+'Working').checked;
+  var secondChk = document.getElementById('shiftDay'+i+'Second');
+  if(!working) secondChk.checked = false;
+  secondChk.disabled = !working;
+  document.getElementById('shiftDay'+i+'Start1').disabled = !working;
+  document.getElementById('shiftDay'+i+'End1').disabled = !working;
+  var second = secondChk.checked;
+  document.getElementById('shiftDay'+i+'Start2').disabled = !(working && second);
+  document.getElementById('shiftDay'+i+'End2').disabled = !(working && second);
+}
+function collectShiftWeekSchedule(){
+  var sched = [];
+  for(var i=0; i<7; i++){
+    var working = document.getElementById('shiftDay'+i+'Working').checked;
+    var second = document.getElementById('shiftDay'+i+'Second').checked;
+    sched.push({
+      day: SHIFT_DAY_NAMES[i],
+      isWorkingDay: working,
+      start1: working ? document.getElementById('shiftDay'+i+'Start1').value : '',
+      end1: working ? document.getElementById('shiftDay'+i+'End1').value : '',
+      hasSecondPart: working && second,
+      start2: (working && second) ? document.getElementById('shiftDay'+i+'Start2').value : '',
+      end2: (working && second) ? document.getElementById('shiftDay'+i+'End2').value : ''
+    });
+  }
+  return sched;
+}
+async function loadShiftsAdmin(){
+  populateShiftYearSelect();
+  if(!document.getElementById('shiftWeekTable').innerHTML) renderShiftWeekTable();
+  var res = await apiCall(function(){ return apiPost('getShifts', {pin:adminPin}); });
+  if(!res.ok){ showAdminNotice('دریافتِ لیستِ شیفت‌ها ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  shifts = res.shifts || [];
+  renderShiftList();
+}
+function renderShiftList(){
+  var box = document.getElementById('shiftList');
+  if(shifts.length === 0){ box.innerHTML = '<div class="empty">هنوز شیفتی ساخته نشده.</div>'; return; }
+  box.innerHTML = shifts.map(function(s){
+    var workingDaysCount = 0;
+    try{ workingDaysCount = JSON.parse(s.weeklyScheduleJson||'[]').filter(function(d){ return d.isWorkingDay; }).length; }catch(e){}
+    return '<div class="list-item">' +
+      '<div><b>'+esc(s.name)+'</b>'+(s.shiftYear?(' · سالِ '+esc(s.shiftYear)):'')+
+      '<div class="meta">'+workingDaysCount+' روزِ کاری در هفته'+(s.floatingMinutes?(' · شناوری '+esc(s.floatingMinutes)+' دقیقه'):'')+'</div></div>' +
+      '<div class="actions">' +
+        '<button type="button" class="icon-btn edit" onclick="startEditShift(\''+s.id+'\')">✏️</button>' +
+        '<button type="button" class="icon-btn del" onclick="deleteShiftConfirm(\''+s.id+'\')">🗑️</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+function startEditShift(id){
+  var s = shifts.filter(function(x){ return x.id === id; })[0];
+  if(!s) return;
+  editingShiftId = id;
+  document.getElementById('shiftFormName').value = s.name || '';
+  populateShiftYearSelect();
+  document.getElementById('shiftFormYear').value = s.shiftYear || '';
+  document.getElementById('shiftFormFloating').value = s.floatingMinutes || '';
+  document.getElementById('shiftFormOvertimeCap').value = s.dailyOvertimeCapMinutes || '';
+  var sched = [];
+  try{ sched = JSON.parse(s.weeklyScheduleJson||'[]'); }catch(e){}
+  renderShiftWeekTable(sched);
+  document.getElementById('shiftFormBtn').textContent = '💾 بروزرسانیِ شیفت';
+  document.getElementById('shiftFormCancel').style.display = 'block';
+  switchShiftTab('define');
+  document.getElementById('shiftFormName').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function cancelShiftEdit(){
+  editingShiftId = null;
+  document.getElementById('shiftFormName').value = '';
+  document.getElementById('shiftFormYear').value = '';
+  document.getElementById('shiftFormFloating').value = '';
+  document.getElementById('shiftFormOvertimeCap').value = '';
+  renderShiftWeekTable();
+  document.getElementById('shiftFormBtn').textContent = '💾 ذخیره‌ی شیفت';
+  document.getElementById('shiftFormCancel').style.display = 'none';
+}
+async function saveShift(){
+  var name = document.getElementById('shiftFormName').value.trim();
+  if(!name){ showAdminNotice('نامِ شیفت را وارد کن.'); return; }
+  var payload = {
+    pin: adminPin, name: name, type: 'simple',
+    shiftYear: document.getElementById('shiftFormYear').value,
+    floatingMinutes: document.getElementById('shiftFormFloating').value,
+    dailyOvertimeCapMinutes: document.getElementById('shiftFormOvertimeCap').value,
+    weeklyScheduleJson: JSON.stringify(collectShiftWeekSchedule())
+  };
+  var btn = document.getElementById('shiftFormBtn');
+  btn.disabled = true;
+  var res;
+  if(editingShiftId){
+    res = await apiCall(function(){ return apiPost('updateShift', Object.assign({id:editingShiftId}, payload)); });
+  } else {
+    res = await apiCall(function(){ return apiPost('addShift', payload); });
+  }
+  btn.disabled = false;
+  if(!res.ok){ showAdminNotice('ذخیره‌یِ شیفت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  cancelShiftEdit();
+  await loadShiftsAdmin();
+  switchShiftTab('list');
+}
+async function deleteShiftConfirm(id){
+  var s = shifts.filter(function(x){ return x.id === id; })[0];
+  if(!s) return;
+  if(!confirm('شیفتِ «'+s.name+'» حذف بشه؟')) return;
+  var res = await apiCall(function(){ return apiPost('deleteShift', {pin:adminPin, id:id}); });
+  if(!res.ok){
+    var msg = res.error === 'shift_in_use'
+      ? 'این شیفت الان برای '+(res.count||'یک')+' پرسنل تعریف شده — اول شیفتِ اون‌ها رو عوض کن، بعد این رو حذف کن.'
+      : (res.error||'نامشخص');
+    showAdminNotice('حذفِ شیفت ناموفق بود: ' + msg);
+    return;
+  }
+  clearAdminNotice();
+  await loadShiftsAdmin();
 }
 async function loadProjectsAdmin(){
   var res = await apiCall(function(){ return apiPost('getProjectsAdmin', {pin:adminPin}); });
