@@ -1680,7 +1680,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-10-myshift-day-detail-popup"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-11-deactivate-fixes-and-shiftdetail-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3983,7 +3983,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-10-myshift-day-detail-popup'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-11-deactivate-fixes-and-shiftdetail-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5756,6 +5756,11 @@ async function submitEntry(type){
       loadMyLogs();
     }
     if(res.error === 'daily_limit_reached') msg = 'شما امروز حداکثر تعداد ورود مجاز (۲ بار) را ثبت کرده‌اید. برای ثبت بیشتر، لازم است با مدیر هماهنگ کنید.';
+    if(res.error === 'account_disabled'){
+      alert('⛔ حسابِ کاربریِ شما غیرفعال شده است. برایِ اطلاعاتِ بیشتر با مدیریت هماهنگ کنید.');
+      employeeLogout();
+      return;
+    }
     if(res.error === 'outside_attendance_window'){
       var winMsg = (res.windowStart && res.windowEnd) ? ('بازه‌ی مجاز: '+res.windowStart+' تا '+res.windowEnd)
         : res.windowStart ? ('فقط از ساعتِ '+res.windowStart+' به بعد مجازید') : ('فقط تا ساعتِ '+res.windowEnd+' مجازید');
@@ -6029,7 +6034,7 @@ async function loadDashboard(){
   var ddRes = await apiCall(function(){ return apiPost('getDashboardData', {pin:adminPin, daysBack:3}); });
   var empRes = ddRes, logsRes = ddRes, leavesRes = ddRes, reqRes = ddRes, holRes = ddRes;
   if(!empRes.ok){ showAdminNotice('دریافت داشبورد ناموفق بود: ' + (empRes.error||'')); return; }
-  var emps = empRes.employees || [];
+  var emps = (empRes.employees || []).filter(function(e){ return String(e.active) !== 'false'; });
   document.getElementById('dashTotal').textContent = emps.length;
 
   var todayStr = ddRes.today || jalaliString(new Date());
@@ -7062,8 +7067,6 @@ async function loadMyShiftInfo(){
   table.innerHTML = '';
   var res = await apiCall(function(){ return apiPost('getMyShiftInfo', {username: loggedInEmployee.username, year: myShiftViewYear, month: myShiftViewMonth}); });
   if(!res.ok){ hint.textContent = 'دریافتِ اطلاعاتِ شیفت ناموفق بود.'; return; }
-  myShiftDetailsCache = res.shiftDetails || null;
-  myShiftNameCache = res.shiftName || 'شیفتِ عادی';
   myShiftDaysCache = res.days || [];
   if(res.hasCustomShift){
     hint.innerHTML = 'شیفتِ فعلیِ شما: «'+esc(res.shiftName)+'»';
@@ -7085,18 +7088,19 @@ async function loadMyShiftInfo(){
     }).join('') +
     '</tbody></table></div>';
 }
-var myShiftDetailsCache = null;
-var myShiftNameCache = null;
 var myShiftDaysCache = [];
 // One combined popup per day — the day's own hours/status PLUS the shift's overall rules
-// (floating, allowances, overtime caps, attendance window), all in one place, matching what
-// tapping a single day is supposed to show.
+// (floating, allowances, overtime caps, attendance window), all in one place. Uses ONLY this
+// specific day's own shiftDetails (attached per-day by the backend) — never a month-wide
+// "whichever shift was last seen" cache, which was exactly the bug that leaked one day's
+// custom-shift settings (like the attendance window) onto an unrelated "ساعتی" day elsewhere
+// in the same month that has no custom shift applying to it at all.
 function showMyShiftDayDetail(idx){
   var d = myShiftDaysCache[idx];
   if(!d) return;
   var lines = [];
   lines.push('تاریخ: ' + d.jalaliDate);
-  lines.push('نامِ شیفت: ' + myShiftNameCache);
+  if(d.shiftDetails) lines.push('نامِ شیفت: ' + d.shiftDetails.shiftName);
   if(d.isNormalOff){
     lines.push('وضعیت: تعطیل (جمعه)');
   } else if(!d.hasShift){
@@ -7107,7 +7111,7 @@ function showMyShiftDayDetail(idx){
     lines.push('قسمتِ اولِ روز: از ' + d.start1 + ' تا ' + d.end1);
     if(d.hasSecondPart) lines.push('قسمتِ دومِ روز: از ' + d.start2 + ' تا ' + d.end2);
   }
-  var det = myShiftDetailsCache;
+  var det = d.shiftDetails; // undefined on a شیفتِ عادی ("ساعتی") day — nothing extra to show
   if(det){
     lines.push('———');
     if(det.floatingMinutes) lines.push('زمانِ شناوری: '+det.floatingMinutes+' دقیقه');
@@ -7121,21 +7125,6 @@ function showMyShiftDayDetail(idx){
     if(det.attendanceWindowStart || det.attendanceWindowEnd) lines.push('بازه‌یِ مجازِ ثبتِ تردد: '+(det.attendanceWindowStart||'—')+' تا '+(det.attendanceWindowEnd||'—'));
   }
   alert(lines.join('\n'));
-}
-function showMyShiftDetails(){
-  if(!myShiftDetailsCache) return;
-  var d = myShiftDetailsCache;
-  var lines = [];
-  if(d.floatingMinutes) lines.push('زمانِ شناوری: '+esc(d.floatingMinutes)+' دقیقه');
-  if(d.floatBeforeShiftMinutes) lines.push('شناوریِ قبلِ شیفت: '+esc(d.floatBeforeShiftMinutes)+' دقیقه');
-  if(d.lateAllowedMinutes) lines.push('تاخیرِ مجاز: '+esc(d.lateAllowedMinutes)+' دقیقه');
-  if(d.earlyLeaveAllowedMinutes) lines.push('تعجیلِ مجاز: '+esc(d.earlyLeaveAllowedMinutes)+' دقیقه');
-  if(d.dailyOvertimeCapMinutes) lines.push('سقفِ اضافه‌کاریِ روزِ بدونِ شیفت: '+esc(d.dailyOvertimeCapMinutes)+' دقیقه');
-  if(d.otStartMinutes) lines.push('سقفِ اضافه‌کار از ابتدایِ شیفت: '+esc(d.otStartMinutes)+' دقیقه');
-  if(d.otMiddleMinutes) lines.push('سقفِ اضافه‌کار در میانه‌یِ شیفت: '+esc(d.otMiddleMinutes)+' دقیقه');
-  if(d.otEndMinutes) lines.push('سقفِ اضافه‌کار از انتهایِ شیفت: '+esc(d.otEndMinutes)+' دقیقه');
-  if(d.attendanceWindowStart || d.attendanceWindowEnd) lines.push('بازه‌یِ مجازِ ثبتِ تردد: '+esc(d.attendanceWindowStart||'—')+' تا '+esc(d.attendanceWindowEnd||'—'));
-  alert(lines.length ? lines.join('\n') : 'برایِ این شیفت، هیچ‌کدوم از تنظیماتِ پیشرفته تنظیم نشده.');
 }
 function navigateMyShiftMonth(delta){
   myShiftViewMonth += delta;
