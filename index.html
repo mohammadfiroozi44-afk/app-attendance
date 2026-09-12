@@ -1038,6 +1038,36 @@
       </div>
       <label>پروژه‌های مجاز برای این پرسنل</label>
       <div class="chk-list" id="empProjChecks"></div>
+
+      <div id="empShiftAssignSection" style="display:none;">
+        <div class="divider"></div>
+        <label>شیفتِ اختصاصی</label>
+        <select id="empShiftAssignSelect">
+          <option value="">شیفتِ عادی (پیش‌فرض — بدونِ شیفتِ خاص)</option>
+        </select>
+        <div style="display:flex; gap:16px; margin:6px 0 12px;">
+          <label class="chk-item" style="cursor:pointer;">
+            <input type="radio" name="empShiftAssignMode" id="empShiftAssignModeGeneral" checked onchange="onEmpShiftAssignModeChange()"> کلی، از این تاریخ به بعد
+          </label>
+          <label class="chk-item" style="cursor:pointer;">
+            <input type="radio" name="empShiftAssignMode" id="empShiftAssignModeRanged" onchange="onEmpShiftAssignModeChange()"> فقط برایِ این بازه
+          </label>
+        </div>
+        <div class="date-row">
+          <div style="flex:1;">
+            <label id="empShiftAssignStartLabel">از تاریخ</label>
+            <select id="empShiftStartDay"></select><select id="empShiftStartMonth"></select><select id="empShiftStartYear"></select>
+          </div>
+          <div style="flex:1;" id="empShiftAssignEndWrap">
+            <label>تا تاریخ</label>
+            <select id="empShiftEndDay"></select><select id="empShiftEndMonth"></select><select id="empShiftEndYear"></select>
+          </div>
+        </div>
+        <button type="button" class="btn btn-ghost" onclick="assignShiftToEmployee()">➕ ثبتِ اختصاص</button>
+        <div class="hint" id="empShiftAssignHint">این شیفت از تاریخِ انتخاب‌شده به بعد برایِ این پرسنل فعال می‌شه — روزهایِ گذشته دست‌نخورده می‌مونن.</div>
+        <div id="empShiftAssignList" style="margin-top:10px;"></div>
+      </div>
+
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="empFormBtn" onclick="saveEmployee()">➕ افزودن پرسنل</button>
         <button type="button" class="btn btn-ghost" id="empFormCancel" style="display:none;" onclick="cancelEmpEdit()">لغو ویرایش</button>
@@ -1121,6 +1151,61 @@
         <div class="hint" style="margin-top:-8px;">
           <b>زمانِ شناوری:</b> بازه‌ای که کارمند می‌تواند از شروعِ شیفت تاخیر داشته باشد و در انتهایِ شیفت با اضافه‌کاری در همان روز جبران نماید.<br>
           <b>سقفِ اضافه‌کاریِ روزانه:</b> برایِ سازمان‌هایی که میزانِ اضافه‌کاریِ مجاز مشخص است — اگر خالی بماند، محدودیتی اعمال نمی‌شود.
+        </div>
+
+        <button type="button" class="btn btn-ghost" id="shiftAdvToggleBtn" onclick="toggleShiftAdvanced()" style="color:var(--accent, #2563eb); margin-bottom:6px;">➕ تنظیماتِ پیشرفته</button>
+        <div id="shiftAdvancedBox" style="display:none;">
+          <div class="date-row">
+            <div style="flex:1;">
+              <label>اضافه‌کار از ابتدایِ شیفت (دقیقه)</label>
+              <input type="number" id="shiftFormOtStart" placeholder="دقیقه" min="0">
+            </div>
+            <div style="flex:1;">
+              <label>اضافه‌کار در میانه‌یِ شیفت (دقیقه)</label>
+              <input type="number" id="shiftFormOtMiddle" placeholder="دقیقه" min="0">
+            </div>
+            <div style="flex:1;">
+              <label>اضافه‌کار از انتهایِ شیفت (دقیقه)</label>
+              <input type="number" id="shiftFormOtEnd" placeholder="دقیقه" min="0">
+            </div>
+          </div>
+          <div class="hint" style="margin-top:-8px;">
+            برایِ هرکدوم از این سه، اگه وارد کنی، اضافه‌کاری تا همون سقف حساب می‌شه و مازادش «مازادِ حضور» می‌شه؛ اگه خالی بذاری، بدونِ سقف حساب می‌شه.
+          </div>
+
+          <div class="date-row">
+            <div style="flex:1;">
+              <label>تاخیرِ مجاز (دقیقه)</label>
+              <input type="number" id="shiftFormLateAllowed" placeholder="دقیقه" min="0">
+            </div>
+            <div style="flex:1;">
+              <label>تعجیلِ مجاز (دقیقه)</label>
+              <input type="number" id="shiftFormEarlyAllowed" placeholder="دقیقه" min="0">
+            </div>
+            <div style="flex:1;">
+              <label>شناوریِ قبلِ شیفت (دقیقه)</label>
+              <input type="number" id="shiftFormFloatBefore" placeholder="دقیقه" min="0">
+            </div>
+          </div>
+          <div class="hint" style="margin-top:-8px;">
+            <b>تاخیرِ مجاز:</b> اگه پرسنل کمتر یا مساویِ این مقدار از شروعِ شیفت دیر برسه، غیبت حساب نمی‌شه، جزوِ کارکرد می‌ره.<br>
+            <b>تعجیلِ مجاز:</b> اگه پرسنل کمتر یا مساویِ این مقدار قبل از پایانِ شیفت خروج بزنه، غیبت حساب نمی‌شه.<br>
+            <b>شناوریِ قبلِ شیفت:</b> اگه پرسنل زودتر از شروعِ شیفت شروع به کار کنه، می‌تونه به همون میزان هم زودتر خروج بزنه بدونِ غیبت.
+          </div>
+
+          <div class="date-row">
+            <div style="flex:1;">
+              <label>شروعِ بازه‌یِ مجازِ ثبتِ تردد</label>
+              <input type="time" id="shiftFormWindowStart">
+            </div>
+            <div style="flex:1;">
+              <label>پایانِ بازه‌یِ مجازِ ثبتِ تردد</label>
+              <input type="time" id="shiftFormWindowEnd">
+            </div>
+          </div>
+          <div class="hint" style="margin-top:-8px;">
+            پرسنل خارج از این بازه اصلاً مجاز به ثبتِ تردد نیست.
+          </div>
         </div>
 
         <div class="divider"></div>
@@ -1524,7 +1609,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-08-shift-definitions"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-08-shift-calc-integration"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3796,7 +3881,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-08-shift-definitions'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-08-shift-calc-integration'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4015,6 +4100,10 @@ function startEditEmp(id){
   document.getElementById('empFormCancel').style.display='block';
   document.getElementById('empFormName').scrollIntoView({behavior:'smooth', block:'center'});
   openAdminFormModal('emp');
+  document.getElementById('empShiftAssignSection').style.display = 'block';
+  initLeaveDateSelects();
+  populateEmpShiftSelect();
+  loadEmployeeShiftAssignments(emp.username);
 }
 function cancelEmpEdit(){
   editingEmpId = null;
@@ -4034,7 +4123,70 @@ function cancelEmpEdit(){
   renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
+  document.getElementById('empShiftAssignSection').style.display = 'none';
+  document.getElementById('empShiftAssignList').innerHTML = '';
   closeAdminFormModal('emp');
+}
+function onEmpShiftAssignModeChange(){
+  var ranged = document.getElementById('empShiftAssignModeRanged').checked;
+  document.getElementById('empShiftAssignEndWrap').style.display = ranged ? 'block' : 'none';
+  document.getElementById('empShiftAssignStartLabel').textContent = ranged ? 'از تاریخ' : 'از این تاریخ به بعد';
+  document.getElementById('empShiftAssignHint').textContent = ranged
+    ? 'این شیفت فقط برایِ روزهایِ داخلِ این بازه فعاله — بیرونِ این بازه، پرسنل به شیفتی که قبلاً داشته (یا شیفتِ عادی) برمی‌گرده.'
+    : 'این شیفت از تاریخِ انتخاب‌شده به بعد برایِ این پرسنل فعال می‌شه — روزهایِ گذشته دست‌نخورده می‌مونن.';
+}
+async function populateEmpShiftSelect(){
+  if(shifts.length === 0){
+    var res = await apiCall(function(){ return apiPost('getShifts', {pin:adminPin}); });
+    if(res.ok) shifts = res.shifts || [];
+  }
+  var sel = document.getElementById('empShiftAssignSelect');
+  sel.innerHTML = '<option value="">شیفتِ عادی (پیش‌فرض — بدونِ شیفتِ خاص)</option>' +
+    shifts.map(function(s){ return '<option value="'+s.id+'">'+esc(s.name)+'</option>'; }).join('');
+}
+async function loadEmployeeShiftAssignments(username){
+  var box = document.getElementById('empShiftAssignList');
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  var res = await apiCall(function(){ return apiPost('getEmployeeShiftAssignments', {pin:adminPin, username:username}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافتِ سابقه‌یِ شیفت ناموفق بود.</div>'; return; }
+  renderEmpShiftAssignmentsList(res.assignments || [], username);
+}
+function renderEmpShiftAssignmentsList(assignments, username){
+  var box = document.getElementById('empShiftAssignList');
+  if(assignments.length === 0){ box.innerHTML = '<div class="empty">هنوز شیفتِ اختصاصی‌ای برایِ این پرسنل ثبت نشده — با شیفتِ عادی کار می‌کنه.</div>'; return; }
+  box.innerHTML = assignments.map(function(a){
+    var shiftName = a.shiftId ? ((shifts.filter(function(s){ return s.id === a.shiftId; })[0]||{}).name || 'شیفتِ حذف‌شده') : 'شیفتِ عادی';
+    var rangeLabel = a.endDate ? ('از '+esc(a.startDate)+' تا '+esc(a.endDate)) : ('کلی، از '+esc(a.startDate)+' به بعد');
+    return '<div class="list-item"><div><b>'+esc(shiftName)+'</b><div class="meta">'+rangeLabel+'</div></div>' +
+      '<div class="actions"><button type="button" class="icon-btn del" onclick="deleteEmpShiftAssignment(\''+a.id+'\', \''+username+'\')">🗑️</button></div></div>';
+  }).join('');
+}
+async function assignShiftToEmployee(){
+  if(!editingEmpId) return;
+  var emp = employees.find(function(e){ return e.id===editingEmpId; });
+  if(!emp) return;
+  var shiftId = document.getElementById('empShiftAssignSelect').value;
+  var isRanged = document.getElementById('empShiftAssignModeRanged').checked;
+  var startDate = readDateSelect('empShiftStart');
+  var payload = {pin: adminPin, username: emp.username, shiftId: shiftId, startDate: startDate};
+  if(isRanged){
+    payload.endDate = readDateSelect('empShiftEnd');
+    if(jalaliDateSortKeyClient(payload.endDate) < jalaliDateSortKeyClient(startDate)){
+      showAdminNotice('تاریخِ پایان نمی‌تونه قبل از تاریخِ شروع باشه.');
+      return;
+    }
+  }
+  var res = await apiCall(function(){ return apiPost('assignEmployeeShift', payload); });
+  if(!res.ok){ showAdminNotice('ثبتِ اختصاصِ شیفت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadEmployeeShiftAssignments(emp.username);
+}
+async function deleteEmpShiftAssignment(id, username){
+  if(!confirm('این اختصاصِ شیفت حذف بشه؟')) return;
+  var res = await apiCall(function(){ return apiPost('deleteEmployeeShiftAssignment', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadEmployeeShiftAssignments(username);
 }
 async function saveEmployee(){
   try{
@@ -4513,6 +4665,13 @@ function renderShiftList(){
     '</div>';
   }).join('');
 }
+function toggleShiftAdvanced(){
+  var box = document.getElementById('shiftAdvancedBox');
+  var btn = document.getElementById('shiftAdvToggleBtn');
+  var isOpen = box.style.display !== 'none';
+  box.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? '➕ تنظیماتِ پیشرفته' : '➖ تنظیماتِ پیشرفته';
+}
 function startEditShift(id){
   var s = shifts.filter(function(x){ return x.id === id; })[0];
   if(!s) return;
@@ -4522,6 +4681,19 @@ function startEditShift(id){
   document.getElementById('shiftFormYear').value = s.shiftYear || '';
   document.getElementById('shiftFormFloating').value = s.floatingMinutes || '';
   document.getElementById('shiftFormOvertimeCap').value = s.dailyOvertimeCapMinutes || '';
+  document.getElementById('shiftFormOtStart').value = s.otStartMinutes || '';
+  document.getElementById('shiftFormOtMiddle').value = s.otMiddleMinutes || '';
+  document.getElementById('shiftFormOtEnd').value = s.otEndMinutes || '';
+  document.getElementById('shiftFormLateAllowed').value = s.lateAllowedMinutes || '';
+  document.getElementById('shiftFormEarlyAllowed').value = s.earlyLeaveAllowedMinutes || '';
+  document.getElementById('shiftFormFloatBefore').value = s.floatBeforeShiftMinutes || '';
+  document.getElementById('shiftFormWindowStart').value = s.attendanceWindowStart || '';
+  document.getElementById('shiftFormWindowEnd').value = s.attendanceWindowEnd || '';
+  // If any advanced field actually has a value, open the box automatically so editing this
+  // shift doesn't hide settings it already relies on behind a collapsed toggle.
+  var hasAdvValues = [s.otStartMinutes, s.otMiddleMinutes, s.otEndMinutes, s.lateAllowedMinutes, s.earlyLeaveAllowedMinutes, s.floatBeforeShiftMinutes, s.attendanceWindowStart, s.attendanceWindowEnd].some(function(v){ return v; });
+  document.getElementById('shiftAdvancedBox').style.display = hasAdvValues ? 'block' : 'none';
+  document.getElementById('shiftAdvToggleBtn').textContent = hasAdvValues ? '➖ تنظیماتِ پیشرفته' : '➕ تنظیماتِ پیشرفته';
   var sched = [];
   try{ sched = JSON.parse(s.weeklyScheduleJson||'[]'); }catch(e){}
   renderShiftWeekTable(sched);
@@ -4536,6 +4708,16 @@ function cancelShiftEdit(){
   document.getElementById('shiftFormYear').value = '';
   document.getElementById('shiftFormFloating').value = '';
   document.getElementById('shiftFormOvertimeCap').value = '';
+  document.getElementById('shiftFormOtStart').value = '';
+  document.getElementById('shiftFormOtMiddle').value = '';
+  document.getElementById('shiftFormOtEnd').value = '';
+  document.getElementById('shiftFormLateAllowed').value = '';
+  document.getElementById('shiftFormEarlyAllowed').value = '';
+  document.getElementById('shiftFormFloatBefore').value = '';
+  document.getElementById('shiftFormWindowStart').value = '';
+  document.getElementById('shiftFormWindowEnd').value = '';
+  document.getElementById('shiftAdvancedBox').style.display = 'none';
+  document.getElementById('shiftAdvToggleBtn').textContent = '➕ تنظیماتِ پیشرفته';
   renderShiftWeekTable();
   document.getElementById('shiftFormBtn').textContent = '💾 ذخیره‌ی شیفت';
   document.getElementById('shiftFormCancel').style.display = 'none';
@@ -4548,7 +4730,15 @@ async function saveShift(){
     shiftYear: document.getElementById('shiftFormYear').value,
     floatingMinutes: document.getElementById('shiftFormFloating').value,
     dailyOvertimeCapMinutes: document.getElementById('shiftFormOvertimeCap').value,
-    weeklyScheduleJson: JSON.stringify(collectShiftWeekSchedule())
+    weeklyScheduleJson: JSON.stringify(collectShiftWeekSchedule()),
+    otStartMinutes: document.getElementById('shiftFormOtStart').value,
+    otMiddleMinutes: document.getElementById('shiftFormOtMiddle').value,
+    otEndMinutes: document.getElementById('shiftFormOtEnd').value,
+    lateAllowedMinutes: document.getElementById('shiftFormLateAllowed').value,
+    earlyLeaveAllowedMinutes: document.getElementById('shiftFormEarlyAllowed').value,
+    floatBeforeShiftMinutes: document.getElementById('shiftFormFloatBefore').value,
+    attendanceWindowStart: document.getElementById('shiftFormWindowStart').value,
+    attendanceWindowEnd: document.getElementById('shiftFormWindowEnd').value
   };
   var btn = document.getElementById('shiftFormBtn');
   btn.disabled = true;
@@ -5462,7 +5652,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','empShiftStart','empShiftEnd'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
