@@ -1676,7 +1676,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-10-styled-confirm-dialogs"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-10-flexible-hours-and-year-range"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3979,7 +3979,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-10-styled-confirm-dialogs'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-10-flexible-hours-and-year-range'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4690,7 +4690,7 @@ function populateShiftYearSelect(){
   if(sel.options.length) return; // already populated once — no need to rebuild every time
   var todayD = new Date();
   var tj = toJalaali(todayD.getFullYear(), todayD.getMonth()+1, todayD.getDate());
-  for(var y=tj[0]+1; y>=tj[0]-2; y--){ sel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+  for(var y=tj[0]+5; y>=tj[0]-2; y--){ sel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
 }
 // This weekly grid is purely a PATTERN used once by "ساختِ تقویم" to generate the whole
 // year's calendar — it's not itself the stored shift data (ShiftDays, keyed by specific
@@ -4764,7 +4764,7 @@ function openShiftCalendar(){
   if(!yearSel.options.length){
     var todayD = new Date();
     var tj = toJalaali(todayD.getFullYear(), todayD.getMonth()+1, todayD.getDate());
-    for(var y=tj[0]+1; y>=tj[0]-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+    for(var y=tj[0]+5; y>=tj[0]-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
     jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'">'+m+'</option>'; });
     shiftCalYear = tj[0]; shiftCalMonth = tj[1];
     yearSel.value = shiftCalYear; monthSel.value = shiftCalMonth;
@@ -7041,7 +7041,7 @@ async function loadMyShiftInfo(){
   var monthSel = document.getElementById('myShiftMonth');
   if(!yearSel.options.length){
     var tj = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate());
-    for(var y=tj[0]+1; y>=tj[0]-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+    for(var y=tj[0]+5; y>=tj[0]-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
     jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'">'+m+'</option>'; });
     myShiftViewYear = tj[0]; myShiftViewMonth = tj[1];
     yearSel.value = myShiftViewYear; monthSel.value = myShiftViewMonth;
@@ -7050,12 +7050,18 @@ async function loadMyShiftInfo(){
   table.innerHTML = '';
   var res = await apiCall(function(){ return apiPost('getMyShiftInfo', {username: loggedInEmployee.username, year: myShiftViewYear, month: myShiftViewMonth}); });
   if(!res.ok){ hint.textContent = 'دریافتِ اطلاعاتِ شیفت ناموفق بود.'; return; }
-  hint.textContent = res.hasCustomShift ? ('شیفتِ فعلیِ شما: «'+res.shiftName+'»') : 'شما شیفتِ اختصاصی ندارید — با «شیفتِ عادی» کار می‌کنید.';
+  myShiftDetailsCache = res.shiftDetails || null;
+  if(res.hasCustomShift){
+    hint.innerHTML = 'شیفتِ فعلیِ شما: «'+esc(res.shiftName)+'» — <a href="javascript:void(0)" onclick="showMyShiftDetails()" style="color:var(--accent, #2563eb); text-decoration:underline;">دیدنِ قوانینِ این شیفت</a>';
+  } else {
+    hint.textContent = 'شما شیفتِ اختصاصی ندارید — با «شیفتِ عادی» کار می‌کنید.';
+  }
   var days = res.days || [];
   table.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%; font-size:13px; border-collapse:collapse;">' +
     '<thead><tr><th style="text-align:right; padding:8px 6px;">روز</th><th style="padding:8px 6px;">وضعیت</th><th style="padding:8px 6px;">ساعت</th></tr></thead><tbody>' +
     days.map(function(d){
       var timesHtml = !d.hasShift ? (d.isNormalOff ? 'تعطیل' : '<span style="color:var(--warning-dark, #a3701a);">بدونِ شیفت</span>') :
+        d.isFlexibleHours ? 'ساعتی' :
         (esc(d.start1)+' تا '+esc(d.end1)) + (d.hasSecondPart ? ('<br>'+esc(d.start2)+' تا '+esc(d.end2)) : '');
       return '<tr style="border-bottom:1px solid var(--border-soft);">' +
         '<td style="padding:8px 6px;"><b>'+d.day+'</b></td>' +
@@ -7064,6 +7070,22 @@ async function loadMyShiftInfo(){
       '</tr>';
     }).join('') +
     '</tbody></table></div>';
+}
+var myShiftDetailsCache = null;
+function showMyShiftDetails(){
+  if(!myShiftDetailsCache) return;
+  var d = myShiftDetailsCache;
+  var lines = [];
+  if(d.floatingMinutes) lines.push('زمانِ شناوری: '+esc(d.floatingMinutes)+' دقیقه');
+  if(d.floatBeforeShiftMinutes) lines.push('شناوریِ قبلِ شیفت: '+esc(d.floatBeforeShiftMinutes)+' دقیقه');
+  if(d.lateAllowedMinutes) lines.push('تاخیرِ مجاز: '+esc(d.lateAllowedMinutes)+' دقیقه');
+  if(d.earlyLeaveAllowedMinutes) lines.push('تعجیلِ مجاز: '+esc(d.earlyLeaveAllowedMinutes)+' دقیقه');
+  if(d.dailyOvertimeCapMinutes) lines.push('سقفِ اضافه‌کاریِ روزِ بدونِ شیفت: '+esc(d.dailyOvertimeCapMinutes)+' دقیقه');
+  if(d.otStartMinutes) lines.push('سقفِ اضافه‌کار از ابتدایِ شیفت: '+esc(d.otStartMinutes)+' دقیقه');
+  if(d.otMiddleMinutes) lines.push('سقفِ اضافه‌کار در میانه‌یِ شیفت: '+esc(d.otMiddleMinutes)+' دقیقه');
+  if(d.otEndMinutes) lines.push('سقفِ اضافه‌کار از انتهایِ شیفت: '+esc(d.otEndMinutes)+' دقیقه');
+  if(d.attendanceWindowStart || d.attendanceWindowEnd) lines.push('بازه‌یِ مجازِ ثبتِ تردد: '+esc(d.attendanceWindowStart||'—')+' تا '+esc(d.attendanceWindowEnd||'—'));
+  alert(lines.length ? lines.join('\n') : 'برایِ این شیفت، هیچ‌کدوم از تنظیماتِ پیشرفته تنظیم نشده.');
 }
 function navigateMyShiftMonth(delta){
   myShiftViewMonth += delta;
