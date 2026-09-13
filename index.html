@@ -1155,6 +1155,15 @@
       </div>
 
       <div id="shiftSub-define">
+        <label>نوعِ شیفت</label>
+        <div style="display:flex; gap:20px; margin-bottom:10px;">
+          <label class="chk-item" style="cursor:pointer;"><input type="radio" name="shiftTopType" id="shiftTopTypeSimple" checked onchange="onShiftTopTypeChange()"> شیفتِ ساده</label>
+          <label class="chk-item" style="cursor:pointer;"><input type="radio" name="shiftTopType" id="shiftTopTypeCustom" onchange="onShiftTopTypeChange()"> شیفتِ سفارشی</label>
+        </div>
+        <div class="hint" style="margin-top:-6px;">
+          <b>شیفتِ ساده:</b> اول یه الگویِ هفتگی می‌سازی، بعد خودکار رویِ کلِ سال پخش می‌شه و می‌تونی تک‌تکِ روزها رو دستی اصلاح کنی.<br>
+          <b>شیفتِ سفارشی:</b> بدونِ الگویِ هفتگی، مستقیم می‌ری تو تقویمِ خالی و هر روز رو جداگونه، دستی تعریف می‌کنی.
+        </div>
         <label>نامِ شیفت</label>
         <input type="text" id="shiftFormName" placeholder="مثلاً: شیفتِ اداری">
 
@@ -1171,6 +1180,12 @@
             <label>سقفِ اضافه‌کاریِ روزانه (دقیقه)</label>
             <input type="number" id="shiftFormOvertimeCap" placeholder="خالی = بدون محدودیت" min="0">
           </div>
+        </div>
+        <label class="chk-item" style="width:100%; box-sizing:border-box;">
+          <input type="checkbox" id="shiftFormFollowHolidays" checked> تبعیت از تعطیلاتِ رسمی
+        </label>
+        <div class="hint" style="margin-top:-8px;">
+          اگه تیک بخوره، جمعه‌ها و تعطیلاتِ رسمی برایِ این شیفت اعمال می‌شن (اون روزها موظفی صفره). اگه تیک نخوره، این شیفت از هیچ‌کدوم تبعیت نمی‌کنه — یعنی جمعه و روزِ تعطیل هم مثلِ یه روزِ عادیِ همین شیفت حساب می‌شن، و اگه پرسنل تردد ثبت نکنه، غیبت براش ثبت می‌شه.
         </div>
         <div class="hint" style="margin-top:-8px;">
           <b>زمانِ شناوری:</b> بازه‌ای که کارمند می‌تواند از شروعِ شیفت تاخیر داشته باشد و در انتهایِ شیفت با اضافه‌کاری در همان روز جبران نماید.<br>
@@ -1232,10 +1247,12 @@
           </div>
         </div>
 
-        <div class="divider"></div>
-        <div class="eyebrow" style="font-size:13px;">برنامه‌ی هفتگی</div>
-        <div class="hint" style="margin-top:-6px;">این الگو فقط برایِ «ساختِ تقویم» استفاده می‌شه — یعنی هر شنبه‌یِ سال، ساعتِ همینجا رو می‌گیره، هر یکشنبه‌ای همین‌طور، و... . بعد از ساختِ تقویم می‌تونی تک‌تکِ روزها رو تو تقویمِ ماهانه دستی عوض کنی. برای هر روز، اول تیکِ «روزِ کاری» را بزن تا ساعتِ شروع/پایان فعال شود.</div>
-        <div id="shiftWeekTable"></div>
+        <div id="shiftWeeklyPatternWrap">
+          <div class="divider"></div>
+          <div class="eyebrow" style="font-size:13px;">برنامه‌ی هفتگی</div>
+          <div class="hint" style="margin-top:-6px;">این الگو فقط برایِ «ساختِ تقویم» استفاده می‌شه — یعنی هر شنبه‌یِ سال، ساعتِ همینجا رو می‌گیره، هر یکشنبه‌ای همین‌طور، و... . بعد از ساختِ تقویم می‌تونی تک‌تکِ روزها رو تو تقویمِ ماهانه دستی عوض کنی. برای هر روز، اول تیکِ «روزِ کاری» را بزن تا ساعتِ شروع/پایان فعال شود.</div>
+          <div id="shiftWeekTable"></div>
+        </div>
 
         <div class="btn-row">
           <button type="button" class="btn btn-primary" id="shiftFormBtn" onclick="saveShift()">✅ ثبت و ساختِ تقویم</button>
@@ -1272,18 +1289,70 @@
         <div id="shiftCalGrid"></div>
       </div>
 
-      <div id="shiftDayEditModal" class="erp-modal-card" style="display:none; position:fixed; top:50%; right:50%; transform:translate(50%,-50%); z-index:2001; width:90%; max-width:420px; background:var(--paper); border-radius:14px; padding:20px; box-shadow:0 25px 70px -15px #00000059;">
+      <div id="shiftDayEditModal" class="erp-modal-card" style="display:none; position:fixed; top:50%; right:50%; transform:translate(50%,-50%); z-index:2001; width:90%; max-width:460px; max-height:85vh; overflow-y:auto; background:var(--paper); border-radius:14px; padding:20px; box-shadow:0 25px 70px -15px #00000059;">
         <button type="button" class="erp-modal-close" onclick="closeShiftDayEditModal()" style="position:absolute; top:10px; left:10px; background:var(--paper-2); border:none; width:30px; height:30px; border-radius:50%; cursor:pointer;">✕</button>
-        <div class="eyebrow" id="shiftDayEditTitle" style="font-size:14px;">تعریفِ شیفتِ روز</div>
-        <label>قسمتِ اولِ روز</label>
-        <div class="date-row"><input type="time" id="shiftDayStart1"><span>تا</span><input type="time" id="shiftDayEnd1"></div>
-        <label class="chk-item" style="margin-top:8px;"><input type="checkbox" id="shiftDayHasSecond" onchange="onShiftDaySecondToggle()"> این روز قسمتِ دوم هم دارد</label>
-        <div id="shiftDaySecondWrap" style="display:none;">
-          <label>قسمتِ دومِ روز</label>
-          <div class="date-row"><input type="time" id="shiftDayStart2"><span>تا</span><input type="time" id="shiftDayEnd2"></div>
+        <div class="eyebrow" id="shiftDayEditTitle" style="font-size:14px;">مشخصاتِ شیفت</div>
+
+        <label>نوعِ شیفت</label>
+        <div style="display:flex; gap:20px; margin-bottom:10px;">
+          <label class="chk-item" style="cursor:pointer;"><input type="radio" name="shiftDayType" id="shiftDayTypeSimple" checked onchange="onShiftDayTypeChange()"> ساده</label>
+          <label class="chk-item" style="cursor:pointer;"><input type="radio" name="shiftDayType" id="shiftDayTypeFloating" onchange="onShiftDayTypeChange()"> شناور</label>
         </div>
+
+        <div class="date-row">
+          <div style="flex:1;">
+            <label>زمانِ شناوری (دقیقه)</label>
+            <input type="number" id="shiftDayFloating" min="0" placeholder="دقیقه">
+          </div>
+          <div style="flex:1;">
+            <label>سقفِ اضافه‌کاریِ روزانه (دقیقه)</label>
+            <input type="number" id="shiftDayOvertimeCap" min="0" placeholder="دقیقه">
+          </div>
+        </div>
+        <div id="shiftDayFloatingRequiredWrap" style="display:none;">
+          <label>مدتِ زمانِ موظفیِ روزانه (دقیقه)</label>
+          <input type="number" id="shiftDayDailyRequired" min="0" placeholder="دقیقه">
+        </div>
+
+        <button type="button" class="btn btn-ghost" id="shiftDayAdvToggleBtn" onclick="toggleShiftDayAdvanced()" style="color:var(--accent, #2563eb); margin:6px 0;">➕ تنظیماتِ پیشرفته</button>
+        <div id="shiftDayAdvancedBox" style="display:none;">
+          <div id="shiftDaySimpleAdvancedWrap">
+            <div class="date-row">
+              <div style="flex:1;"><label>اضافه‌کار از ابتدایِ شیفت</label><input type="number" id="shiftDayOtStart" min="0" placeholder="دقیقه"></div>
+              <div style="flex:1;"><label>اضافه‌کار در میانه‌یِ شیفت</label><input type="number" id="shiftDayOtMiddle" min="0" placeholder="دقیقه"></div>
+              <div style="flex:1;"><label>اضافه‌کار از انتهایِ شیفت</label><input type="number" id="shiftDayOtEnd" min="0" placeholder="دقیقه"></div>
+            </div>
+            <div class="date-row">
+              <div style="flex:1;"><label>تاخیرِ مجاز</label><input type="number" id="shiftDayLateAllowed" min="0" placeholder="۰"></div>
+              <div style="flex:1;"><label>تعجیلِ مجاز</label><input type="number" id="shiftDayEarlyAllowed" min="0" placeholder="۰"></div>
+              <div style="flex:1;"><label>شناوریِ قبلِ شیفت</label><input type="number" id="shiftDayFloatBefore" min="0" placeholder="۰"></div>
+            </div>
+          </div>
+          <div class="date-row">
+            <div style="flex:1;"><label>شروعِ بازه‌یِ مجازِ ثبتِ تردد</label><input type="time" id="shiftDayWindowStart"></div>
+            <div style="flex:1;"><label>پایانِ بازه‌یِ مجازِ ثبتِ تردد</label><input type="time" id="shiftDayWindowEnd"></div>
+          </div>
+          <div class="divider"></div>
+          <label>شب‌کاری</label>
+          <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:6px;"><input type="checkbox" id="shiftDayNightCrosses"> انتهایِ این شیفت در روزِ بعد است</label>
+          <div class="date-row">
+            <div style="flex:1;"><label>شروعِ شب‌کاری</label><input type="time" id="shiftDayNightStart"></div>
+            <div style="flex:1;"><label>مدتِ شب‌کاری</label><input type="time" id="shiftDayNightDuration"></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div id="shiftDaySimpleSegmentsWrap">
+          <label class="chk-item" style="width:100%; box-sizing:border-box;"><input type="checkbox" id="shiftDayFirstPartChk" checked onchange="onShiftDayFirstPartToggle()"> قسمتِ اولِ روز</label>
+          <div class="date-row"><input type="time" id="shiftDayStart1"><span>تا</span><input type="time" id="shiftDayEnd1"></div>
+          <label class="chk-item" style="width:100%; box-sizing:border-box; margin-top:8px;"><input type="checkbox" id="shiftDayHasSecond" onchange="onShiftDaySecondToggle()"> قسمتِ دومِ روز</label>
+          <div id="shiftDaySecondWrap" style="display:none;">
+            <div class="date-row"><input type="time" id="shiftDayStart2"><span>تا</span><input type="time" id="shiftDayEnd2"></div>
+          </div>
+        </div>
+
         <div class="btn-row" style="margin-top:12px;">
-          <button type="button" class="btn btn-primary" onclick="saveShiftDayModal()">💾 ذخیره</button>
+          <button type="button" class="btn btn-primary" onclick="saveShiftDayModal()">✅ ثبت</button>
           <button type="button" class="btn btn-ghost" onclick="closeShiftDayEditModal()">انصراف</button>
         </div>
       </div>
@@ -1680,7 +1749,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-11-deactivate-fixes-and-shiftdetail-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-11-night-shift-window-fix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3983,7 +4052,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-11-deactivate-fixes-and-shiftdetail-fix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-11-night-shift-window-fix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4829,8 +4898,10 @@ function renderShiftCalGrid(){
           '<b style="font-size:13px;">'+d+'</b>' +
         '</div>';
       if(entry){
-        html += '<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">'+esc(entry.start1)+'-'+esc(entry.end1)+
-          (String(entry.hasSecondPart||'').toLowerCase()==='yes' ? ('<br>'+esc(entry.start2)+'-'+esc(entry.end2)) : '')+'</div>' +
+        var entryTimesHtml = (String(entry.dayType) === 'floating')
+          ? ('ساعتی · '+esc(entry.dailyRequiredMinutes||'?')+' دقیقه')
+          : (esc(entry.start1)+'-'+esc(entry.end1) + (String(entry.hasSecondPart||'').toLowerCase()==='yes' ? ('<br>'+esc(entry.start2)+'-'+esc(entry.end2)) : ''));
+        html += '<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">'+entryTimesHtml+'</div>' +
           '<button type="button" class="btn btn-ghost btn-small" style="width:100%; margin-bottom:3px; padding:3px;" onclick="openShiftDayEditModal(\''+dateStr+'\')">✏️</button>' +
           '<button type="button" class="btn btn-ghost btn-small" style="width:100%; margin-bottom:3px; padding:3px;" onclick="copyShiftDayBtn(\''+dateStr+'\')">Copy</button>' +
           '<button type="button" class="btn btn-danger btn-small" style="width:100%; padding:3px;" onclick="deleteShiftDayBtn(\''+dateStr+'\')">🗑️</button>';
@@ -4864,7 +4935,36 @@ function uncheckAllShiftCalDays(){
 function openShiftDayEditModal(dateStr){
   shiftDayEditDate = dateStr;
   var entry = shiftCalDaysMap[dateStr];
-  document.getElementById('shiftDayEditTitle').textContent = 'تعریفِ شیفت — ' + dateStr;
+  document.getElementById('shiftDayEditTitle').textContent = 'مشخصاتِ شیفت — ' + dateStr;
+
+  var dayType = (entry && entry.dayType) || 'simple';
+  document.getElementById('shiftDayTypeSimple').checked = (dayType !== 'floating');
+  document.getElementById('shiftDayTypeFloating').checked = (dayType === 'floating');
+
+  document.getElementById('shiftDayFloating').value = entry ? (entry.dayFloatingMinutes||'') : '';
+  document.getElementById('shiftDayOvertimeCap').value = entry ? (entry.dayOvertimeCapMinutes||'') : '';
+  document.getElementById('shiftDayDailyRequired').value = entry ? (entry.dailyRequiredMinutes||'') : '';
+
+  document.getElementById('shiftDayOtStart').value = entry ? (entry.dayOtStartMinutes||'') : '';
+  document.getElementById('shiftDayOtMiddle').value = entry ? (entry.dayOtMiddleMinutes||'') : '';
+  document.getElementById('shiftDayOtEnd').value = entry ? (entry.dayOtEndMinutes||'') : '';
+  document.getElementById('shiftDayLateAllowed').value = entry ? (entry.dayLateAllowedMinutes||'') : '';
+  document.getElementById('shiftDayEarlyAllowed').value = entry ? (entry.dayEarlyAllowedMinutes||'') : '';
+  document.getElementById('shiftDayFloatBefore').value = entry ? (entry.dayFloatBeforeShiftMinutes||'') : '';
+  document.getElementById('shiftDayWindowStart').value = entry ? (entry.dayAttendanceWindowStart||'') : '';
+  document.getElementById('shiftDayWindowEnd').value = entry ? (entry.dayAttendanceWindowEnd||'') : '';
+
+  var isNight = entry && String(entry.isNightShift||'').toLowerCase() === 'yes';
+  var nightCrosses = entry && String(entry.nightShiftCrossesNextDay||'').toLowerCase() === 'yes';
+  document.getElementById('shiftDayNightCrosses').checked = nightCrosses;
+  document.getElementById('shiftDayNightStart').value = entry ? (entry.nightShiftStart||'') : '';
+  document.getElementById('shiftDayNightDuration').value = entry ? (entry.nightShiftDuration||'') : '';
+
+  // "قسمتِ اولِ روز" defaults to checked/on whenever there's already a start1 value (or no
+  // entry yet — a brand-new day starts with the first segment enabled), matching the
+  // reference: a defined day normally has at least its first segment filled in.
+  var hasFirst = !entry || !!entry.start1;
+  document.getElementById('shiftDayFirstPartChk').checked = hasFirst;
   document.getElementById('shiftDayStart1').value = entry ? entry.start1 : '';
   document.getElementById('shiftDayEnd1').value = entry ? entry.end1 : '';
   var hasSecond = entry && String(entry.hasSecondPart||'').toLowerCase() === 'yes';
@@ -4872,8 +4972,39 @@ function openShiftDayEditModal(dateStr){
   document.getElementById('shiftDayStart2').value = entry ? entry.start2 : '';
   document.getElementById('shiftDayEnd2').value = entry ? entry.end2 : '';
   document.getElementById('shiftDaySecondWrap').style.display = hasSecond ? 'block' : 'none';
+
+  onShiftDayTypeChange();
+  onShiftDayFirstPartToggle();
+  // Auto-open the advanced box if this day already relies on anything in it, same reasoning
+  // as the shift-level "تنظیماتِ پیشرفته" toggle — editing shouldn't hide settings in use.
+  var hasAdvValues = entry && [entry.dayOtStartMinutes, entry.dayOtMiddleMinutes, entry.dayOtEndMinutes, entry.dayLateAllowedMinutes, entry.dayEarlyAllowedMinutes, entry.dayFloatBeforeShiftMinutes, entry.dayAttendanceWindowStart, entry.dayAttendanceWindowEnd, entry.nightShiftStart].some(function(v){ return v; });
+  document.getElementById('shiftDayAdvancedBox').style.display = hasAdvValues ? 'block' : 'none';
+  document.getElementById('shiftDayAdvToggleBtn').textContent = hasAdvValues ? '➖ تنظیماتِ پیشرفته' : '➕ تنظیماتِ پیشرفته';
+
   document.getElementById('shiftDayEditModal').style.display = 'block';
   document.getElementById('shiftDayEditBackdrop').style.display = 'block';
+}
+// شناور (floating) has no fixed start/end at all — hides the قسمتِ اول/دوم segment fields and
+// shows the single "مدتِ زمانِ موظفیِ روزانه" field instead; ساده (simple) is the reverse. Both
+// share the same شناوری/سقفِ اضافه‌کاریِ روزانه fields and the same advanced box, but only
+// ساده uses the three separate start/middle/end overtime caps (شناور uses the one flat daily
+// cap instead, entered in the same سقفِ اضافه‌کاریِ روزانه field above).
+function onShiftDayTypeChange(){
+  var isFloating = document.getElementById('shiftDayTypeFloating').checked;
+  document.getElementById('shiftDayFloatingRequiredWrap').style.display = isFloating ? 'block' : 'none';
+  document.getElementById('shiftDaySimpleSegmentsWrap').style.display = isFloating ? 'none' : 'block';
+  document.getElementById('shiftDaySimpleAdvancedWrap').style.display = isFloating ? 'none' : 'block';
+}
+function toggleShiftDayAdvanced(){
+  var box = document.getElementById('shiftDayAdvancedBox');
+  var open = box.style.display === 'none';
+  box.style.display = open ? 'block' : 'none';
+  document.getElementById('shiftDayAdvToggleBtn').textContent = open ? '➖ تنظیماتِ پیشرفته' : '➕ تنظیماتِ پیشرفته';
+}
+function onShiftDayFirstPartToggle(){
+  var on = document.getElementById('shiftDayFirstPartChk').checked;
+  document.getElementById('shiftDayStart1').disabled = !on;
+  document.getElementById('shiftDayEnd1').disabled = !on;
 }
 function onShiftDaySecondToggle(){
   document.getElementById('shiftDaySecondWrap').style.display = document.getElementById('shiftDayHasSecond').checked ? 'block' : 'none';
@@ -4884,16 +5015,41 @@ function closeShiftDayEditModal(){
   shiftDayEditDate = null;
 }
 async function saveShiftDayModal(){
-  var start1 = document.getElementById('shiftDayStart1').value;
-  var end1 = document.getElementById('shiftDayEnd1').value;
-  if(!start1 || !end1){ alert('ساعتِ شروع و پایانِ قسمتِ اول را وارد کن.'); return; }
-  var hasSecond = document.getElementById('shiftDayHasSecond').checked;
+  var isFloating = document.getElementById('shiftDayTypeFloating').checked;
   var payload = {
     pin: adminPin, shiftId: editingShiftId, jalaliDate: shiftDayEditDate,
-    start1: start1, end1: end1, hasSecondPart: hasSecond,
-    start2: hasSecond ? document.getElementById('shiftDayStart2').value : '',
-    end2: hasSecond ? document.getElementById('shiftDayEnd2').value : ''
+    dayType: isFloating ? 'floating' : 'simple',
+    dayFloatingMinutes: document.getElementById('shiftDayFloating').value,
+    dayOvertimeCapMinutes: document.getElementById('shiftDayOvertimeCap').value,
+    dayOtStartMinutes: document.getElementById('shiftDayOtStart').value,
+    dayOtMiddleMinutes: document.getElementById('shiftDayOtMiddle').value,
+    dayOtEndMinutes: document.getElementById('shiftDayOtEnd').value,
+    dayLateAllowedMinutes: document.getElementById('shiftDayLateAllowed').value,
+    dayEarlyAllowedMinutes: document.getElementById('shiftDayEarlyAllowed').value,
+    dayFloatBeforeShiftMinutes: document.getElementById('shiftDayFloatBefore').value,
+    dayAttendanceWindowStart: document.getElementById('shiftDayWindowStart').value,
+    dayAttendanceWindowEnd: document.getElementById('shiftDayWindowEnd').value,
+    nightShiftCrossesNextDay: document.getElementById('shiftDayNightCrosses').checked,
+    nightShiftStart: document.getElementById('shiftDayNightStart').value,
+    nightShiftDuration: document.getElementById('shiftDayNightDuration').value,
+    isNightShift: !!(document.getElementById('shiftDayNightStart').value || document.getElementById('shiftDayNightDuration').value)
   };
+  if(isFloating){
+    var dailyRequired = document.getElementById('shiftDayDailyRequired').value;
+    if(!dailyRequired){ alert('مدتِ زمانِ موظفیِ روزانه را وارد کن.'); return; }
+    payload.dailyRequiredMinutes = dailyRequired;
+    payload.start1 = ''; payload.end1 = ''; payload.hasSecondPart = false; payload.start2 = ''; payload.end2 = '';
+  } else {
+    var hasFirst = document.getElementById('shiftDayFirstPartChk').checked;
+    var hasSecond = document.getElementById('shiftDayHasSecond').checked;
+    var start1 = hasFirst ? document.getElementById('shiftDayStart1').value : '';
+    var end1 = hasFirst ? document.getElementById('shiftDayEnd1').value : '';
+    if(hasFirst && (!start1 || !end1)){ alert('ساعتِ شروع و پایانِ قسمتِ اول را وارد کن.'); return; }
+    payload.start1 = start1; payload.end1 = end1;
+    payload.hasSecondPart = hasSecond;
+    payload.start2 = hasSecond ? document.getElementById('shiftDayStart2').value : '';
+    payload.end2 = hasSecond ? document.getElementById('shiftDayEnd2').value : '';
+  }
   var res = await apiCall(function(){ return apiPost('setShiftDay', payload); });
   if(!res.ok){ showAdminNotice('ذخیره‌یِ روز ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
@@ -4920,16 +5076,26 @@ async function deleteSelectedShiftCalDays(){
 function copyShiftDayBtn(sourceDate){
   var entry = shiftCalDaysMap[sourceDate];
   if(!entry) return;
-  shiftClipboard = {start1: entry.start1, end1: entry.end1, hasSecondPart: String(entry.hasSecondPart||'').toLowerCase()==='yes', start2: entry.start2, end2: entry.end2, sourceDate: sourceDate};
+  // Copies every field this day carries — not just the simple start/end times — so پیست
+  // reproduces a شناور day, its advanced overrides, and its night-shift info exactly too.
+  shiftClipboard = {
+    sourceDate: sourceDate, dayType: entry.dayType||'simple',
+    start1: entry.start1, end1: entry.end1, hasSecondPart: String(entry.hasSecondPart||'').toLowerCase()==='yes', start2: entry.start2, end2: entry.end2,
+    dailyRequiredMinutes: entry.dailyRequiredMinutes||'', dayFloatingMinutes: entry.dayFloatingMinutes||'', dayOvertimeCapMinutes: entry.dayOvertimeCapMinutes||'',
+    dayOtStartMinutes: entry.dayOtStartMinutes||'', dayOtMiddleMinutes: entry.dayOtMiddleMinutes||'', dayOtEndMinutes: entry.dayOtEndMinutes||'',
+    dayLateAllowedMinutes: entry.dayLateAllowedMinutes||'', dayEarlyAllowedMinutes: entry.dayEarlyAllowedMinutes||'',
+    dayFloatBeforeShiftMinutes: entry.dayFloatBeforeShiftMinutes||'',
+    dayAttendanceWindowStart: entry.dayAttendanceWindowStart||'', dayAttendanceWindowEnd: entry.dayAttendanceWindowEnd||'',
+    isNightShift: String(entry.isNightShift||'').toLowerCase()==='yes', nightShiftCrossesNextDay: String(entry.nightShiftCrossesNextDay||'').toLowerCase()==='yes',
+    nightShiftStart: entry.nightShiftStart||'', nightShiftDuration: entry.nightShiftDuration||''
+  };
   renderShiftCalGrid(); // now every day shows a Paste button
 }
 async function pasteShiftDayBtn(targetDate){
   if(!shiftClipboard) return;
-  var res = await apiCall(function(){ return apiPost('setShiftDay', {
-    pin: adminPin, shiftId: editingShiftId, jalaliDate: targetDate,
-    start1: shiftClipboard.start1, end1: shiftClipboard.end1,
-    hasSecondPart: shiftClipboard.hasSecondPart, start2: shiftClipboard.start2, end2: shiftClipboard.end2
-  }); });
+  var payload = Object.assign({pin: adminPin, shiftId: editingShiftId, jalaliDate: targetDate}, shiftClipboard);
+  delete payload.sourceDate;
+  var res = await apiCall(function(){ return apiPost('setShiftDay', payload); });
   if(!res.ok){ showAdminNotice('Paste ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   await loadShiftCalendarMonth();
@@ -4983,11 +5149,24 @@ function toggleShiftAdvanced(){
   box.style.display = isOpen ? 'none' : 'block';
   btn.textContent = isOpen ? '➕ تنظیماتِ پیشرفته' : '➖ تنظیماتِ پیشرفته';
 }
+function onShiftTopTypeChange(){
+  var isCustom = document.getElementById('shiftTopTypeCustom').checked;
+  document.getElementById('shiftWeeklyPatternWrap').style.display = isCustom ? 'none' : 'block';
+  var yearRequiredHint = document.getElementById('shiftFormYear');
+  var btn = document.getElementById('shiftFormBtn');
+  if(!editingShiftId){
+    btn.textContent = isCustom ? '✅ ثبت و ورودِ به تقویم' : '✅ ثبت و ساختِ تقویم';
+  }
+}
 function startEditShift(id){
   var s = shifts.filter(function(x){ return x.id === id; })[0];
   if(!s) return;
   editingShiftId = id;
   document.getElementById('shiftFormName').value = s.name || '';
+  var isCustomShift = s.type === 'custom';
+  document.getElementById('shiftTopTypeSimple').checked = !isCustomShift;
+  document.getElementById('shiftTopTypeCustom').checked = isCustomShift;
+  document.getElementById('shiftWeeklyPatternWrap').style.display = isCustomShift ? 'none' : 'block';
   populateShiftYearSelect();
   document.getElementById('shiftFormYear').value = s.shiftYear || '';
   document.getElementById('shiftFormFloating').value = s.floatingMinutes || '';
@@ -5000,6 +5179,7 @@ function startEditShift(id){
   document.getElementById('shiftFormFloatBefore').value = s.floatBeforeShiftMinutes || '';
   document.getElementById('shiftFormWindowStart').value = s.attendanceWindowStart || '';
   document.getElementById('shiftFormWindowEnd').value = s.attendanceWindowEnd || '';
+  document.getElementById('shiftFormFollowHolidays').checked = String(s.followOfficialHolidays||'').toLowerCase() !== 'no';
   // If any advanced field actually has a value, open the box automatically so editing this
   // shift doesn't hide settings it already relies on behind a collapsed toggle.
   var hasAdvValues = [s.otStartMinutes, s.otMiddleMinutes, s.otEndMinutes, s.lateAllowedMinutes, s.earlyLeaveAllowedMinutes, s.floatBeforeShiftMinutes, s.attendanceWindowStart, s.attendanceWindowEnd].some(function(v){ return v; });
@@ -5009,7 +5189,7 @@ function startEditShift(id){
   // The per-date calendar (روزهایِ شیفت) only makes sense once the shift itself already
   // exists — reveal the button to manage it now that we're editing a real, saved shift.
   document.getElementById('shiftCalendarOpenRow').style.display = 'block';
-  document.getElementById('shiftFormBtn').textContent = '✅ ثبت و بروزرسانیِ تقویم';
+  document.getElementById('shiftFormBtn').textContent = isCustomShift ? '✅ ثبتِ تغییرات' : '✅ ثبت و بروزرسانیِ تقویم';
   document.getElementById('shiftFormCancel').style.display = 'block';
   switchShiftTab('define');
   document.getElementById('shiftFormName').scrollIntoView({behavior:'smooth', block:'center'});
@@ -5017,6 +5197,9 @@ function startEditShift(id){
 function cancelShiftEdit(){
   editingShiftId = null;
   document.getElementById('shiftFormName').value = '';
+  document.getElementById('shiftTopTypeSimple').checked = true;
+  document.getElementById('shiftTopTypeCustom').checked = false;
+  document.getElementById('shiftWeeklyPatternWrap').style.display = 'block';
   document.getElementById('shiftFormYear').value = '';
   document.getElementById('shiftFormFloating').value = '';
   document.getElementById('shiftFormOvertimeCap').value = '';
@@ -5028,6 +5211,7 @@ function cancelShiftEdit(){
   document.getElementById('shiftFormFloatBefore').value = '';
   document.getElementById('shiftFormWindowStart').value = '';
   document.getElementById('shiftFormWindowEnd').value = '';
+  document.getElementById('shiftFormFollowHolidays').checked = true;
   document.getElementById('shiftAdvancedBox').style.display = 'none';
   document.getElementById('shiftAdvToggleBtn').textContent = '➕ تنظیماتِ پیشرفته';
   document.getElementById('shiftCalendarOpenRow').style.display = 'none';
@@ -5039,9 +5223,10 @@ async function saveShift(){
   var name = document.getElementById('shiftFormName').value.trim();
   if(!name){ showAdminNotice('نامِ شیفت را وارد کن.'); return; }
   var yearVal = document.getElementById('shiftFormYear').value;
-  if(!yearVal){ showAdminNotice('سالِ شیفت را انتخاب کن — تقویم برایِ همین سال ساخته می‌شه.'); return; }
+  if(!yearVal){ showAdminNotice('سالِ شیفت را انتخاب کن.'); return; }
+  var isCustom = document.getElementById('shiftTopTypeCustom').checked;
   var payload = {
-    pin: adminPin, name: name, type: 'simple',
+    pin: adminPin, name: name, type: isCustom ? 'custom' : 'simple',
     shiftYear: yearVal,
     floatingMinutes: document.getElementById('shiftFormFloating').value,
     dailyOvertimeCapMinutes: document.getElementById('shiftFormOvertimeCap').value,
@@ -5052,7 +5237,8 @@ async function saveShift(){
     earlyLeaveAllowedMinutes: document.getElementById('shiftFormEarlyAllowed').value,
     floatBeforeShiftMinutes: document.getElementById('shiftFormFloatBefore').value,
     attendanceWindowStart: document.getElementById('shiftFormWindowStart').value,
-    attendanceWindowEnd: document.getElementById('shiftFormWindowEnd').value
+    attendanceWindowEnd: document.getElementById('shiftFormWindowEnd').value,
+    followOfficialHolidays: document.getElementById('shiftFormFollowHolidays').checked
   };
   var btn = document.getElementById('shiftFormBtn');
   btn.disabled = true;
@@ -5065,18 +5251,20 @@ async function saveShift(){
   }
   if(!res.ok){ btn.disabled = false; showAdminNotice('ذخیره‌یِ شیفت ناموفق بود: ' + (res.error||'')); return; }
   var shiftIdForCal = editingShiftId || res.id;
-  // "ساختِ تقویم" — apply the weekly pattern onto every day of the selected year at once,
-  // then drop straight into the monthly calendar so the admin can review/adjust individual
-  // days right away, exactly as asked ("خودش وارد همون تقویم بشه").
-  var genRes = await apiCall(function(){ return apiPost('generateShiftCalendarFromWeekly', {pin:adminPin, shiftId: shiftIdForCal, year: yearVal, weeklyPattern: collectShiftWeekPattern()}); });
+  if(!isCustom){
+    // "ساختِ تقویم" — apply the weekly pattern onto every day of the selected year at once.
+    // شیفتِ سفارشی skips this entirely — it goes into the calendar completely blank, exactly
+    // as asked ("بدونِ الگویِ هفتگی، مستقیم بره تو تقویم").
+    var genRes = await apiCall(function(){ return apiPost('generateShiftCalendarFromWeekly', {pin:adminPin, shiftId: shiftIdForCal, year: yearVal, weeklyPattern: collectShiftWeekPattern()}); });
+    if(!genRes.ok){ btn.disabled = false; showAdminNotice('ساختِ تقویم ناموفق بود: ' + (genRes.error||'')); return; }
+  }
   btn.disabled = false;
-  if(!genRes.ok){ showAdminNotice('ساختِ تقویم ناموفق بود: ' + (genRes.error||'')); return; }
   clearAdminNotice();
   editingShiftId = shiftIdForCal;
   await loadShiftsAdmin();
   document.getElementById('shiftFormCancel').style.display = 'block';
   document.getElementById('shiftCalendarOpenRow').style.display = 'block';
-  document.getElementById('shiftFormBtn').textContent = '✅ ثبت و بروزرسانیِ تقویم';
+  document.getElementById('shiftFormBtn').textContent = isCustom ? '✅ ثبتِ تغییرات' : '✅ ثبت و بروزرسانیِ تقویم';
   openShiftCalendar();
 }
 async function deleteShiftConfirm(id){
