@@ -947,6 +947,41 @@
       <button type="button" class="btn btn-primary" id="pinBtn" onclick="checkPin()">ورود</button>
       <button type="button" class="btn btn-ghost" id="adminFpQuickLoginBtn" style="display:none; margin-top:8px;" onclick="tryAdminFingerprintLogin()">👆 ورود سریع با اثر انگشت</button>
       <div class="hint" id="pinHint" style="margin-top:10px;"></div>
+      <button type="button" onclick="openSuperAdminModal()" style="background:none; border:none; cursor:pointer; font-size:20px; margin-top:16px; opacity:0.6;" title="تنظیماتِ ابرِ مدیریت">⚙️</button>
+    </div>
+  </div>
+
+  <div id="superAdminBackdrop" style="display:none; position:fixed; inset:0; background:#0f2a434d; z-index:5000;" onclick="closeSuperAdminModal()"></div>
+  <div id="superAdminModal" class="erp-modal-card" style="display:none; position:fixed; top:50%; right:50%; transform:translate(50%,-50%); z-index:5001; width:90%; max-width:420px; background:var(--paper); border-radius:14px; padding:20px; box-shadow:0 25px 70px -15px #00000059;">
+    <button type="button" onclick="closeSuperAdminModal()" style="position:absolute; top:10px; left:10px; background:var(--paper-2); border:none; width:30px; height:30px; border-radius:50%; cursor:pointer;">✕</button>
+    <div id="superAdminAuthStep">
+      <div class="eyebrow" style="font-size:14px;">تنظیماتِ ابرِ مدیریت</div>
+      <input type="text" id="superAdminUserInput" placeholder="یوزرنیم" class="field-mono">
+      <input type="password" id="superAdminPassInput" placeholder="پسورد">
+      <button type="button" class="btn btn-primary" onclick="checkSuperAdminLogin()">ورود</button>
+      <div class="hint" id="superAdminAuthHint" style="margin-top:8px;"></div>
+    </div>
+    <div id="superAdminSettingsStep" style="display:none;">
+      <div class="eyebrow" style="font-size:14px;">تنظیماتِ ابرِ مدیریت</div>
+      <label>محدودیتِ برنامه (بازه‌ی اشتراک)</label>
+      <div class="hint" style="margin-top:-6px;">فقط تویِ این بازه، مدیریت و کارمند می‌تونن واردِ برنامه بشن. خالی بذاری، هیچ محدودیتی اعمال نمی‌شه.</div>
+      <div class="date-row">
+        <div style="flex:1;">
+          <label>از تاریخ</label>
+          <select id="suLicenseStartDay" onchange="suLicenseNoLimit=false"></select><select id="suLicenseStartMonth" onchange="suLicenseNoLimit=false"></select><select id="suLicenseStartYear" onchange="suLicenseNoLimit=false"></select>
+        </div>
+      </div>
+      <div class="date-row">
+        <div style="flex:1;">
+          <label>تا تاریخ</label>
+          <select id="suLicenseEndDay" onchange="suLicenseNoLimit=false"></select><select id="suLicenseEndMonth" onchange="suLicenseNoLimit=false"></select><select id="suLicenseEndYear" onchange="suLicenseNoLimit=false"></select>
+        </div>
+      </div>
+      <button type="button" class="btn btn-ghost btn-small" onclick="clearSuperAdminLicenseDates()">پاک‌کردنِ بازه (بدونِ محدودیت)</button>
+      <div class="divider"></div>
+      <label>حداکثر تعدادِ پرسنل</label>
+      <input type="number" id="suMaxEmployees" min="0" placeholder="۰ = بدونِ محدودیت">
+      <button type="button" class="btn btn-primary" onclick="saveSuperAdminSettingsBtn()" style="margin-top:12px;">✅ ثبتِ تنظیمات</button>
     </div>
   </div>
 
@@ -1152,6 +1187,7 @@
       <div style="display:flex; gap:8px; margin-bottom:16px;">
         <button type="button" class="btn btn-ghost" id="shiftTabBtn-define" onclick="switchShiftTab('define')">➕ تعریفِ شیفت</button>
         <button type="button" class="btn btn-ghost" id="shiftTabBtn-list" onclick="switchShiftTab('list')">📋 لیستِ شیفت‌ها</button>
+        <button type="button" class="btn btn-ghost" id="shiftTabBtn-normal" onclick="switchShiftTab('normal')">⚙️ شیفتِ عادی</button>
       </div>
 
       <div id="shiftSub-define">
@@ -1365,6 +1401,34 @@
 
       <div id="shiftSub-list" style="display:none;">
         <div id="shiftList"><div class="empty">در حال بارگذاری...</div></div>
+      </div>
+
+      <div id="shiftSub-normal" style="display:none;">
+        <div class="eyebrow" style="font-size:13px;">تنظیماتِ شیفتِ عادی</div>
+        <div class="hint" style="margin-top:-6px;">این‌ها قوانینِ پیش‌فرضی هستن که برایِ هر پرسنلی که هیچ شیفتِ اختصاصی نداره اعمال می‌شن — دقیقاً همون چیزی که تا الان تویِ کدِ خودِ برنامه ثابت بود، ولی الان از همینجا قابلِ تغییره.</div>
+        <div class="date-row">
+          <div style="flex:1;">
+            <label>مدتِ موظفیِ روزانه</label>
+            <input type="time" id="normalRequiredTime" value="07:20">
+          </div>
+          <div style="flex:1;">
+            <label>مدتِ استراحت (دقیقه)</label>
+            <input type="number" id="normalBreakMinutes" min="0" value="60">
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-8px;">استراحت فقط زمانی از کارکرد کم می‌شه که کارکردِ خامِ روز از «مدتِ موظفی» بیشتر باشه.</div>
+        <div class="date-row">
+          <div style="flex:1;">
+            <label>شروعِ شب‌کاری</label>
+            <input type="time" id="normalNightStart" value="22:00">
+          </div>
+          <div style="flex:1;">
+            <label>پایانِ شب‌کاری</label>
+            <input type="time" id="normalNightEnd" value="06:00">
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-8px;">پایانِ شب‌کاری همیشه در روزِ بعد از شروعش در نظر گرفته می‌شه (مثلاً ۲۲:۰۰ تا ۰۶:۰۰ یعنی از شبِ امروز تا صبحِ فردا).</div>
+        <button type="button" class="btn btn-primary" onclick="saveNormalShiftSettings()">✅ ثبتِ تنظیماتِ شیفتِ عادی</button>
       </div>
     </div>
     </div><!-- /admSec-shifts -->
@@ -1754,7 +1818,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-11-deleteshift-fix-and-error-modal"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-11-super-admin-license-settings"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2407,6 +2471,7 @@ async function employeeLogin(){
     var msg = 'نام کاربری یا رمز عبور اشتباه است.';
     if(res.error === 'device_mismatch') msg = '⛔ این حساب قبلاً روی یک گوشی دیگر فعال شده. برای تغییر گوشی، از مدیر بخواهید دستگاه این حساب را ریست کند.';
     else if(res.error === 'account_disabled') msg = '⛔ این حساب غیرفعال شده. با مدیر تماس بگیرید.';
+    else if(res.error === 'license_expired'){ msg = '⛔ اشتراکِ برنامه تموم شده.'; alert('⛔ اشتراکِ برنامه تموم شده.\nبرایِ تمدید با پشتیبانی تماس بگیرید.'); }
     else if(res.error && res.error !== 'invalid_credentials') msg = 'خطا: ' + res.error;
     document.getElementById('empLoginHint').textContent = msg;
     document.getElementById('empLoginHint').style.color = '#a32a2a';
@@ -2504,9 +2569,12 @@ async function checkPin(){
   } else {
     var pinErrMsg = res.error === 'admin_device_limit_reached'
       ? 'ورودِ مدیر فقط از حداکثر ۲ دستگاه هم‌زمان مجازه. برای ورود از این دستگاه، از تنظیمات یکی از دستگاه‌های قبلی رو حذف کن (یا از همون دستگاه‌ها وارد شو).'
+      : res.error === 'license_expired'
+      ? '⛔ اشتراکِ برنامه تموم شده. برایِ تمدید با پشتیبانی تماس بگیرید.'
       : (res.error ? ('خطا: '+res.error) : 'نام کاربری یا رمز اشتباه است. (پیش‌فرض: admin / 1234)');
     document.getElementById('pinHint').textContent = pinErrMsg;
     document.getElementById('pinHint').style.color = '#a32a2a';
+    if(res.error === 'license_expired') alert('⛔ اشتراکِ برنامه تموم شده.\nبرایِ تمدید با پشتیبانی تماس بگیرید.');
   }
 }
 async function cacheAdminCreds(username, pin){
@@ -2514,6 +2582,76 @@ async function cacheAdminCreds(username, pin){
     var hash = await hashCreds(username.toLowerCase()+':'+pin);
     localStorage.setItem('cachedAdminAuth', JSON.stringify({username:username, pin:pin, hash:hash}));
   }catch(e){}
+}
+// ---------- Super-admin settings (license window + max employees) ----------
+// Completely separate from the regular admin PIN — its own username/password, re-checked with
+// every call (no session), matching how ADVANCED_TOOLS_PASSWORD already works elsewhere.
+var suUsername = null, suPassword = null;
+var suLicenseNoLimit = true; // true unless the admin has actually picked specific dates (or the backend already has some saved) — تracks whether ثبتِ تنظیمات should send empty (unrestricted) dates or the currently-selected ones
+function openSuperAdminModal(){
+  document.getElementById('superAdminModal').style.display = 'block';
+  document.getElementById('superAdminBackdrop').style.display = 'block';
+  document.getElementById('superAdminAuthStep').style.display = 'block';
+  document.getElementById('superAdminSettingsStep').style.display = 'none';
+  document.getElementById('superAdminUserInput').value = '';
+  document.getElementById('superAdminPassInput').value = '';
+  document.getElementById('superAdminAuthHint').textContent = '';
+}
+function closeSuperAdminModal(){
+  document.getElementById('superAdminModal').style.display = 'none';
+  document.getElementById('superAdminBackdrop').style.display = 'none';
+  suUsername = null; suPassword = null;
+}
+async function checkSuperAdminLogin(){
+  var u = document.getElementById('superAdminUserInput').value.trim();
+  var p = document.getElementById('superAdminPassInput').value.trim();
+  if(!u || !p) return;
+  var res = await apiCall(function(){ return apiPost('superAdminLogin', {suUsername:u, suPassword:p}); });
+  if(!res.ok){
+    document.getElementById('superAdminAuthHint').textContent = 'یوزرنیم یا پسورد اشتباه است.';
+    document.getElementById('superAdminAuthHint').style.color = '#a32a2a';
+    return;
+  }
+  suUsername = u; suPassword = p;
+  document.getElementById('superAdminAuthStep').style.display = 'none';
+  document.getElementById('superAdminSettingsStep').style.display = 'block';
+  initLeaveDateSelects();
+  await loadSuperAdminSettingsData();
+}
+async function loadSuperAdminSettingsData(){
+  var res = await apiCall(function(){ return apiPost('getSuperAdminSettings', {suUsername:suUsername, suPassword:suPassword}); });
+  if(!res.ok) return;
+  document.getElementById('suMaxEmployees').value = res.maxEmployees || '';
+  if(res.licenseStart && res.licenseEnd){
+    suLicenseNoLimit = false;
+    setDateSelectFromStr('suLicenseStart', res.licenseStart);
+    setDateSelectFromStr('suLicenseEnd', res.licenseEnd);
+  } else {
+    suLicenseNoLimit = true;
+  }
+}
+function setDateSelectFromStr(prefix, dateStr){
+  var p = parseJalaliDateStr(dateStr);
+  if(!p) return;
+  document.getElementById(prefix+'Day').value = p.day;
+  document.getElementById(prefix+'Month').value = jMonths.indexOf(p.month)+1;
+  document.getElementById(prefix+'Year').value = p.year;
+}
+function clearSuperAdminLicenseDates(){
+  suLicenseNoLimit = true;
+  alert('بازه پاک شد — با زدنِ «ثبتِ تنظیمات»، محدودیتِ اشتراک برداشته می‌شه.');
+}
+async function saveSuperAdminSettingsBtn(){
+  var payload = {
+    suUsername: suUsername, suPassword: suPassword,
+    licenseStart: suLicenseNoLimit ? '' : readDateSelect('suLicenseStart'),
+    licenseEnd: suLicenseNoLimit ? '' : readDateSelect('suLicenseEnd'),
+    maxEmployees: document.getElementById('suMaxEmployees').value || 0
+  };
+  var res = await apiCall(function(){ return apiPost('saveSuperAdminSettings', payload); });
+  if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
+  alert('تنظیمات ذخیره شد.');
+  closeSuperAdminModal();
 }
 function getCachedAdminAuth(){
   try{ return JSON.parse(localStorage.getItem('cachedAdminAuth')||'null'); }catch(e){ return null; }
@@ -4057,7 +4195,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-11-deleteshift-fix-and-error-modal'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-11-super-admin-license-settings'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4765,9 +4903,36 @@ function switchShiftTab(tab){
   document.getElementById('shiftSub-define').style.display = (tab==='define') ? 'block' : 'none';
   document.getElementById('shiftSub-list').style.display = (tab==='list') ? 'block' : 'none';
   document.getElementById('shiftSub-calendar').style.display = (tab==='calendar') ? 'block' : 'none';
+  document.getElementById('shiftSub-normal').style.display = (tab==='normal') ? 'block' : 'none';
   document.getElementById('shiftTabBtn-define').classList.toggle('btn-primary', tab==='define' || tab==='calendar');
   document.getElementById('shiftTabBtn-list').classList.toggle('btn-primary', tab==='list');
+  document.getElementById('shiftTabBtn-normal').classList.toggle('btn-primary', tab==='normal');
   if(tab === 'list') renderShiftList();
+  if(tab === 'normal') loadNormalShiftSettings();
+}
+async function loadNormalShiftSettings(){
+  var res = await apiCall(function(){ return apiPost('getNormalShiftSettings', {pin:adminPin}); });
+  if(!res.ok){ showAdminNotice('دریافتِ تنظیماتِ شیفتِ عادی ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  var s = res.settings || {};
+  var reqMin = parseInt(s.requiredMinutes, 10) || (7*60+20);
+  document.getElementById('normalRequiredTime').value = String(Math.floor(reqMin/60)).padStart(2,'0') + ':' + String(reqMin%60).padStart(2,'0');
+  document.getElementById('normalBreakMinutes').value = parseInt(s.breakMinutes, 10) || 60;
+  document.getElementById('normalNightStart').value = s.nightStart || '22:00';
+  document.getElementById('normalNightEnd').value = s.nightEnd || '06:00';
+}
+async function saveNormalShiftSettings(){
+  var reqTime = document.getElementById('normalRequiredTime').value;
+  if(!reqTime){ showAdminNotice('مدتِ موظفیِ روزانه را وارد کن.'); return; }
+  var reqMin = timeToMinutesClient(reqTime);
+  var breakMin = document.getElementById('normalBreakMinutes').value;
+  var nightStart = document.getElementById('normalNightStart').value;
+  var nightEnd = document.getElementById('normalNightEnd').value;
+  if(!nightStart || !nightEnd){ showAdminNotice('شروع و پایانِ شب‌کاری را وارد کن.'); return; }
+  var res = await apiCall(function(){ return apiPost('saveNormalShiftSettings', {pin:adminPin, requiredMinutes:reqMin, breakMinutes:breakMin, nightStart:nightStart, nightEnd:nightEnd}); });
+  if(!res.ok){ showAdminNotice('ثبتِ تنظیمات ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  alert('تنظیماتِ شیفتِ عادی ذخیره شد.');
 }
 function populateShiftYearSelect(){
   var sel = document.getElementById('shiftFormYear');
@@ -6282,7 +6447,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','empShiftStart','empShiftEnd'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
