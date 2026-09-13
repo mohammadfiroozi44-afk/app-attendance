@@ -1754,7 +1754,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-11-draft-based-shift-workflow"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-11-deleteshift-fix-and-error-modal"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -4057,7 +4057,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-11-draft-based-shift-workflow'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-11-deleteshift-fix-and-error-modal'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4136,6 +4136,12 @@ async function saveCompanyBranding(){
 function showAdminNotice(msg){
   var el = document.getElementById('adminNotice');
   el.style.display='block'; el.textContent = msg;
+  // Every error message in the admin panel goes through this one function, so popping the
+  // styled alert() box here — rather than touching each of the dozens of individual call
+  // sites — makes every single one of them show as a dismissible modal with "تایید", exactly
+  // as asked: it shows, goes away once confirmed, and comes right back if another error fires
+  // (a fresh alert() call every time, never suppressed by a previous dismissal).
+  alert(msg);
 }
 function clearAdminNotice(){
   var el = document.getElementById('adminNotice');
