@@ -676,7 +676,10 @@
       <label>نام کاربری</label>
       <input type="text" id="empUsername" placeholder="نام کاربری">
       <label>رمز عبور</label>
-      <input type="password" id="empPassword" placeholder="رمز عبور">
+      <div style="position:relative;">
+        <input type="password" id="empPassword" placeholder="رمز عبور" style="width:100%; box-sizing:border-box; padding-left:38px;">
+        <button type="button" onclick="togglePasswordVisibility('empPassword', this)" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:16px;">👁️</button>
+      </div>
       <button type="button" class="btn btn-primary" id="empLoginBtn" onclick="employeeLogin()">ورود</button>
       <button type="button" class="btn btn-ghost" id="fpQuickLoginBtn" style="display:none; margin-top:8px;" onclick="tryFingerprintQuickLogin()">👆 ورود سریع با اثر انگشت</button>
       <div class="hint" id="empLoginHint" style="margin-top:10px;"></div>
@@ -943,11 +946,14 @@
     <div class="card pin-gate">
       <div class="eyebrow">ورود به بخش مدیریت</div>
       <input type="text" id="adminUsernameInput" placeholder="نام کاربری مدیر" class="field-mono">
-      <input type="password" id="pinInput" placeholder="رمز عبور">
+      <div style="position:relative;">
+        <input type="password" id="pinInput" placeholder="رمز عبور" style="width:100%; box-sizing:border-box; padding-left:38px;">
+        <button type="button" onclick="togglePasswordVisibility('pinInput', this)" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:16px;">👁️</button>
+      </div>
       <button type="button" class="btn btn-primary" id="pinBtn" onclick="checkPin()">ورود</button>
       <button type="button" class="btn btn-ghost" id="adminFpQuickLoginBtn" style="display:none; margin-top:8px;" onclick="tryAdminFingerprintLogin()">👆 ورود سریع با اثر انگشت</button>
       <div class="hint" id="pinHint" style="margin-top:10px;"></div>
-      <button type="button" onclick="openSuperAdminModal()" style="background:none; border:none; cursor:pointer; font-size:20px; margin-top:16px; opacity:0.6;" title="تنظیماتِ ابرِ مدیریت">⚙️</button>
+      <button type="button" onclick="openSuperAdminModal()" style="background:none; border:none; cursor:pointer; font-size:20px; margin-top:16px; opacity:0.6;" title="ترددیار">⚙️</button>
     </div>
   </div>
 
@@ -955,14 +961,17 @@
   <div id="superAdminModal" class="erp-modal-card" style="display:none; position:fixed; top:50%; right:50%; transform:translate(50%,-50%); z-index:5001; width:90%; max-width:420px; background:var(--paper); border-radius:14px; padding:20px; box-shadow:0 25px 70px -15px #00000059;">
     <button type="button" onclick="closeSuperAdminModal()" style="position:absolute; top:10px; left:10px; background:var(--paper-2); border:none; width:30px; height:30px; border-radius:50%; cursor:pointer;">✕</button>
     <div id="superAdminAuthStep">
-      <div class="eyebrow" style="font-size:14px;">تنظیماتِ ابرِ مدیریت</div>
+      <div class="eyebrow" style="font-size:14px;">ترددیار</div>
       <input type="text" id="superAdminUserInput" placeholder="یوزرنیم" class="field-mono">
-      <input type="password" id="superAdminPassInput" placeholder="پسورد">
+      <div style="position:relative;">
+        <input type="password" id="superAdminPassInput" placeholder="پسورد" style="width:100%; box-sizing:border-box; padding-left:38px;">
+        <button type="button" onclick="togglePasswordVisibility('superAdminPassInput', this)" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:16px;">👁️</button>
+      </div>
       <button type="button" class="btn btn-primary" onclick="checkSuperAdminLogin()">ورود</button>
       <div class="hint" id="superAdminAuthHint" style="margin-top:8px;"></div>
     </div>
     <div id="superAdminSettingsStep" style="display:none;">
-      <div class="eyebrow" style="font-size:14px;">تنظیماتِ ابرِ مدیریت</div>
+      <div class="eyebrow" style="font-size:14px;">ترددیار</div>
       <label>محدودیتِ برنامه (بازه‌ی اشتراک)</label>
       <div class="hint" style="margin-top:-6px;">فقط تویِ این بازه، مدیریت و کارمند می‌تونن واردِ برنامه بشن. خالی بذاری، هیچ محدودیتی اعمال نمی‌شه.</div>
       <div class="date-row">
@@ -1818,7 +1827,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-11-super-admin-license-settings"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-14-error-messages-and-tarddyar"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1830,6 +1839,14 @@ const OWN_BRAND_LOGO = "icon-512.png"; // same icon as the app itself (icon-512.
 
 // ---------- Custom in-app alert (replaces the native browser popup everywhere) ----------
 var _appAlertResolve = null;
+// Simple show/hide toggle for any password field — used by the admin login, employee login,
+// and super-admin ("ترددیار") password inputs so the person can double-check what they typed
+// before submitting, instead of only finding out it was wrong after a failed login.
+function togglePasswordVisibility(inputId, btn){
+  var input = document.getElementById(inputId);
+  if(input.type === 'password'){ input.type = 'text'; btn.textContent = '🙈'; }
+  else { input.type = 'password'; btn.textContent = '👁️'; }
+}
 function showAppAlert(message){
   return new Promise(function(resolve){
     document.getElementById('appAlertMessage').textContent = message;
@@ -3912,12 +3929,7 @@ async function submitAdminLog(){
     jalaliDate: jalaliDate, time: hh+':'+mm+':'+ss, reason: reasonVal
   }); });
   if(!res.ok){
-    var msg = res.error === 'must_be_after_last_entry'
-      ? 'این ساعت زودتر از آخرین ثبت موجود این پرسنله. برای اصلاح ثبت‌های قدیمی، از ✏️ ویرایش توی گزارش استفاده کن، نه ثبت جدید.'
-      : res.error === 'no_open_checkin'
-      ? 'این پرسنل قبل از این ساعت، ورودِ باز (بدون خروج) نداره — اول باید ورودش رو ثبت کنی.'
-      : (res.error || 'خطای شبکه');
-    showAdminNotice('ثبت تردد ناموفق بود: ' + msg);
+    showAdminNotice('ثبت تردد ناموفق بود: ' + friendlyLogErrorMsg(res.error, res.at));
     return;
   }
   clearAdminNotice();
@@ -4195,7 +4207,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-11-super-admin-license-settings'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-14-error-messages-and-tarddyar'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4270,6 +4282,30 @@ async function saveCompanyBranding(){
   if(!res.ok){ showAdminNotice('ذخیره اطلاعات شرکت ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   alert('اطلاعات شرکت ذخیره شد.');
+}
+// One place for translating every log/attendance-related backend error code into clear
+// Persian — used by every admin log-entry flow (single-entry quick-add, bulk day/month
+// submission, the report's ✏️ edit view) so a raw code like "expected_checkout_first" never
+// leaks through untranslated just because one particular call site forgot to list it.
+function friendlyLogErrorMsg(err, at){
+  var atSuffix = at ? (' (' + at + ')') : '';
+  if(err === 'must_be_after_last_entry') return 'این ساعت زودتر یا هم‌زمان با آخرین ثبتِ موجودِ این پرسنله' + atSuffix + ' — برای اصلاحِ ثبت‌هایِ قدیمی، از ✏️ ویرایش توی گزارش استفاده کن.';
+  if(err === 'duplicate_entry') return 'یه ثبت دقیقاً با همین تاریخ/ساعت' + atSuffix + ' از قبل موجوده.';
+  if(err === 'time_conflict') return 'دقیقاً همین تاریخ/ساعت برایِ این پرسنل قبلاً یه ثبتِ دیگه داره' + atSuffix + ' — یه ثانیه فرق بذار.';
+  if(err === 'expected_checkout_first') return 'این پرسنل هنوز خروج زده نشده و ورودِ بازِ قبلی داره' + atSuffix + ' — اول باید خروجش رو ثبت کنی.';
+  if(err === 'expected_checkin_first') return 'خروج بدونِ ورودِ بازِ قبلش' + atSuffix + ' — اول باید یه ورود براش ثبت کنی.';
+  if(err === 'no_open_checkin') return 'این پرسنل قبل از این ساعت' + atSuffix + ' هیچ ورودِ بازی نداره — اول باید ورودش رو ثبت کنی.';
+  if(err === 'conflict') return 'تداخل داره — یه ثبتِ دیگه' + atSuffix + ' بینِ این ورود و خروجی که وارد کردی وجود داره. اول اون رو بررسی کن.';
+  if(err === 'must_be_after_checkin') return 'ساعتِ خروج باید بعد از ساعتِ ورود باشه.';
+  if(err === 'not_an_open_checkin') return 'این ثبت یه ورودِ بازِ قابلِ تبدیل به خروج نیست.';
+  if(err === 'already_checked_in') return 'این پرسنل قبلاً ورود زده و هنوز خروج نزده.';
+  if(err === 'not_checked_in') return 'این پرسنل هنوز ورود نزده — اول باید ورود ثبت بشه.';
+  if(err === 'checkout_too_soon') return 'کمتر از ۵ دقیقه از ورود گذشته — برایِ ثبتِ خروج زوده.';
+  if(err === 'checkout_expired') return 'بیشتر از ۲۴ ساعت از این ورود گذشته — برایِ ثبتِ خروجش باید از ✏️ ویرایش توی گزارش استفاده کنی.';
+  if(err === 'account_disabled') return 'حسابِ این پرسنل غیرفعال شده.';
+  if(err === 'device_mismatch') return 'این حساب رویِ یه گوشیِ دیگه فعاله.';
+  if(err === 'unknown_employee') return 'این پرسنل پیدا نشد.';
+  return err || 'خطای شبکه';
 }
 function showAdminNotice(msg){
   var el = document.getElementById('adminNotice');
@@ -4743,8 +4779,7 @@ async function decideOfflineLog(id, approve){
   }
   var res = await apiCall(function(){ return apiPost('approveOfflineLog', payload); });
   if(!res.ok){
-    var msg = res.error === 'must_be_after_last_entry' ? 'این ساعت زودتر از آخرین ثبت موجود این پرسنله — ساعت رو اصلاح کن.' : (res.error||'');
-    showAdminNotice('تایید ناموفق بود: ' + msg);
+    showAdminNotice('تایید ناموفق بود: ' + friendlyLogErrorMsg(res.error, res.at));
     return;
   }
   clearAdminNotice();
@@ -4809,10 +4844,7 @@ async function deleteSelectedRequests(){
 async function decideRequest(id, approve){
   var res = await apiCall(function(){ return apiPost(approve ? 'approveRequest' : 'rejectRequest', {pin:adminPin, id:id}); });
   if(!res.ok){
-    var msg = res.error === 'must_be_after_last_entry'
-      ? 'این زمان درخواستی زودتر از آخرین ثبت تردد این پرسنله — قابل تایید نیست. اگه لازمه، از «ثبت تردد» یا ویرایش مستقیم گزارش استفاده کن.'
-      : (res.error || '');
-    showAdminNotice('ثبت تصمیم ناموفق بود: ' + msg);
+    showAdminNotice('ثبت تصمیم ناموفق بود: ' + friendlyLogErrorMsg(res.error, res.at));
     return;
   }
   clearAdminNotice();
@@ -6405,9 +6437,7 @@ async function submitRequest(){
     requestedDate: requestedDate, requestedTime: requestedTime
   }); });
   if(!res.ok){
-    var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.'
-      : res.error === 'must_be_after_last_entry' ? 'زمانی که وارد کردی زودتر از آخرین ثبت تردد شماست — همچین زمانی قابل ثبت نیست.'
-      : (res.error || 'خطای شبکه');
+    var msg = friendlyLogErrorMsg(res.error, res.at);
     alert('ارسال درخواست ناموفق بود: ' + msg);
     return false;
   }
@@ -7242,21 +7272,15 @@ async function saveEditLogSingle(pairKey, side, existingId){
   if(timeVal === null){ showAdminNotice('ساعت نمی‌تونه خالی باشه. اگه می‌خوای این ثبت رو کلاً حذف کنی، از دکمه 🗑 استفاده کن.'); return; }
   var dateVal = readDate('logEdit');
 
-  function friendlyErr(err, at){
-    if(err === 'time_conflict') return 'دقیقاً همین تاریخ/ساعت برای این پرسنل قبلاً یه ثبت دیگه داره (' + (at||'') + ') — یه ثانیه فرق بذار.';
-    if(err === 'no_open_checkin') return 'این پرسنل قبل از این ساعت، ورودِ باز (بدون خروج) نداره — اول باید ورودش رو ثبت کنی.';
-    return err || 'خطای شبکه';
-  }
-
   if(existingId){
     var updRes = await saveOneLogEntry(existingId, dateVal, timeVal, employee, project, side);
-    if(!updRes.ok){ showAdminNotice((side==='in'?'ذخیره‌ی ورود':'ذخیره‌ی خروج')+' ناموفق بود: ' + friendlyErr(updRes.error, updRes.at)); return; }
+    if(!updRes.ok){ showAdminNotice((side==='in'?'ذخیره‌ی ورود':'ذخیره‌ی خروج')+' ناموفق بود: ' + friendlyLogErrorMsg(updRes.error, updRes.at)); return; }
   } else {
     if(!username){ showAdminNotice('کاربریِ این پرسنل پیدا نشد.'); return; }
     var createRes = await apiCall(function(){ return apiPost('adminAddLog', {
       pin: adminPin, username: username, project: project, type: side, jalaliDate: dateVal, time: timeVal, relaxedOrder: true
     }); });
-    if(!createRes.ok){ showAdminNotice((side==='in'?'ثبت ورود':'ثبت خروج')+' ناموفق بود: ' + friendlyErr(createRes.error, createRes.at)); return; }
+    if(!createRes.ok){ showAdminNotice((side==='in'?'ثبت ورود':'ثبت خروج')+' ناموفق بود: ' + friendlyLogErrorMsg(createRes.error, createRes.at)); return; }
   }
 
   clearAdminNotice();
