@@ -956,7 +956,6 @@
       <button type="button" class="btn btn-primary" id="pinBtn" onclick="checkPin()">ورود</button>
       <button type="button" class="btn btn-ghost" id="adminFpQuickLoginBtn" style="display:none; margin-top:8px;" onclick="tryAdminFingerprintLogin()">👆 ورود سریع با اثر انگشت</button>
       <div class="hint" id="pinHint" style="margin-top:10px;"></div>
-      <button type="button" onclick="openSuperAdminModal()" style="background:none; border:none; cursor:pointer; font-size:20px; margin-top:16px; opacity:0.6;" title="ترددیار">⚙️</button>
     </div>
   </div>
 
@@ -2582,6 +2581,24 @@ async function checkPin(){
   if(!enteredUser || !entered) return;
   var btn = document.getElementById('pinBtn');
   btn.disabled = true; btn.textContent = 'در حال بررسی...';
+  // Same login box now covers both: if what was typed matches the separate ترددیار
+  // credentials specifically, go straight into that settings panel instead of the regular
+  // admin dashboard — no more dedicated ⚙️ button needed on this screen at all.
+  var suRes = await apiCall(function(){ return apiPost('superAdminLogin', {suUsername: enteredUser, suPassword: entered}); });
+  if(suRes.ok){
+    btn.disabled = false; btn.textContent = 'ورود';
+    document.getElementById('adminUsernameInput').value = '';
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinHint').textContent = '';
+    suUsername = enteredUser; suPassword = entered;
+    document.getElementById('superAdminModal').style.display = 'block';
+    document.getElementById('superAdminBackdrop').style.display = 'block';
+    document.getElementById('superAdminAuthStep').style.display = 'none';
+    document.getElementById('superAdminSettingsStep').style.display = 'block';
+    initLeaveDateSelects();
+    await loadSuperAdminSettingsData();
+    return;
+  }
   var deviceLabel = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || 'دستگاه نامشخص';
   var res = await apiCall(function(){ return apiPost('checkPin', {username: enteredUser, pin: entered, deviceId: DEVICE_ID, deviceLabel: deviceLabel}); });
   btn.disabled = false; btn.textContent = 'ورود';
