@@ -910,12 +910,14 @@
         </div>
         <div id="otherCategoryBlock2" style="display:none;">
           <label>انتخاب زیر دسته</label>
-          <select id="otherSubCategory2">
+          <select id="otherSubCategory2" onchange="onOtherSubCategoryChange()">
             <option value="جابجایی شیفت">جابجایی شیفت</option>
             <option value="تهاتر">تهاتر</option>
             <option value="روز تعطیل">روز تعطیل</option>
+            <option value="پیام ساده">پیامِ ساده</option>
           </select>
         </div>
+        <div id="otherDateBlock2">
         <label>نوع بازه</label>
         <select id="leaveType2" onchange="toggleLeaveType2()">
           <option value="daily">روزانه</option>
@@ -936,6 +938,7 @@
           <div class="date-row">
             <input type="time" id="leaveStartTime2" style="flex:1;"><input type="time" id="leaveEndTime2" style="flex:1;">
           </div>
+        </div>
         </div>
         <label>دلیل</label>
         <textarea id="leaveReason2" placeholder="مثلاً: مرخصی استعلاجی یا ماموریت اداری"></textarea>
@@ -1573,7 +1576,8 @@
 
     <div class="admin-section" id="admSec-requests" style="display:none;">
     <div class="card">
-      <div class="eyebrow">درخواست‌های ثبت دستی</div>
+      <div class="eyebrow">درخواست‌ها</div>
+      <div class="hint" style="margin-top:-6px;">همه‌ی درخواست‌ها — تردد، مرخصی، ماموریت، اضافه‌کار و سایر — یکجا.</div>
       <div class="btn-row" style="margin-bottom:8px;">
         <select id="reqFilterStatus" style="flex:2; margin-bottom:0;">
           <option value="pending">در انتظار</option>
@@ -1586,32 +1590,11 @@
       </div>
       <input type="text" id="reqFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono">
       <div class="date-row">
-        <select id="reqFilterMonth"><option value="">همه ماه‌ها</option></select>
-        <select id="reqFilterYear"><option value="">همه سال‌ها</option></select>
+        <select id="reqFilterMonth" onchange="renderReqAdminList()"><option value="">همه ماه‌ها</option></select>
+        <select id="reqFilterYear" onchange="renderReqAdminList()"><option value="">همه سال‌ها</option></select>
       </div>
       <button type="button" class="btn btn-primary" onclick="loadAdminRequests()">🔄 بارگذاری</button>
       <div id="reqAdminList" style="margin-top:14px;"><div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
-    </div>
-
-    <div class="card">
-      <div class="eyebrow">درخواست‌های مرخصی</div>
-      <div class="btn-row" style="margin-bottom:8px;">
-        <select id="leaveFilterStatus" style="flex:2; margin-bottom:0;">
-          <option value="pending">در انتظار</option>
-          <option value="approved">تاییدشده</option>
-          <option value="rejected">ردشده</option>
-          <option value="all">همه</option>
-        </select>
-        <button type="button" class="btn btn-ghost btn-small" style="flex:1;" onclick="toggleSelectAllLeave()">انتخاب همه</button>
-        <button type="button" class="btn btn-out btn-small" style="flex:1;" onclick="deleteSelectedLeaves()">🗑 حذف</button>
-      </div>
-      <input type="text" id="leaveFilterCode" placeholder="فیلتر با کد پرسنلی" class="field-mono">
-      <div class="date-row">
-        <select id="leaveFilterMonth"><option value="">همه ماه‌ها</option></select>
-        <select id="leaveFilterYear"><option value="">همه سال‌ها</option></select>
-      </div>
-      <button type="button" class="btn btn-primary" onclick="loadAdminLeaves()">🔄 بارگذاری</button>
-      <div id="leaveAdminList" style="margin-top:14px;"><div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
     </div>
     </div><!-- /admSec-requests -->
 
@@ -1896,7 +1879,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-14-message-delivery-bugfix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-14-unified-requests-simple-msg"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -4140,7 +4123,18 @@ function onReqCategoryChange(){
     pendingOtherReqImageDataUrl = null;
     document.getElementById('otherImageInput2').value = '';
     document.getElementById('otherImagePreview2').style.display = 'none';
+    document.getElementById('otherDateBlock2').style.display = 'block';
+  } else {
+    onOtherSubCategoryChange();
   }
+}
+// «پیامِ ساده» is just text/image with no actual date range attached to it — hiding the
+// نوعِ بازه/تاریخ fields for that one sub-category specifically, since asking for a start/end
+// date on something that isn't a leave/shift-swap/holiday request would only confuse the
+// person filling it in.
+function onOtherSubCategoryChange(){
+  var sub = document.getElementById('otherSubCategory2').value;
+  document.getElementById('otherDateBlock2').style.display = (sub === 'پیام ساده') ? 'none' : 'block';
 }
 var pendingOtherReqImageDataUrl = null;
 function handleOtherRequestImageSelect(event){
@@ -4265,10 +4259,8 @@ async function refreshAdminSection(name){
   else if(name === 'shifts') await loadShiftsAdmin();
   else if(name === 'requests'){
     await ensureEmployeesFresh();
-    populateMonthYearFilter('reqFilterMonth','reqFilterYear');
-    populateMonthYearFilter('leaveFilterMonth','leaveFilterYear');
+    populateMonthYearFilter('reqFilterMonth','reqFilterYear', true);
     document.getElementById('reqAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
-    document.getElementById('leaveAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
   }
   else if(name === 'messages'){
     await ensureEmployeesFresh();
@@ -4415,7 +4407,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-14-message-delivery-bugfix'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-14-unified-requests-simple-msg'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5123,17 +5115,27 @@ async function decideOfflineLog(id, approve){
   await loadFullLog();
 }
 async function loadAdminRequests(){
-  var res = await apiCall(function(){ return apiPost('getRequests', {pin:adminPin}); });
-  if(!res.ok){
-    document.getElementById('reqAdminList').innerHTML = '<div class="empty">دریافت درخواست‌ها ناموفق بود</div>';
-    return;
-  }
-  window._allRequests = res.requests || [];
+  var box = document.getElementById('reqAdminList');
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  var results = await Promise.all([
+    apiCall(function(){ return apiPost('getRequests', {pin:adminPin}); }),
+    apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); })
+  ]);
+  var resReq = results[0], resLeave = results[1];
+  if(!resReq.ok && !resLeave.ok){ box.innerHTML = '<div class="empty">دریافتِ درخواست‌ها ناموفق بود</div>'; return; }
+  // Tag every item with which sheet/backend-actions it belongs to (_kind), so the single
+  // merged render/approve/delete flow below can still route each action to the right place —
+  // Requests (تردد) and LeaveRequests (مرخصی/ماموریت/اضافه‌کار/سایر) stay two separate sheets
+  // on the backend, only unified here in the admin's view.
+  var reqTagged = (resReq.ok ? (resReq.requests||[]) : []).map(function(r){ r._kind = 'attendance'; return r; });
+  var leaveTagged = (resLeave.ok ? (resLeave.leaves||[]) : []).map(function(r){ r._kind = 'leave'; return r; });
+  window._allRequests = reqTagged.concat(leaveTagged)
+    .sort(function(a,b){ return String(b.createdAt+b.createdTime).localeCompare(String(a.createdAt+a.createdTime)); });
   renderReqAdminList();
 }
 function renderReqAdminList(){
   var box = document.getElementById('reqAdminList');
-  populateMonthYearFilter('reqFilterMonth','reqFilterYear');
+  populateMonthYearFilter('reqFilterMonth','reqFilterYear', true);
   var filter = document.getElementById('reqFilterStatus').value;
   var codeFilter = document.getElementById('reqFilterCode').value.trim().toLowerCase();
   var monthFilter = document.getElementById('reqFilterMonth').value;
@@ -5141,24 +5143,41 @@ function renderReqAdminList(){
   var all = window._allRequests || [];
   var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
   if(codeFilter) list = list.filter(function(r){ return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; });
-  list = list.filter(function(r){ return matchesMonthYear(r.createdAt, monthFilter, yearFilter); });
+  // Attendance items are dated by createdAt (when the request was filed); leave-style items by
+  // startDate (the date the request is actually ABOUT) — matching exactly what each box's own
+  // filter compared against before they were merged.
+  list = list.filter(function(r){ return matchesMonthYear(r._kind==='attendance' ? r.createdAt : r.startDate, monthFilter, yearFilter); });
   var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
   if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
   box.innerHTML = list.map(function(r){
+    var isAtt = r._kind === 'attendance';
+    var titleLine = isAtt
+      ? ((r.type==='in'?'🕐 ورود':'🕐 خروج')+' · '+esc(r.project))
+      : formatLeaveRange(r);
+    var metaLine = isAtt
+      ? (r.createdAt+' — '+r.createdTime+(r.requestedDate?(' · زمانِ درخواستی: '+r.requestedDate+' '+r.requestedTime):''))
+      : (r.createdAt+' — '+r.createdTime);
     var actions = r.status==='pending'
       ? '<div class="btn-row" style="margin-top:6px;">'+
-          '<button type="button" class="btn btn-in btn-small" onclick="decideRequest(\''+r.id+'\',true)">✅ تایید</button>'+
-          '<button type="button" class="btn btn-out btn-small" onclick="decideRequest(\''+r.id+'\',false)">❌ رد</button>'+
+          '<button type="button" class="btn btn-in btn-small" onclick="decideRequest(\''+r.id+'\',true,\''+r._kind+'\')">✅ تایید</button>'+
+          '<button type="button" class="btn btn-out btn-small" onclick="decideRequest(\''+r.id+'\',false,\''+r._kind+'\')">❌ رد</button>'+
         '</div>'
       : '';
-    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
+    var editDelBtns = !isAtt
+      ? '<button class="icon-btn edit" title="ویرایش" onclick="editLeaveRequestBtn(\''+r.id+'\')">✏️</button>'
+      : '';
+    return '<div class="req-item" id="reqItem-'+r.id+'"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
       '<label style="display:flex; align-items:center; gap:6px; flex:1;">'+
-        '<input type="checkbox" class="req-chk" value="'+r.id+'" style="width:auto; margin:0;">'+
-        '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
+        '<input type="checkbox" class="req-chk" value="'+r.id+'" data-kind="'+r._kind+'" style="width:auto; margin:0;">'+
+        '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b> · '+titleLine+
       '</label>'+
       '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
-      '<div class="meta">'+r.createdAt+' — '+r.createdTime+(r.requestedDate?(' · زمان درخواستی: '+r.requestedDate+' '+r.requestedTime):'')+'</div>'+
-      (r.reason ? '<div style="margin:6px 0; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
+      '<div class="meta">'+metaLine+'</div>'+
+      '<div id="reqItemBody-'+r.id+'">'+
+        (r.reason ? '<div style="margin:6px 0; color:#5b5646;" class="req-reason-text">'+esc(r.reason)+'</div>' : '')+
+        (r.imageUrl ? '<img src="'+r.imageUrl+'" style="max-width:160px; border-radius:8px; margin:6px 0; display:block; cursor:pointer;" onclick="openImageLightbox(\''+r.imageUrl+'\')">' : '')+
+      '</div>'+
+      '<div class="btn-row" style="margin-top:4px;">'+editDelBtns+'</div>'+
       actions+'</div>';
   }).join('');
 }
@@ -5168,84 +5187,71 @@ function toggleSelectAllReq(){
   boxes.forEach(function(c){ c.checked = !allChecked; });
 }
 async function deleteSelectedRequests(){
-  var ids = Array.from(document.querySelectorAll('.req-chk:checked')).map(function(c){ return c.value; });
-  if(ids.length===0){ alert('حداقل یک درخواست را انتخاب کنید'); return; }
-  if(!confirm(ids.length + ' درخواست حذف شود؟ این کار قابل بازگشت نیست.')) return;
-  var res = await apiCall(function(){ return apiPost('deleteRequests', {pin:adminPin, ids:ids}); });
-  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
-  clearAdminNotice();
+  var checked = Array.from(document.querySelectorAll('.req-chk:checked'));
+  if(checked.length===0){ alert('حداقل یک درخواست را انتخاب کنید'); return; }
+  if(!confirm(checked.length + ' درخواست حذف شود؟ این کار قابل بازگشت نیست.')) return;
+  var attIds = checked.filter(function(c){ return c.dataset.kind==='attendance'; }).map(function(c){ return c.value; });
+  var leaveIds = checked.filter(function(c){ return c.dataset.kind==='leave'; }).map(function(c){ return c.value; });
+  var calls = [];
+  if(attIds.length) calls.push(apiCall(function(){ return apiPost('deleteRequests', {pin:adminPin, ids:attIds}); }));
+  if(leaveIds.length) calls.push(apiCall(function(){ return apiPost('deleteLeaveRequests', {pin:adminPin, ids:leaveIds}); }));
+  var results = await Promise.all(calls);
+  if(results.some(function(r){ return !r.ok; })){ showAdminNotice('حذفِ برخی از درخواست‌ها ناموفق بود.'); }
+  else clearAdminNotice();
   await loadAdminRequests();
 }
-async function decideRequest(id, approve){
-  var res = await apiCall(function(){ return apiPost(approve ? 'approveRequest' : 'rejectRequest', {pin:adminPin, id:id}); });
+async function decideRequest(id, approve, kind){
+  var action = kind === 'attendance' ? (approve ? 'approveRequest' : 'rejectRequest') : (approve ? 'approveLeaveRequest' : 'rejectLeaveRequest');
+  var res = await apiCall(function(){ return apiPost(action, {pin:adminPin, id:id}); });
   if(!res.ok){
     showAdminNotice('ثبت تصمیم ناموفق بود: ' + friendlyLogErrorMsg(res.error, res.at));
     return;
   }
   clearAdminNotice();
   await loadAdminRequests();
-  await loadFullLog();
+  if(kind === 'attendance') await loadFullLog();
 }
-
-// ---------- Leave requests (admin review) ----------
-async function loadAdminLeaves(){
-  var res = await apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}); });
-  if(!res.ok){
-    document.getElementById('leaveAdminList').innerHTML = '<div class="empty">دریافت درخواست‌های مرخصی ناموفق بود</div>';
-    return;
-  }
-  window._allLeaves = res.leaves || [];
-  renderLeaveAdminList();
+// Inline edit — swaps the reason text (and optional image) for a leave-style request into an
+// editable textarea + image picker right where it already sits in the list, instead of opening
+// a whole separate modal for what's normally just a quick text tweak.
+function editLeaveRequestBtn(id){
+  var r = (window._allRequests||[]).filter(function(x){ return x.id===id; })[0];
+  if(!r) return;
+  var body = document.getElementById('reqItemBody-'+id);
+  body.innerHTML =
+    '<textarea id="reqEditReason-'+id+'" style="margin-top:6px;">'+esc(r.reason||'')+'</textarea>'+
+    (r.imageUrl ? '<img id="reqEditImgPrev-'+id+'" src="'+r.imageUrl+'" style="max-width:160px; border-radius:8px; margin:6px 0; display:block; cursor:pointer;" onclick="openImageLightbox(this.src)">' : '<img id="reqEditImgPrev-'+id+'" style="max-width:160px; border-radius:8px; margin:6px 0; display:none;">')+
+    '<input type="file" accept="image/*" id="reqEditImgInput-'+id+'" onchange="handleReqEditImageSelect(event,\''+id+'\')">'+
+    (r.imageUrl ? '<button type="button" class="btn btn-ghost btn-small" onclick="removeReqEditImage(\''+id+'\')">🗑️ حذفِ عکس</button>' : '')+
+    '<div class="btn-row" style="margin-top:6px;">'+
+      '<button type="button" class="btn btn-primary btn-small" onclick="saveLeaveRequestEdit(\''+id+'\')">✅ ذخیره</button>'+
+      '<button type="button" class="btn btn-ghost btn-small" onclick="renderReqAdminList()">لغو</button>'+
+    '</div>';
 }
-function renderLeaveAdminList(){
-  var box = document.getElementById('leaveAdminList');
-  populateMonthYearFilter('leaveFilterMonth','leaveFilterYear');
-  var filter = document.getElementById('leaveFilterStatus').value;
-  var codeFilter = document.getElementById('leaveFilterCode').value.trim().toLowerCase();
-  var monthFilter = document.getElementById('leaveFilterMonth').value;
-  var yearFilter = document.getElementById('leaveFilterYear').value;
-  var all = window._allLeaves || [];
-  var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
-  if(codeFilter) list = list.filter(function(r){ return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1; });
-  list = list.filter(function(r){ return matchesMonthYear(r.startDate, monthFilter, yearFilter); });
-  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
-  if(list.length===0){ box.innerHTML = '<div class="empty">درخواستی در این حالت وجود ندارد</div>'; return; }
-  box.innerHTML = list.map(function(r){
-    var actions = r.status==='pending'
-      ? '<div class="btn-row" style="margin-top:6px;">'+
-          '<button type="button" class="btn btn-in btn-small" onclick="decideLeave(\''+r.id+'\',true)">✅ تایید</button>'+
-          '<button type="button" class="btn btn-out btn-small" onclick="decideLeave(\''+r.id+'\',false)">❌ رد</button>'+
-        '</div>'
-      : '';
-    return '<div class="req-item"><div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
-      '<label style="display:flex; align-items:center; gap:6px; flex:1;">'+
-        '<input type="checkbox" class="leave-chk" value="'+r.id+'" style="width:auto; margin:0;">'+
-        '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b> · '+formatLeaveRange(r)+
-      '</label>'+
-      '<span class="req-status '+r.status+'">'+statusFa[r.status]+'</span></div>'+
-      (r.reason ? '<div style="margin:6px 0; color:#5b5646;">'+esc(r.reason)+'</div>' : '')+
-      actions+'</div>';
-  }).join('');
+var _reqEditImageState = {}; // id -> {dataUrl, removed}
+function handleReqEditImageSelect(event, id){
+  var file = event.target.files[0];
+  compressImageToDataUrl(file, 1000, 0.7, function(dataUrl){
+    _reqEditImageState[id] = {dataUrl: dataUrl, removed: false};
+    var prev = document.getElementById('reqEditImgPrev-'+id);
+    if(dataUrl){ prev.src = dataUrl; prev.style.display = 'block'; }
+  });
 }
-function toggleSelectAllLeave(){
-  var boxes = document.querySelectorAll('.leave-chk');
-  var allChecked = Array.from(boxes).every(function(c){ return c.checked; });
-  boxes.forEach(function(c){ c.checked = !allChecked; });
+function removeReqEditImage(id){
+  _reqEditImageState[id] = {dataUrl: null, removed: true};
+  document.getElementById('reqEditImgInput-'+id).value = '';
+  document.getElementById('reqEditImgPrev-'+id).style.display = 'none';
 }
-async function deleteSelectedLeaves(){
-  var ids = Array.from(document.querySelectorAll('.leave-chk:checked')).map(function(c){ return c.value; });
-  if(ids.length===0){ alert('حداقل یک درخواست را انتخاب کنید'); return; }
-  if(!confirm(ids.length + ' درخواست مرخصی حذف شود؟ این کار قابل بازگشت نیست.')) return;
-  var res = await apiCall(function(){ return apiPost('deleteLeaveRequests', {pin:adminPin, ids:ids}); });
-  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+async function saveLeaveRequestEdit(id){
+  var reason = document.getElementById('reqEditReason-'+id).value.trim();
+  var imgState = _reqEditImageState[id];
+  var payload = {pin:adminPin, id:id, reason:reason};
+  if(imgState){ payload.imageUrl = imgState.dataUrl || ''; payload.imageUrlProvided = !!(imgState.dataUrl || imgState.removed); }
+  var res = await apiCall(function(){ return apiPost('updateLeaveRequest', payload); });
+  if(!res.ok){ showAdminNotice('ویرایش ناموفق بود: ' + (res.error||'')); return; }
+  delete _reqEditImageState[id];
   clearAdminNotice();
-  await loadAdminLeaves();
-}
-async function decideLeave(id, approve){
-  var res = await apiCall(function(){ return apiPost(approve ? 'approveLeaveRequest' : 'rejectLeaveRequest', {pin:adminPin, id:id}); });
-  if(!res.ok){ showAdminNotice('ثبت تصمیم مرخصی ناموفق بود: ' + (res.error||'')); return; }
-  clearAdminNotice();
-  await loadAdminLeaves();
+  await loadAdminRequests();
 }
 
 // ---------- Projects ----------
@@ -8089,8 +8095,11 @@ async function refreshAdminView(){
   // Requests/leaves/report are intentionally NOT pre-loaded here — those sections start
   // empty with their own filters + a "بارگذاری" button, loaded only once the admin actually
   // opens that section and chooses to load it (avoids a cluttered wall of data on login).
-  populateMonthYearFilter('reqFilterMonth','reqFilterYear');
-  populateMonthYearFilter('leaveFilterMonth','leaveFilterYear');
+  // Must pass defaultToCurrent(true) here too — populateMonthYearFilter only ever populates a
+  // given pair of selects ONCE, so if this first call left them defaulting to "همه", the later
+  // call inside refreshAdminSection('requests') would silently no-op and never actually apply
+  // the current-month/year default the admin expects to see on opening «درخواست‌ها».
+  populateMonthYearFilter('reqFilterMonth','reqFilterYear', true);
   populateMonthYearFilter('logFilterMonth','logFilterYear', true);
   var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
   if(emailRes.ok){
