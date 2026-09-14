@@ -604,6 +604,10 @@
     </div>
   </div>
 </div>
+<div id="imageLightboxOverlay" style="display:none; position:fixed; inset:0; background:#000000d9; z-index:6500; align-items:center; justify-content:center; padding:20px;" onclick="closeImageLightbox()">
+  <img id="imageLightboxImg" style="max-width:100%; max-height:100%; border-radius:8px; object-fit:contain;">
+  <button type="button" onclick="closeImageLightbox()" style="position:absolute; top:16px; left:16px; background:#ffffff26; border:none; color:#fff; width:38px; height:38px; border-radius:50%; font-size:18px; cursor:pointer;">✕</button>
+</div>
 <div id="customPickerOverlay" style="display:none; position:fixed; inset:0; background:#00000066; z-index:6050; align-items:center; justify-content:center; padding:20px;">
   <div style="background:var(--paper); border-radius:var(--r-lg); padding:16px; max-width:400px; width:100%; max-height:78vh; display:flex; flex-direction:column; box-shadow:var(--sh-lg);">
     <div id="customPickerTitle" style="font-weight:800; font-size:15px; margin-bottom:10px; color:var(--navy);"></div>
@@ -820,6 +824,10 @@
     <div class="card">
       <div class="eyebrow">پیام‌هایِ مدیریت</div>
       <div class="hint" style="margin-top:-6px;">این قسمت فقط برایِ نمایشه — پیام‌هایی که مدیریت برایِ شما یا همه‌ی پرسنل فرستاده.</div>
+      <div class="date-row">
+        <select id="myMsgFilterMonth" onchange="renderMyMessagesList()"><option value="">ماه</option></select>
+        <select id="myMsgFilterYear" onchange="renderMyMessagesList()"><option value="">سال</option></select>
+      </div>
       <div id="myMessagesList"><div class="empty">در حال بارگذاری...</div></div>
     </div>
     </div><!-- /empSec-messages -->
@@ -1608,19 +1616,30 @@
 
     <div class="admin-section" id="admSec-messages" style="display:none;">
     <div class="card">
-      <div class="eyebrow">ارسالِ پیام به پرسنل</div>
-      <label>گیرنده</label>
-      <select id="msgRecipient">
-        <option value="">🌐 همه‌ی پرسنل</option>
-      </select>
+      <div class="eyebrow" id="msgFormTitle">ارسالِ پیام به پرسنل</div>
+      <div id="msgRecipientBlock">
+        <label>گیرنده</label>
+        <select id="msgRecipient">
+          <option value="">🌐 همه‌ی پرسنل</option>
+        </select>
+      </div>
+      <div class="hint" id="msgEditingHint" style="display:none; margin-top:-6px;">در حالِ ویرایشِ یه پیامِ ارسال‌شده — گیرنده قابلِ تغییر نیست، فقط متن/عکس.</div>
       <label>متنِ پیام</label>
       <textarea id="msgText" placeholder="متنِ پیام را بنویس..."></textarea>
       <label>عکس (اختیاری)</label>
       <input type="file" accept="image/*" id="msgImageInput" onchange="handleMsgImageSelect(event)">
-      <img id="msgImagePreview" style="display:none; max-width:100%; border-radius:10px; margin-top:8px;">
-      <button type="button" class="btn btn-primary" onclick="sendAdminMessageBtn()" style="margin-top:10px;">📨 ارسالِ پیام</button>
+      <img id="msgImagePreview" style="display:none; max-width:100%; border-radius:10px; margin-top:8px; cursor:pointer;" onclick="openImageLightbox(this.src)">
+      <button type="button" class="btn btn-ghost btn-small" id="msgRemoveImageBtn" style="display:none; margin-top:6px;" onclick="removeMsgImage()">🗑️ حذفِ عکس</button>
+      <div class="btn-row" style="margin-top:10px;">
+        <button type="button" class="btn btn-primary" id="msgSubmitBtn" onclick="sendAdminMessageBtn()">📨 ارسالِ پیام</button>
+        <button type="button" class="btn btn-ghost" id="msgCancelEditBtn" style="display:none;" onclick="cancelMessageEdit()">لغوِ ویرایش</button>
+      </div>
       <div class="divider"></div>
       <div class="eyebrow" style="font-size:13px;">پیام‌هایِ ارسال‌شده</div>
+      <div class="date-row">
+        <select id="msgFilterMonth" onchange="renderSentMessagesList()"><option value="">ماه</option></select>
+        <select id="msgFilterYear" onchange="renderSentMessagesList()"><option value="">سال</option></select>
+      </div>
       <div id="sentMessagesList"><div class="empty">در حال بارگذاری...</div></div>
     </div>
     </div><!-- /admSec-messages -->
@@ -1875,7 +1894,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-14-messages-feature"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-14-message-notifications"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -1926,6 +1945,17 @@ function showAppConfirm(message){
 function resolveAppConfirm(result){
   document.getElementById('appConfirmOverlay').style.display = 'none';
   if(_appConfirmResolve){ _appConfirmResolve(result); _appConfirmResolve = null; }
+}
+// Reusable full-screen image viewer — any message/attachment thumbnail throughout the app
+// (admin's sent list, employee's received list, both compose-form previews) opens the same
+// full-size view on click, rather than being stuck at whatever small size it was displayed at.
+function openImageLightbox(src){
+  if(!src) return;
+  document.getElementById('imageLightboxImg').src = src;
+  document.getElementById('imageLightboxOverlay').style.display = 'flex';
+}
+function closeImageLightbox(){
+  document.getElementById('imageLightboxOverlay').style.display = 'none';
 }
 
 // ---------- Custom picker (replaces the native OS/browser dropdown for long <select> lists) ----------
@@ -2511,6 +2541,7 @@ function enterEmployeeSession(empData){
   checkGpsPermissionHint();
   requestNotificationPermission(); // best-effort, no-op if already asked/denied
   startConnectivityWatcher();
+  startEmployeeMessageWatcher();
 }
 async function employeeLogin(){
   var username = document.getElementById('empUsername').value.trim();
@@ -2565,6 +2596,7 @@ function employeeLogout(){
   document.getElementById('empLoginGate').style.display='block';
   document.getElementById('empView').style.display='none';
   updateFpQuickLoginVisibility();
+  stopEmployeeMessageWatcher();
 }
 
 // ---------- Admin live check-in/check-out notifications ----------
@@ -2586,15 +2618,33 @@ async function pollAdminLogUpdates(){
     // loading spinner. That's exactly what was popping the spinner up on the dashboard every
     // 25 seconds even while the person was just sitting there looking at it.
     var res = await apiCall(function(){ return apiPost('getLogsSince', {pin:adminPin}, true); });
-    if(!res.ok) return;
-    (res.logs||[]).forEach(function(entry){
-      var typeLabel = entry.type === 'ورود' ? 'ورود زد' : 'خروج زد';
-      var icon = entry.type === 'ورود' ? '✅' : '🚪';
-      showLocalNotification(
-        icon + ' ' + currentEmployeeName(entry.username, entry.employee) + ' ' + typeLabel,
-        (entry.project ? entry.project + ' — ' : '') + 'ساعت ' + entry.time
-      );
-    });
+    if(res.ok){
+      (res.logs||[]).forEach(function(entry){
+        var typeLabel = entry.type === 'ورود' ? 'ورود زد' : 'خروج زد';
+        var icon = entry.type === 'ورود' ? '✅' : '🚪';
+        showLocalNotification(
+          icon + ' ' + currentEmployeeName(entry.username, entry.employee) + ' ' + typeLabel,
+          (entry.project ? entry.project + ' — ' : '') + 'ساعت ' + entry.time
+        );
+      });
+    }
+    // Same silent 25-second cycle also checks for new درخواست‌ها (مرخصی/ماموریت/اضافه‌کار/سایر)
+    // — this is the "other direction" of پیام‌ها notifications: an employee's own message to
+    // the admin, sent through the «سایر» request category, now surfaces here too instead of
+    // only via email.
+    var reqRes = await apiCall(function(){ return apiPost('getRequestsSince', {pin:adminPin}, true); });
+    if(reqRes.ok){
+      (reqRes.requests||[]).forEach(function(r){
+        var typeLabel = r.requestType === 'leave' ? 'مرخصی'
+          : r.requestType === 'mission' ? 'ماموریت'
+          : r.requestType === 'overtime' ? 'اضافه‌کار'
+          : (r.leaveCategory || 'سایر');
+        showLocalNotification(
+          '📨 درخواستِ جدید — ' + r.employee,
+          typeLabel + ' — ' + r.createdAt + ' ساعت ' + r.createdTime
+        );
+      });
+    }
   } finally {
     _adminPollInFlight = false;
   }
@@ -2606,6 +2656,49 @@ function startAdminLogWatcher(){
 function stopAdminLogWatcher(){
   if(_adminLogWatcherTimer) clearInterval(_adminLogWatcherTimer);
   _adminLogWatcherTimer = null;
+}
+
+// ---------- Employee message notifications (admin -> employee, the other direction of the
+// same پیام‌ها feature) ----------
+// A per-employee cursor kept in localStorage (not a server-shared one like the admin's log
+// watcher) is enough here — unlike the admin panel, an employee normally only ever has the one
+// device tied to their account (see deviceId matching in addLog/login), so there's no
+// multi-device race to guard against.
+var _empMsgWatcherTimer = null;
+var _empMsgPollInFlight = false;
+function startEmployeeMessageWatcher(){
+  if(_empMsgWatcherTimer) return;
+  _empMsgWatcherTimer = setInterval(pollMyMessages, 25000);
+}
+function stopEmployeeMessageWatcher(){
+  if(_empMsgWatcherTimer) clearInterval(_empMsgWatcherTimer);
+  _empMsgWatcherTimer = null;
+}
+async function pollMyMessages(){
+  if(!loggedInEmployee || _empMsgPollInFlight) return;
+  _empMsgPollInFlight = true;
+  try{
+    var res = await apiCall(function(){ return apiPost('getMyMessages', {username: loggedInEmployee.username}, true); });
+    if(!res.ok) return;
+    var msgs = res.messages || [];
+    var cursorKey = 'msgSeenIso_' + loggedInEmployee.username;
+    var lastSeenIso = localStorage.getItem(cursorKey) || '';
+    var lastSeenMs = lastSeenIso ? new Date(lastSeenIso).getTime() : (Date.now() - 5*60000);
+    var newOnes = msgs.filter(function(m){ return new Date(m.createdAt).getTime() > lastSeenMs; });
+    // Oldest-first so notifications appear in the order they were actually sent, not reversed.
+    newOnes.sort(function(a,b){ return isoCompare(a.createdAt, b.createdAt); });
+    newOnes.forEach(function(m){
+      showLocalNotification('💬 پیامِ جدید از مدیریت', m.text ? m.text.slice(0,120) : '📷 یه عکس فرستاده شده');
+    });
+    if(msgs.length){
+      // Track the newest createdAt seen across ALL fetched messages (not just the new ones) so
+      // the cursor only ever moves forward, even on a poll that finds nothing new.
+      var newestIso = msgs.reduce(function(max, m){ return (new Date(m.createdAt).getTime() > new Date(max).getTime()) ? m.createdAt : max; }, lastSeenIso || msgs[0].createdAt);
+      localStorage.setItem(cursorKey, newestIso);
+    }
+  } finally {
+    _empMsgPollInFlight = false;
+  }
 }
 
 // ---------- Admin PIN ----------
@@ -4320,7 +4413,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-14-messages-feature'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-14-message-notifications'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4436,47 +4529,107 @@ function clearAdminNotice(){
 // ---------- Employees (admin) ----------
 // ---------- Admin messages (text/image, one employee or everyone) ----------
 var pendingMsgImageDataUrl = null;
+var msgImageWasRemoved = false; // true only when the admin explicitly clicked "حذفِ عکس" during an edit — distinct from "never touched the image field at all"
+var editingMessageId = null;
+var sentMessagesCache = [];
 function handleMsgImageSelect(event){
   var file = event.target.files[0];
   compressImageToDataUrl(file, 1000, 0.7, function(dataUrl){
     pendingMsgImageDataUrl = dataUrl;
+    msgImageWasRemoved = false;
     var prev = document.getElementById('msgImagePreview');
-    if(dataUrl){ prev.src = dataUrl; prev.style.display = 'block'; }
-    else { prev.style.display = 'none'; }
+    if(dataUrl){ prev.src = dataUrl; prev.style.display = 'block'; document.getElementById('msgRemoveImageBtn').style.display = 'inline-block'; }
+    else { prev.style.display = 'none'; document.getElementById('msgRemoveImageBtn').style.display = 'none'; }
   });
 }
-async function sendAdminMessageBtn(){
-  var toUsername = document.getElementById('msgRecipient').value;
-  var text = document.getElementById('msgText').value.trim();
-  if(!text && !pendingMsgImageDataUrl){ alert('یه متن یا عکس برایِ پیام وارد کن.'); return; }
-  var toLabel = toUsername ? ((employees.filter(function(e){ return e.username===toUsername; })[0]||{}).fullName || toUsername) : 'همه‌ی پرسنل';
-  var res = await apiCall(function(){ return apiPost('sendAdminMessage', {pin:adminPin, toUsername:toUsername, toLabel:toLabel, text:text, imageUrl: pendingMsgImageDataUrl||''}); });
-  if(!res.ok){ showAdminNotice('ارسالِ پیام ناموفق بود: ' + (res.error||'')); return; }
-  document.getElementById('msgText').value = '';
+function removeMsgImage(){
   pendingMsgImageDataUrl = null;
+  msgImageWasRemoved = true;
   document.getElementById('msgImageInput').value = '';
   document.getElementById('msgImagePreview').style.display = 'none';
-  alert('پیام ارسال شد.');
+  document.getElementById('msgRemoveImageBtn').style.display = 'none';
+}
+async function sendAdminMessageBtn(){
+  var text = document.getElementById('msgText').value.trim();
+  if(!text && !pendingMsgImageDataUrl){ alert('یه متن یا عکس برایِ پیام وارد کن.'); return; }
+  var res;
+  if(editingMessageId){
+    res = await apiCall(function(){ return apiPost('updateMessage', {
+      pin:adminPin, id:editingMessageId, text:text,
+      imageUrl: pendingMsgImageDataUrl||'', imageUrlProvided: !!(pendingMsgImageDataUrl || msgImageWasRemoved)
+    }); });
+  } else {
+    var toUsername = document.getElementById('msgRecipient').value;
+    var toLabel = toUsername ? ((employees.filter(function(e){ return e.username===toUsername; })[0]||{}).fullName || toUsername) : 'همه‌ی پرسنل';
+    res = await apiCall(function(){ return apiPost('sendAdminMessage', {pin:adminPin, toUsername:toUsername, toLabel:toLabel, text:text, imageUrl: pendingMsgImageDataUrl||''}); });
+  }
+  if(!res.ok){ showAdminNotice((editingMessageId?'ویرایشِ':'ارسالِ')+' پیام ناموفق بود: ' + (res.error||'')); return; }
+  var wasEditing = !!editingMessageId;
+  cancelMessageEdit();
+  alert(wasEditing ? 'پیام به‌روزرسانی شد.' : 'پیام ارسال شد.');
   await loadSentMessages();
+}
+function editMessageBtn(id){
+  var m = sentMessagesCache.filter(function(x){ return x.id===id; })[0];
+  if(!m) return;
+  editingMessageId = id;
+  document.getElementById('msgFormTitle').textContent = 'ویرایشِ پیام';
+  document.getElementById('msgRecipientBlock').style.display = 'none';
+  document.getElementById('msgEditingHint').style.display = 'block';
+  document.getElementById('msgText').value = m.text || '';
+  pendingMsgImageDataUrl = null;
+  msgImageWasRemoved = false;
+  var prev = document.getElementById('msgImagePreview');
+  if(m.imageUrl){ prev.src = m.imageUrl; prev.style.display = 'block'; document.getElementById('msgRemoveImageBtn').style.display = 'inline-block'; }
+  else { prev.style.display = 'none'; document.getElementById('msgRemoveImageBtn').style.display = 'none'; }
+  document.getElementById('msgSubmitBtn').textContent = '🔄 به‌روزرسانیِ پیام';
+  document.getElementById('msgCancelEditBtn').style.display = 'inline-block';
+  document.getElementById('msgFormTitle').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function cancelMessageEdit(){
+  editingMessageId = null;
+  document.getElementById('msgFormTitle').textContent = 'ارسالِ پیام به پرسنل';
+  document.getElementById('msgRecipientBlock').style.display = 'block';
+  document.getElementById('msgEditingHint').style.display = 'none';
+  document.getElementById('msgText').value = '';
+  pendingMsgImageDataUrl = null;
+  msgImageWasRemoved = false;
+  document.getElementById('msgImageInput').value = '';
+  document.getElementById('msgImagePreview').style.display = 'none';
+  document.getElementById('msgRemoveImageBtn').style.display = 'none';
+  document.getElementById('msgSubmitBtn').textContent = '📨 ارسالِ پیام';
+  document.getElementById('msgCancelEditBtn').style.display = 'none';
 }
 async function loadSentMessages(){
   var res = await apiCall(function(){ return apiPost('getSentMessages', {pin:adminPin}); });
   var box = document.getElementById('sentMessagesList');
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافتِ پیام‌ها ناموفق بود</div>'; return; }
-  var msgs = res.messages || [];
-  if(msgs.length===0){ box.innerHTML = '<div class="empty">هنوز پیامی ارسال نشده</div>'; return; }
+  sentMessagesCache = res.messages || [];
+  populateMonthYearFilter('msgFilterMonth','msgFilterYear');
+  renderSentMessagesList();
+}
+function renderSentMessagesList(){
+  var box = document.getElementById('sentMessagesList');
+  var monthFilter = document.getElementById('msgFilterMonth').value;
+  var yearFilter = document.getElementById('msgFilterYear').value;
+  var msgs = sentMessagesCache.filter(function(m){ return matchesMonthYear(m.jalaliDate, monthFilter, yearFilter); });
+  if(msgs.length===0){ box.innerHTML = '<div class="empty">پیامی در این بازه یافت نشد</div>'; return; }
   box.innerHTML = msgs.map(function(m){
     return '<div class="list-item" style="align-items:flex-start;"><div style="flex:1;">'+
       '<b>'+esc(m.toLabel)+'</b><div class="meta">'+esc(m.jalaliDate)+' '+esc(m.time)+'</div>'+
       (m.text ? '<div style="margin-top:6px; white-space:pre-line;">'+esc(m.text)+'</div>' : '')+
-      (m.imageUrl ? '<img src="'+m.imageUrl+'" style="max-width:160px; border-radius:8px; margin-top:6px; display:block;">' : '')+
-      '</div><div class="actions"><button class="icon-btn del" onclick="deleteMessageBtn(\''+m.id+'\')">🗑️</button></div></div>';
+      (m.imageUrl ? '<img src="'+m.imageUrl+'" style="max-width:160px; border-radius:8px; margin-top:6px; display:block; cursor:pointer;" onclick="openImageLightbox(\''+m.imageUrl+'\')">' : '')+
+      '</div><div class="actions">'+
+        '<button class="icon-btn edit" onclick="editMessageBtn(\''+m.id+'\')">✏️</button>'+
+        '<button class="icon-btn del" onclick="deleteMessageBtn(\''+m.id+'\')">🗑️</button>'+
+      '</div></div>';
   }).join('');
 }
 async function deleteMessageBtn(id){
   if(!(await showAppConfirm('این پیام حذف بشه؟'))) return;
   var res = await apiCall(function(){ return apiPost('deleteMessage', {pin:adminPin, id:id}); });
   if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  if(editingMessageId === id) cancelMessageEdit();
   await loadSentMessages();
 }
 async function loadEmployeesAdmin(){
@@ -7700,18 +7853,27 @@ var PERF_METRIC_LABELS_DAILY = [
   {key:'fridayMin', label:'جمعه‌کاری'}, {key:'holidayMin', label:'تعطیل‌کاری'}
 ];
 var myShiftViewYear = null, myShiftViewMonth = null;
+var myMessagesCache = [];
 async function loadMyMessages(){
   var box = document.getElementById('myMessagesList');
   box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
   var res = await apiCall(function(){ return apiPost('getMyMessages', {username: loggedInEmployee.username}); });
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافتِ پیام‌ها ناموفق بود</div>'; return; }
-  var msgs = res.messages || [];
-  if(msgs.length===0){ box.innerHTML = '<div class="empty">هنوز پیامی برایِ شما ارسال نشده</div>'; return; }
+  myMessagesCache = res.messages || [];
+  populateMonthYearFilter('myMsgFilterMonth','myMsgFilterYear');
+  renderMyMessagesList();
+}
+function renderMyMessagesList(){
+  var box = document.getElementById('myMessagesList');
+  var monthFilter = document.getElementById('myMsgFilterMonth').value;
+  var yearFilter = document.getElementById('myMsgFilterYear').value;
+  var msgs = myMessagesCache.filter(function(m){ return matchesMonthYear(m.jalaliDate, monthFilter, yearFilter); });
+  if(msgs.length===0){ box.innerHTML = '<div class="empty">پیامی در این بازه یافت نشد</div>'; return; }
   box.innerHTML = msgs.map(function(m){
     return '<div class="list-item" style="align-items:flex-start; flex-direction:column;">'+
       '<div class="meta">مدیریت · '+esc(m.jalaliDate)+' '+esc(m.time)+'</div>'+
       (m.text ? '<div style="margin-top:6px; white-space:pre-line;">'+esc(m.text)+'</div>' : '')+
-      (m.imageUrl ? '<img src="'+m.imageUrl+'" style="max-width:100%; border-radius:10px; margin-top:6px;">' : '')+
+      (m.imageUrl ? '<img src="'+m.imageUrl+'" style="max-width:100%; border-radius:10px; margin-top:6px; cursor:pointer;" onclick="openImageLightbox(\''+m.imageUrl+'\')">' : '')+
       '</div>';
   }).join('');
 }
@@ -7963,6 +8125,8 @@ function init(){
       checkGpsPermissionHint();
       if(navigator.onLine) syncOfflineQueue();
       startConnectivityWatcher();
+      requestNotificationPermission();
+      startEmployeeMessageWatcher();
     }catch(e){}
   }
   var savedPin = sessionStorage.getItem('adminPin');
