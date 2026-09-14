@@ -874,7 +874,8 @@
         <div class="hint" style="margin-top:-8px;">اگر خالی بذاری، ساعت تایید مدیر ثبت می‌شود.</div>
         <div class="date-row">
           <select id="reqDate2Day"></select><select id="reqDate2Month"></select><select id="reqDate2Year"></select>
-          <input type="time" id="reqTime2" style="flex:1;">
+          <input type="time" id="reqTime2" style="display:none;">
+          <button type="button" class="picker-display-btn" id="reqTime2Btn" style="flex:1; margin-bottom:0;"><span class="picker-display-text">انتخاب ساعت</span><span class="picker-arrow">🕐</span></button>
         </div>
         <label>دلیل / توضیح</label>
         <textarea id="reqReason2" placeholder="مثلاً: گوشیم شارژ تموم کرد"></textarea>
@@ -1840,7 +1841,7 @@
 // CONFIG — ADMIN: paste your Google Apps Script Web App URL here once.
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
-const API_URL = "https://script.google.com/macros/s/AKfycbxaXHr99O3bJQRZi0BHxfv8XoipBvH04muMojDw-O4ckjLgPsijS-NxRXRilHwlLpg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
 const FRONTEND_VERSION = "v-2026-09-14-security-fix-projects-active-reset"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
@@ -3972,6 +3973,8 @@ function openAddRequestSheet(){
   document.getElementById('newReqCategory').value = 'attendance';
   var allowed = getEmployeeAllowedProjects();
   document.getElementById('reqProject2').innerHTML = allowed.map(function(p){ return '<option value="'+projects.indexOf(p)+'">'+esc(p.name)+'</option>'; }).join('');
+  document.getElementById('reqTime2').value = '';
+  wireCustomTimePicker('reqTime2', 'reqTime2Btn', 'انتخاب ساعت');
   onReqCategoryChange();
 }
 function closeAddRequestSheet(){
@@ -4337,18 +4340,16 @@ function friendlyLogErrorMsg(err, at){
   return err || 'خطای شبکه';
 }
 function showAdminNotice(msg){
-  var el = document.getElementById('adminNotice');
-  el.style.display='block'; el.textContent = msg;
-  // Every error message in the admin panel goes through this one function, so popping the
-  // styled alert() box here — rather than touching each of the dozens of individual call
-  // sites — makes every single one of them show as a dismissible modal with "تایید", exactly
-  // as asked: it shows, goes away once confirmed, and comes right back if another error fires
-  // (a fresh alert() call every time, never suppressed by a previous dismissal).
+  // Every error message in the admin panel goes through this one function — the styled
+  // alert() modal (with its own "تایید" button) is now the ONLY way this shows up. The old
+  // persistent red inline bar was removed entirely per request: it stayed visible on-page even
+  // after the modal was dismissed, which read as a second, redundant copy of the same error.
   alert(msg);
 }
 function clearAdminNotice(){
-  var el = document.getElementById('adminNotice');
-  el.style.display='none';
+  // Kept as a no-op — every existing call site still calls this after a successful action, and
+  // removing those calls everywhere would be needless churn now that there's no inline bar to
+  // actually clear.
 }
 
 // ---------- Employees (admin) ----------
