@@ -461,6 +461,8 @@
   .btn-in{background:linear-gradient(135deg, #37b57e, var(--ok)); color:#fff; box-shadow:0 6px 16px -6px #2f9d6860;}
   .btn-out{background:linear-gradient(135deg, var(--orange), var(--orange-dark)); color:#fff; box-shadow:0 6px 16px -6px #e6522a60;}
   .btn-ghost{background:var(--paper-2); color:var(--ink);}
+  .btn-danger{background:linear-gradient(135deg, #e05252, #b93a3a); color:#fff; box-shadow:0 6px 16px -6px #b93a3a60;}
+  .btn-danger:hover{filter:brightness(1.08);}
   .picker-display-btn{
     display:flex; align-items:center; justify-content:space-between; width:100%;
     padding:12px 14px; border-radius:var(--r-sm); border:1.5px solid var(--border-soft);
@@ -991,6 +993,14 @@
       <label>حداکثر تعدادِ پرسنل</label>
       <input type="number" id="suMaxEmployees" min="0" placeholder="۰ = بدونِ محدودیت">
       <button type="button" class="btn btn-primary" onclick="saveSuperAdminSettingsBtn()" style="margin-top:12px;">✅ ثبتِ تنظیمات</button>
+      <div class="divider"></div>
+      <div style="background:#fdeaea; border:1px solid #e3a3a3; border-radius:10px; padding:14px; margin-top:6px;">
+        <label style="color:#a32a2a;">⚠️ منطقه‌ی خطرناک — ریستِ کاملِ داده‌ها</label>
+        <div class="hint" style="margin-top:-6px; color:#a32a2a;">این کار **همه‌ی** اطلاعاتِ گوگل‌شیت (پرسنل، پروژه‌ها، ترددها، شیفت‌ها، درخواست‌ها، همه‌چی) رو برایِ همیشه پاک می‌کنه — غیرقابلِ بازگشت. فقط برایِ راه‌اندازیِ یه نسخه‌ی کاملاً تازه برایِ یه مشتریِ جدید استفاده کن. بعدِ ریست، یوزرنیم/پسوردِ مدیر به‌طورِ پیش‌فرض به admin/admin برمی‌گرده.</div>
+        <label>برایِ تاییدِ نهایی، عبارتِ «پاک‌کن» رو دقیقاً بنویس:</label>
+        <input type="text" id="suResetConfirmText" placeholder="پاک‌کن">
+        <button type="button" class="btn btn-danger" onclick="resetAllDataBtn()" style="margin-top:8px;">🗑️ ریستِ کاملِ داده‌ها</button>
+      </div>
     </div>
   </div>
 
@@ -1454,10 +1464,14 @@
       <div class="eyebrow">تنظیمات ورود مدیر</div>
       <label>رمز عبور فعلی (برای تایید تغییرات)</label>
       <input type="password" id="curPin" placeholder="رمز فعلی">
-      <label>نام کاربری جدید (اختیاری)</label>
+      <label>نام کاربری جدید</label>
       <input type="text" id="newAdminUsername" placeholder="admin" class="field-mono">
-      <label>رمز عبور جدید (اختیاری)</label>
-      <input type="password" id="newPin" placeholder="رمز جدید">
+      <label>رمز عبور جدید</label>
+      <div style="position:relative;">
+        <input type="password" id="newPin" placeholder="رمز جدید" style="width:100%; box-sizing:border-box; padding-left:38px;">
+        <button type="button" onclick="togglePasswordVisibility('newPin', this)" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:16px;">👁️</button>
+      </div>
+      <div class="hint" style="margin-top:-6px;">برایِ تغییرِ اطلاعاتِ ورود، باید هم یوزرنیمِ جدید و هم پسوردِ جدید رو با هم وارد کنی.</div>
       <button type="button" class="btn btn-ghost" onclick="setPin()">💾 ذخیره تغییرات</button>
     </div>
 
@@ -1827,7 +1841,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-14-error-messages-and-tarddyar"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-14-security-fix-projects-active-reset"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2669,6 +2683,21 @@ async function saveSuperAdminSettingsBtn(){
   if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
   alert('تنظیمات ذخیره شد.');
   closeSuperAdminModal();
+}
+async function resetAllDataBtn(){
+  var typed = document.getElementById('suResetConfirmText').value.trim();
+  if(typed !== 'پاک‌کن' && typed !== 'پاک کن'){
+    alert('برای تاییدِ نهایی، دقیقاً عبارتِ «پاک‌کن» رو تو کادر بنویس.');
+    return;
+  }
+  // Two separate confirmations for something this destructive and irreversible — the typed
+  // phrase above, plus this explicit styled dialog, so there's no way to trigger it by
+  // accident with a single misclick.
+  if(!(await showAppConfirm('⚠️ آخرین هشدار:\nاین کار همه‌ی اطلاعاتِ گوگل‌شیت (پرسنل، پروژه‌ها، ترددها، شیفت‌ها، درخواست‌ها، همه‌چی) رو برایِ همیشه پاک می‌کنه.\nاین کار قابلِ بازگشت نیست.\n\nواقعاً می‌خوای ادامه بدی؟'))) return;
+  var res = await apiCall(function(){ return apiPost('resetAllData', {suUsername:suUsername, suPassword:suPassword}); });
+  if(!res.ok){ alert('ریست ناموفق بود: ' + (res.error||'')); return; }
+  alert('همه‌ی داده‌ها پاک شد. یوزرنیم/پسوردِ مدیر به‌طورِ پیش‌فرض روی admin/admin برگشت.\nصفحه دوباره بارگذاری می‌شه.');
+  location.reload();
 }
 function getCachedAdminAuth(){
   try{ return JSON.parse(localStorage.getItem('cachedAdminAuth')||'null'); }catch(e){ return null; }
@@ -4122,12 +4151,12 @@ async function setPin(){
   var newUser = document.getElementById('newAdminUsername').value.trim();
   var np = document.getElementById('newPin').value.trim();
   if(!cur){ alert('رمز فعلی را برای تایید وارد کنید'); return; }
-  if(!newUser && !np){ alert('نام کاربری جدید یا رمز جدید را وارد کنید'); return; }
+  if(!newUser || !np){ alert('برای تغییرِ اطلاعاتِ ورود، هم نامِ کاربریِ جدید و هم رمزِ جدید را وارد کن.'); return; }
   if(cur !== adminPin){ alert('رمز فعلی اشتباه است'); return; }
   var res = await apiCall(function(){ return apiPost('setPin', {pin:adminPin, newUsername:newUser, newPin:np}); });
   if(!res.ok){ showAdminNotice('ذخیره تغییرات ناموفق بود: ' + (res.error||'')); return; }
-  if(np) adminPin = np;
-  if(newUser) adminUsername = newUser;
+  adminPin = np;
+  adminUsername = newUser;
   sessionStorage.setItem('adminPin', adminPin);
   sessionStorage.setItem('adminUsername', adminUsername);
   document.getElementById('curPin').value=''; document.getElementById('newPin').value=''; document.getElementById('newAdminUsername').value='';
@@ -4207,7 +4236,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-14-error-messages-and-tarddyar'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-14-security-fix-projects-active-reset'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5599,14 +5628,23 @@ function renderProjectList(){
   var list = !q ? projects : projects.filter(function(p){ return String(p.name||'').toLowerCase().indexOf(q)!==-1; });
   if(list.length===0){ box.innerHTML = '<div class="empty">پروژه‌ای با این نام یافت نشد</div>'; return; }
   box.innerHTML = list.map(function(p){
+    var isActive = String(p.active||'yes') !== 'no';
     var cityLine = (p.city || p.province) ? (esc([p.province, p.city].filter(Boolean).join(' — ')) + ' · ') : '';
     var geoLine = (p.restricted === 'no') ? 'بدون محدودیتِ مختصات (کل شهر)' : (Number(p.lat).toFixed(5)+', '+Number(p.lng).toFixed(5)+' · شعاع '+p.radius+' م');
-    return '<div class="list-item"><div><b>'+esc(p.name)+'</b><div class="meta">'+cityLine+geoLine+'</div></div>'+
+    var inactiveBadge = isActive ? '' : ' <span class="badge-off">غیرفعال</span>';
+    return '<div class="list-item" style="'+(isActive?'':'opacity:0.6;')+'"><div><b>'+esc(p.name)+'</b>'+inactiveBadge+'<div class="meta">'+cityLine+geoLine+'</div></div>'+
       '<div class="actions">'+
+        '<button class="icon-btn" title="'+(isActive?'غیرفعال کردن':'فعال کردن')+'" onclick="toggleProjectActive(\''+p.id+'\', '+(!isActive)+')">'+(isActive?'⛔':'✅')+'</button>'+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditProj(\''+p.id+'\')">✏️</button>'+
         '<button class="icon-btn del" title="حذف" onclick="deleteProject(\''+p.id+'\')">✕</button>'+
       '</div></div>';
   }).join('');
+}
+async function toggleProjectActive(id, makeActive){
+  var res = await apiCall(function(){ return apiPost('setProjectActive', {pin:adminPin, id:id, active:makeActive}); });
+  if(!res.ok){ showAdminNotice('تغییرِ وضعیت ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadProjectsAdmin();
 }
 function startEditProj(id){
   var p = projects.find(function(x){ return x.id===id; });
