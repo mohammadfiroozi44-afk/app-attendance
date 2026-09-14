@@ -816,6 +816,14 @@
     </div>
     </div><!-- /empSec-myshift -->
 
+    <div class="emp-section" id="empSec-messages" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">پیام‌هایِ مدیریت</div>
+      <div class="hint" style="margin-top:-6px;">این قسمت فقط برایِ نمایشه — پیام‌هایی که مدیریت برایِ شما یا همه‌ی پرسنل فرستاده.</div>
+      <div id="myMessagesList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    </div><!-- /empSec-messages -->
+
     <div class="emp-section" id="empSec-perf" style="display:none;">
     <div class="card">
       <div class="eyebrow">کارکرد</div>
@@ -922,6 +930,11 @@
         </div>
         <label>دلیل</label>
         <textarea id="leaveReason2" placeholder="مثلاً: مرخصی استعلاجی یا ماموریت اداری"></textarea>
+        <div id="otherImageBlock2" style="display:none;">
+          <label>عکس (اختیاری)</label>
+          <input type="file" accept="image/*" id="otherImageInput2" onchange="handleOtherRequestImageSelect(event)">
+          <img id="otherImagePreview2" style="display:none; max-width:100%; border-radius:10px; margin-top:8px;">
+        </div>
         <button type="button" class="btn btn-primary" onclick="submitLeaveFromSheet()">📨 ارسال درخواست</button>
       </div>
       <button type="button" class="btn btn-ghost" style="margin-top:8px;" onclick="closeAddRequestSheet()">انصراف</button>
@@ -1593,6 +1606,25 @@
     </div>
     </div><!-- /admSec-requests -->
 
+    <div class="admin-section" id="admSec-messages" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">ارسالِ پیام به پرسنل</div>
+      <label>گیرنده</label>
+      <select id="msgRecipient">
+        <option value="">🌐 همه‌ی پرسنل</option>
+      </select>
+      <label>متنِ پیام</label>
+      <textarea id="msgText" placeholder="متنِ پیام را بنویس..."></textarea>
+      <label>عکس (اختیاری)</label>
+      <input type="file" accept="image/*" id="msgImageInput" onchange="handleMsgImageSelect(event)">
+      <img id="msgImagePreview" style="display:none; max-width:100%; border-radius:10px; margin-top:8px;">
+      <button type="button" class="btn btn-primary" onclick="sendAdminMessageBtn()" style="margin-top:10px;">📨 ارسالِ پیام</button>
+      <div class="divider"></div>
+      <div class="eyebrow" style="font-size:13px;">پیام‌هایِ ارسال‌شده</div>
+      <div id="sentMessagesList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    </div><!-- /admSec-messages -->
+
     <div class="admin-section" id="admSec-offline" style="display:none;">
     <div class="card">
       <div class="eyebrow">تردد ناقص (آفلاین — در انتظار بررسی)</div>
@@ -1809,6 +1841,7 @@
     <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon">📍</span> پروژه‌ها</div>
     <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon">🕗</span> شیفت</div>
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon">📨</span> درخواست‌ها</div>
+    <div class="drawer-item" id="admMenu-messages" onclick="showAdminSection('messages')"><span class="dicon">💬</span> پیام‌ها</div>
     <div class="drawer-nav-group-title">گزارش‌ها</div>
     <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon">📴</span> تردد ناقص</div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon">📊</span> گزارش</div>
@@ -1828,6 +1861,7 @@
     <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon">⏱️</span> کارکرد من</div>
     <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon">📆</span> عملکرد روزانه</div>
     <div class="drawer-item" id="empMenu-myshift" onclick="showEmpSection('myshift')"><span class="dicon">🕗</span> شیفت‌هایِ من</div>
+    <div class="drawer-item" id="empMenu-messages" onclick="showEmpSection('messages')"><span class="dicon">💬</span> پیام‌ها</div>
     <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
     <div class="drawer-item" onclick="employeeLogout()"><span class="dicon">🚪</span> خروج از حساب</div>
   </div>
@@ -1841,7 +1875,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-14-security-fix-projects-active-reset"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-14-messages-feature"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -4006,6 +4040,22 @@ function onReqCategoryChange(){
   document.getElementById('leaveStyleFormBlock').style.display = isAttendance ? 'none' : 'block';
   document.getElementById('leaveCategoryBlock2').style.display = (cat === 'leave') ? 'block' : 'none';
   document.getElementById('otherCategoryBlock2').style.display = (cat === 'other') ? 'block' : 'none';
+  document.getElementById('otherImageBlock2').style.display = (cat === 'other') ? 'block' : 'none';
+  if(cat !== 'other'){
+    pendingOtherReqImageDataUrl = null;
+    document.getElementById('otherImageInput2').value = '';
+    document.getElementById('otherImagePreview2').style.display = 'none';
+  }
+}
+var pendingOtherReqImageDataUrl = null;
+function handleOtherRequestImageSelect(event){
+  var file = event.target.files[0];
+  compressImageToDataUrl(file, 1000, 0.7, function(dataUrl){
+    pendingOtherReqImageDataUrl = dataUrl;
+    var prev = document.getElementById('otherImagePreview2');
+    if(dataUrl){ prev.src = dataUrl; prev.style.display = 'block'; }
+    else { prev.style.display = 'none'; }
+  });
 }
 async function submitAttendanceFromSheet(){
   document.getElementById('reqType').value = document.getElementById('reqType2').value;
@@ -4042,13 +4092,16 @@ async function submitLeaveFromSheet(){
   var ok = await submitLeaveRequest();
   if(ok){
     document.getElementById('leaveReason2').value = '';
+    pendingOtherReqImageDataUrl = null;
+    document.getElementById('otherImageInput2').value = '';
+    document.getElementById('otherImagePreview2').style.display = 'none';
     closeAddRequestSheet();
     loadUnifiedRequests('emp');
   }
 }
 
 function showEmpSection(name){
-  ['checkin','request','history','perf','daily','myshift'].forEach(function(s){
+  ['checkin','request','history','perf','daily','myshift','messages'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -4067,6 +4120,7 @@ function showEmpSection(name){
     populateMonthYearFilter('dailyPerfMonth','dailyPerfYear', true);
   }
   else if(name === 'myshift') loadMyShiftInfo();
+  else if(name === 'messages') loadMyMessages();
   pushSectionHistory(name, name === 'checkin');
   closeDrawer();
 }
@@ -4085,7 +4139,7 @@ function showAdminSection(name){
     cancelShiftEdit();
   }
   _lastAdminSection = name;
-  ['dashboard','employees','projects','shifts','requests','offline','report','performance','settings'].forEach(function(s){
+  ['dashboard','employees','projects','shifts','requests','messages','offline','report','performance','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -4120,6 +4174,16 @@ async function refreshAdminSection(name){
     populateMonthYearFilter('leaveFilterMonth','leaveFilterYear');
     document.getElementById('reqAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
     document.getElementById('leaveAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
+  }
+  else if(name === 'messages'){
+    await ensureEmployeesFresh();
+    var recSel = document.getElementById('msgRecipient');
+    recSel.innerHTML = '<option value="">🌐 همه‌ی پرسنل</option>' + employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+'</option>'; }).join('');
+    document.getElementById('msgText').value = '';
+    pendingMsgImageDataUrl = null;
+    document.getElementById('msgImageInput').value = '';
+    document.getElementById('msgImagePreview').style.display = 'none';
+    await loadSentMessages();
   }
   else if(name === 'report'){
     await Promise.all([ensureEmployeesFresh(), loadHolidays()]);
@@ -4256,7 +4320,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-14-security-fix-projects-active-reset'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-14-messages-feature'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -4370,6 +4434,51 @@ function clearAdminNotice(){
 }
 
 // ---------- Employees (admin) ----------
+// ---------- Admin messages (text/image, one employee or everyone) ----------
+var pendingMsgImageDataUrl = null;
+function handleMsgImageSelect(event){
+  var file = event.target.files[0];
+  compressImageToDataUrl(file, 1000, 0.7, function(dataUrl){
+    pendingMsgImageDataUrl = dataUrl;
+    var prev = document.getElementById('msgImagePreview');
+    if(dataUrl){ prev.src = dataUrl; prev.style.display = 'block'; }
+    else { prev.style.display = 'none'; }
+  });
+}
+async function sendAdminMessageBtn(){
+  var toUsername = document.getElementById('msgRecipient').value;
+  var text = document.getElementById('msgText').value.trim();
+  if(!text && !pendingMsgImageDataUrl){ alert('یه متن یا عکس برایِ پیام وارد کن.'); return; }
+  var toLabel = toUsername ? ((employees.filter(function(e){ return e.username===toUsername; })[0]||{}).fullName || toUsername) : 'همه‌ی پرسنل';
+  var res = await apiCall(function(){ return apiPost('sendAdminMessage', {pin:adminPin, toUsername:toUsername, toLabel:toLabel, text:text, imageUrl: pendingMsgImageDataUrl||''}); });
+  if(!res.ok){ showAdminNotice('ارسالِ پیام ناموفق بود: ' + (res.error||'')); return; }
+  document.getElementById('msgText').value = '';
+  pendingMsgImageDataUrl = null;
+  document.getElementById('msgImageInput').value = '';
+  document.getElementById('msgImagePreview').style.display = 'none';
+  alert('پیام ارسال شد.');
+  await loadSentMessages();
+}
+async function loadSentMessages(){
+  var res = await apiCall(function(){ return apiPost('getSentMessages', {pin:adminPin}); });
+  var box = document.getElementById('sentMessagesList');
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافتِ پیام‌ها ناموفق بود</div>'; return; }
+  var msgs = res.messages || [];
+  if(msgs.length===0){ box.innerHTML = '<div class="empty">هنوز پیامی ارسال نشده</div>'; return; }
+  box.innerHTML = msgs.map(function(m){
+    return '<div class="list-item" style="align-items:flex-start;"><div style="flex:1;">'+
+      '<b>'+esc(m.toLabel)+'</b><div class="meta">'+esc(m.jalaliDate)+' '+esc(m.time)+'</div>'+
+      (m.text ? '<div style="margin-top:6px; white-space:pre-line;">'+esc(m.text)+'</div>' : '')+
+      (m.imageUrl ? '<img src="'+m.imageUrl+'" style="max-width:160px; border-radius:8px; margin-top:6px; display:block;">' : '')+
+      '</div><div class="actions"><button class="icon-btn del" onclick="deleteMessageBtn(\''+m.id+'\')">🗑️</button></div></div>';
+  }).join('');
+}
+async function deleteMessageBtn(id){
+  if(!(await showAppConfirm('این پیام حذف بشه؟'))) return;
+  var res = await apiCall(function(){ return apiPost('deleteMessage', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  await loadSentMessages();
+}
 async function loadEmployeesAdmin(){
   var res = await apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); });
   if(!res.ok){ showAdminNotice('دریافت لیست پرسنل ناموفق بود: ' + (res.error||'')); return; }
@@ -4379,6 +4488,30 @@ async function loadEmployeesAdmin(){
   renderEmpList();
 }
 var pendingPhotoDataUrl = null;
+// Generic image compressor for message/request attachments — unlike handlePhotoSelect (which
+// crops to a fixed square avatar), this preserves the original aspect ratio and just caps the
+// longest side, since these are meant to be viewed as actual pictures, not thumbnails. Calls
+// back with the resulting data URL (or null if the file wasn't a readable image).
+function compressImageToDataUrl(file, maxDimension, quality, callback){
+  if(!file){ callback(null); return; }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var w = img.width, h = img.height;
+      if(w > h && w > maxDimension){ h = Math.round(h * maxDimension / w); w = maxDimension; }
+      else if(h > maxDimension){ w = Math.round(w * maxDimension / h); h = maxDimension; }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', quality || 0.7));
+    };
+    img.onerror = function(){ callback(null); };
+    img.src = e.target.result;
+  };
+  reader.onerror = function(){ callback(null); };
+  reader.readAsDataURL(file);
+}
 function handlePhotoSelect(event){
   var file = event.target.files[0];
   if(!file) return;
@@ -6840,7 +6973,8 @@ async function submitLeaveRequest(){
   var res = await apiCall(function(){ return apiPost('createLeaveRequest', {
     username: loggedInEmployee.username, startDate: startDate, endDate: endDate,
     leaveType: leaveType, startTime: startTime, endTime: endTime, reason: reason, deviceId: DEVICE_ID,
-    requestType: requestType, leaveCategory: leaveCategory
+    requestType: requestType, leaveCategory: leaveCategory,
+    imageUrl: requestType === 'other' ? (pendingOtherReqImageDataUrl || '') : ''
   }); });
   if(!res.ok){
     var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.'
@@ -7566,6 +7700,21 @@ var PERF_METRIC_LABELS_DAILY = [
   {key:'fridayMin', label:'جمعه‌کاری'}, {key:'holidayMin', label:'تعطیل‌کاری'}
 ];
 var myShiftViewYear = null, myShiftViewMonth = null;
+async function loadMyMessages(){
+  var box = document.getElementById('myMessagesList');
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  var res = await apiCall(function(){ return apiPost('getMyMessages', {username: loggedInEmployee.username}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافتِ پیام‌ها ناموفق بود</div>'; return; }
+  var msgs = res.messages || [];
+  if(msgs.length===0){ box.innerHTML = '<div class="empty">هنوز پیامی برایِ شما ارسال نشده</div>'; return; }
+  box.innerHTML = msgs.map(function(m){
+    return '<div class="list-item" style="align-items:flex-start; flex-direction:column;">'+
+      '<div class="meta">مدیریت · '+esc(m.jalaliDate)+' '+esc(m.time)+'</div>'+
+      (m.text ? '<div style="margin-top:6px; white-space:pre-line;">'+esc(m.text)+'</div>' : '')+
+      (m.imageUrl ? '<img src="'+m.imageUrl+'" style="max-width:100%; border-radius:10px; margin-top:6px;">' : '')+
+      '</div>';
+  }).join('');
+}
 async function loadMyShiftInfo(){
   var hint = document.getElementById('myShiftNameHint');
   var table = document.getElementById('myShiftTable');
