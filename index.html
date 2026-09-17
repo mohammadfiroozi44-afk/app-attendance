@@ -1281,6 +1281,18 @@
           اگه تیک بخوره، جمعه‌ها و تعطیلاتِ رسمی برایِ این شیفت اعمال می‌شن (اون روزها موظفی صفره). اگه تیک نخوره، این شیفت از هیچ‌کدوم تبعیت نمی‌کنه — یعنی جمعه و روزِ تعطیل هم مثلِ یه روزِ عادیِ همین شیفت حساب می‌شن، و اگه پرسنل تردد ثبت نکنه، غیبت براش ثبت می‌شه.
         </div>
 
+        <!-- استراحت — بیرون از shiftSimpleTopFieldsWrap، چون قبلاً داخلِ تنظیماتِ پیشرفته‌یِ
+             «شیفتِ ساده» بود و برایِ «شیفتِ سفارشی» کلاً مخفی می‌شد؛ یعنی روی شیفتِ سفارشی
+             هیچ راهی برایِ خاموش‌کردنِ استراحت در سطحِ شیفت وجود نداشت. -->
+        <div class="divider"></div>
+        <label class="chk-item" style="width:100%; box-sizing:border-box;"><input type="checkbox" id="shiftFormBreakEnabled" checked onchange="onShiftFormBreakToggle()"> محاسبه‌یِ استراحت برایِ این شیفت فعال باشه</label>
+        <div id="shiftFormBreakMinutesWrap">
+          <label>مدتِ استراحت (دقیقه)</label>
+          <input type="number" id="shiftFormBreakMinutes" min="0" placeholder="خالی = مقدارِ پیش‌فرضِ شیفتِ عادی">
+        </div>
+        <div class="hint" style="margin-top:-8px;">اگه تیک برداشته بشه، هیچ‌وقت استراحت از کارکردِ پرسنلِ این شیفت کم نمی‌شه — مثلاً برایِ شیفت‌هایِ شناورِ طولانی‌مدت که استراحتِ ثابت معنی نداره. (روزهایی که خودشون تیکِ استراحت دارن، همون تنظیمِ روز اولویت داره.)</div>
+        <div class="divider"></div>
+
         <div id="shiftSimpleTopFieldsWrap">
         <div class="date-row">
           <div style="flex:1;">
@@ -1350,13 +1362,6 @@
           <div class="hint" style="margin-top:-8px;">
             پرسنل خارج از این بازه اصلاً مجاز به ثبتِ تردد نیست.
           </div>
-          <div class="divider"></div>
-          <label class="chk-item" style="width:100%; box-sizing:border-box;"><input type="checkbox" id="shiftFormBreakEnabled" checked onchange="onShiftFormBreakToggle()"> محاسبه‌یِ استراحت برایِ این شیفت فعال باشه</label>
-          <div id="shiftFormBreakMinutesWrap">
-            <label>مدتِ استراحت (دقیقه)</label>
-            <input type="number" id="shiftFormBreakMinutes" min="0" placeholder="خالی = مقدارِ پیش‌فرضِ شیفتِ عادی">
-          </div>
-          <div class="hint" style="margin-top:-8px;">اگه تیک برداشته بشه، هیچ‌وقت استراحت از کارکردِ پرسنلِ این شیفت کم نمی‌شه — مثلاً برایِ شیفت‌هایِ شناورِ طولانی‌مدت که استراحتِ ثابت معنی نداره.</div>
         </div>
         </div><!-- /shiftSimpleTopFieldsWrap -->
 
@@ -5647,7 +5652,12 @@ function openShiftDayEditModal(dateStr){
   document.getElementById('shiftDayWindowStart').value = entry ? (entry.dayAttendanceWindowStart||'') : '';
   document.getElementById('shiftDayWindowEnd').value = entry ? (entry.dayAttendanceWindowEnd||'') : '';
 
-  var breakDisabled = entry && String(entry.dayBreakEnabled||'').toLowerCase() === 'no';
+  // تیکِ استراحتِ روز: اگه خودِ روز مقدارِ صریح داره همون اعمال می‌شه، وگرنه از تنظیمِ سطحِ
+  // شیفت ارث می‌بره. قبلاً همیشه تیک‌خورده باز می‌شد، پس اگه استراحتِ شیفت رو خاموش کرده بودی
+  // و بعد روزی رو ویرایش می‌کردی، همون روز بی‌صدا 'yes' ذخیره می‌شد و استراحت رو برمی‌گردوند.
+  var dayBreakRaw = String((entry && entry.dayBreakEnabled) || '').toLowerCase();
+  var shiftLevelBreakOn = document.getElementById('shiftFormBreakEnabled').checked;
+  var breakDisabled = dayBreakRaw === 'no' || (dayBreakRaw === '' && !shiftLevelBreakOn);
   document.getElementById('shiftDayBreakEnabled').checked = !breakDisabled;
   document.getElementById('shiftDayBreakMinutes').value = entry ? (entry.dayBreakMinutes||'') : '';
   onShiftDayBreakToggle();
@@ -5786,7 +5796,12 @@ function copyShiftDayBtn(sourceDate){
     dayFloatBeforeShiftMinutes: entry.dayFloatBeforeShiftMinutes||'',
     dayAttendanceWindowStart: entry.dayAttendanceWindowStart||'', dayAttendanceWindowEnd: entry.dayAttendanceWindowEnd||'',
     isNightShift: String(entry.isNightShift||'').toLowerCase()==='yes'||entry.isNightShift===true, nightShiftCrossesNextDay: String(entry.nightShiftCrossesNextDay||'').toLowerCase()==='yes'||entry.nightShiftCrossesNextDay===true,
-    nightShiftStart: entry.nightShiftStart||'', nightShiftDuration: entry.nightShiftDuration||''
+    nightShiftStart: entry.nightShiftStart||'', nightShiftDuration: entry.nightShiftDuration||'',
+    // استراحت باید مثل بقیه‌یِ تنظیماتِ روز کپی بشه. قبلاً این دو فیلد اینجا نبودند، پس هر
+    // روزی که با Paste (یا «چسباندن به کلِ ماه») ساخته می‌شد، تیکِ خاموشِ استراحت رو از دست
+    // می‌داد و خالی ذخیره می‌شد — و خالی یعنی «از سطحِ شیفت ارث ببر»، که باعث می‌شد استراحت
+    // دوباره روشن بشه و هر روز کسر بخوره.
+    dayBreakEnabled: entry.dayBreakEnabled||'', dayBreakMinutes: entry.dayBreakMinutes||''
   };
   renderShiftCalGrid(); // now every day shows a Paste button
 }
@@ -5917,7 +5932,7 @@ function startEditShift(id){
   onShiftFormBreakToggle();
   // If any advanced field actually has a value, open the box automatically so editing this
   // shift doesn't hide settings it already relies on behind a collapsed toggle.
-  var hasAdvValues = [s.otStartMinutes, s.otMiddleMinutes, s.otEndMinutes, s.lateAllowedMinutes, s.earlyLeaveAllowedMinutes, s.floatBeforeShiftMinutes, s.attendanceWindowStart, s.attendanceWindowEnd, s.breakMinutes].some(function(v){ return v; }) || String(s.breakEnabled||'').toLowerCase() === 'no';
+  var hasAdvValues = [s.otStartMinutes, s.otMiddleMinutes, s.otEndMinutes, s.lateAllowedMinutes, s.earlyLeaveAllowedMinutes, s.floatBeforeShiftMinutes, s.attendanceWindowStart, s.attendanceWindowEnd].some(function(v){ return v; });
   document.getElementById('shiftAdvancedBox').style.display = hasAdvValues ? 'block' : 'none';
   document.getElementById('shiftAdvToggleBtn').textContent = hasAdvValues ? '➖ تنظیماتِ پیشرفته' : '➕ تنظیماتِ پیشرفته';
   renderShiftWeekTable(); // always blank — the weekly grid is only ever a pattern to generate FROM, not a display of what's already saved
@@ -5982,8 +5997,11 @@ function saveShift(){
     attendanceWindowStart: isCustom ? '' : document.getElementById('shiftFormWindowStart').value,
     attendanceWindowEnd: isCustom ? '' : document.getElementById('shiftFormWindowEnd').value,
     followOfficialHolidays: document.getElementById('shiftFormFollowHolidays').checked,
-    breakEnabled: isCustom ? true : document.getElementById('shiftFormBreakEnabled').checked,
-    breakMinutes: isCustom ? '' : document.getElementById('shiftFormBreakMinutes').value
+    // استراحت برایِ هر دو نوعِ شیفت (ساده و سفارشی) از همین تیک خونده می‌شه. قبلاً برایِ شیفتِ
+    // سفارشی به‌اجبار true ثبت می‌شد و مدتش خالی می‌موند، یعنی هرچقدر هم تیک رو برمی‌داشتی
+    // سرور «روشن» ذخیره می‌کرد و مدتش رو از پیش‌فرضِ شیفتِ عادی (۶۰ دقیقه) برمی‌داشت.
+    breakEnabled: document.getElementById('shiftFormBreakEnabled').checked,
+    breakMinutes: document.getElementById('shiftFormBreakMinutes').value
   };
   clearAdminNotice();
   document.getElementById('shiftFormCancel').style.display = 'block';
