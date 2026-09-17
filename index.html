@@ -1350,6 +1350,13 @@
           <div class="hint" style="margin-top:-8px;">
             پرسنل خارج از این بازه اصلاً مجاز به ثبتِ تردد نیست.
           </div>
+          <div class="divider"></div>
+          <label class="chk-item" style="width:100%; box-sizing:border-box;"><input type="checkbox" id="shiftFormBreakEnabled" checked onchange="onShiftFormBreakToggle()"> محاسبه‌یِ استراحت برایِ این شیفت فعال باشه</label>
+          <div id="shiftFormBreakMinutesWrap">
+            <label>مدتِ استراحت (دقیقه)</label>
+            <input type="number" id="shiftFormBreakMinutes" min="0" placeholder="خالی = مقدارِ پیش‌فرضِ شیفتِ عادی">
+          </div>
+          <div class="hint" style="margin-top:-8px;">اگه تیک برداشته بشه، هیچ‌وقت استراحت از کارکردِ پرسنلِ این شیفت کم نمی‌شه — مثلاً برایِ شیفت‌هایِ شناورِ طولانی‌مدت که استراحتِ ثابت معنی نداره.</div>
         </div>
         </div><!-- /shiftSimpleTopFieldsWrap -->
 
@@ -1443,6 +1450,12 @@
             <div style="flex:1;"><label>پایانِ بازه‌یِ مجازِ ثبتِ تردد</label><input type="time" id="shiftDayWindowEnd"></div>
           </div>
           <div class="divider"></div>
+          <label class="chk-item" style="width:100%; box-sizing:border-box;"><input type="checkbox" id="shiftDayBreakEnabled" checked onchange="onShiftDayBreakToggle()"> محاسبه‌یِ استراحت برایِ این روز فعال باشه</label>
+          <div id="shiftDayBreakMinutesWrap">
+            <label>مدتِ استراحت (دقیقه)</label>
+            <input type="number" id="shiftDayBreakMinutes" min="0" placeholder="خالی = مقدارِ پیش‌فرضِ شیفت">
+          </div>
+          <div class="divider"></div>
           <label>شب‌کاری</label>
           <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:6px;"><input type="checkbox" id="shiftDayNightCrosses"> انتهایِ این شیفت در روزِ بعد است</label>
           <div class="date-row">
@@ -1485,7 +1498,10 @@
             <input type="number" id="normalBreakMinutes" min="0" value="60">
           </div>
         </div>
-        <div class="hint" style="margin-top:-8px;">استراحت فقط زمانی از کارکرد کم می‌شه که کارکردِ خامِ روز از «مدتِ موظفی» بیشتر باشه.</div>
+        <label class="chk-item">
+          <input type="checkbox" id="normalBreakEnabled" checked> محاسبه‌یِ استراحت فعال باشه
+        </label>
+        <div class="hint" style="margin-top:-8px;">اگه تیک برداشته بشه، هیچ‌وقت استراحت از کارکردِ پرسنلِ بدونِ شیفتِ اختصاصی کم نمی‌شه — صرف‌نظر از اینکه چقدر کار کرده باشن. اگه تیک بخوره، استراحت فقط زمانی کم می‌شه که کارکردِ خامِ روز از «مدتِ موظفی» بیشتر باشه.</div>
         <div class="date-row">
           <div style="flex:1;">
             <label>شروعِ شب‌کاری</label>
@@ -1922,7 +1938,7 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-14-two-way-messages"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+const FRONTEND_VERSION = "v-2026-09-17-break-toggle-floatbefore-columnfix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -4420,7 +4436,7 @@ async function checkServerVersion(){
     box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
     return;
   }
-  var expected = 'v-2026-09-14-two-way-messages'; // must match FRONTEND_VERSION above and the backend's ping response
+  var expected = 'v-2026-09-17-break-toggle-floatbefore-columnfix'; // must match FRONTEND_VERSION above and the backend's ping response
   var backendLine = (res.version === expected)
     ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
     : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
@@ -5345,6 +5361,7 @@ async function loadNormalShiftSettings(){
   var reqMin = parseInt(s.requiredMinutes, 10) || (7*60+20);
   document.getElementById('normalRequiredTime').value = String(Math.floor(reqMin/60)).padStart(2,'0') + ':' + String(reqMin%60).padStart(2,'0');
   document.getElementById('normalBreakMinutes').value = parseInt(s.breakMinutes, 10) || 60;
+  document.getElementById('normalBreakEnabled').checked = String(s.breakEnabled||'yes').toLowerCase() !== 'no';
   document.getElementById('normalNightStart').value = s.nightStart || '22:00';
   document.getElementById('normalNightEnd').value = s.nightEnd || '06:00';
 }
@@ -5353,10 +5370,11 @@ async function saveNormalShiftSettings(){
   if(!reqTime){ showAdminNotice('مدتِ موظفیِ روزانه را وارد کن.'); return; }
   var reqMin = timeToMinutesClient(reqTime);
   var breakMin = document.getElementById('normalBreakMinutes').value;
+  var breakEnabled = document.getElementById('normalBreakEnabled').checked;
   var nightStart = document.getElementById('normalNightStart').value;
   var nightEnd = document.getElementById('normalNightEnd').value;
   if(!nightStart || !nightEnd){ showAdminNotice('شروع و پایانِ شب‌کاری را وارد کن.'); return; }
-  var res = await apiCall(function(){ return apiPost('saveNormalShiftSettings', {pin:adminPin, requiredMinutes:reqMin, breakMinutes:breakMin, nightStart:nightStart, nightEnd:nightEnd}); });
+  var res = await apiCall(function(){ return apiPost('saveNormalShiftSettings', {pin:adminPin, requiredMinutes:reqMin, breakMinutes:breakMin, breakEnabled:breakEnabled, nightStart:nightStart, nightEnd:nightEnd}); });
   if(!res.ok){ showAdminNotice('ثبتِ تنظیمات ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   alert('تنظیماتِ شیفتِ عادی ذخیره شد.');
@@ -5629,6 +5647,11 @@ function openShiftDayEditModal(dateStr){
   document.getElementById('shiftDayWindowStart').value = entry ? (entry.dayAttendanceWindowStart||'') : '';
   document.getElementById('shiftDayWindowEnd').value = entry ? (entry.dayAttendanceWindowEnd||'') : '';
 
+  var breakDisabled = entry && String(entry.dayBreakEnabled||'').toLowerCase() === 'no';
+  document.getElementById('shiftDayBreakEnabled').checked = !breakDisabled;
+  document.getElementById('shiftDayBreakMinutes').value = entry ? (entry.dayBreakMinutes||'') : '';
+  onShiftDayBreakToggle();
+
   var isNight = entry && (entry.isNightShift === true || String(entry.isNightShift||'').toLowerCase() === 'yes');
   var nightCrosses = entry && (entry.nightShiftCrossesNextDay === true || String(entry.nightShiftCrossesNextDay||'').toLowerCase() === 'yes');
   document.getElementById('shiftDayNightCrosses').checked = nightCrosses;
@@ -5652,7 +5675,7 @@ function openShiftDayEditModal(dateStr){
   onShiftDayFirstPartToggle();
   // Auto-open the advanced box if this day already relies on anything in it, same reasoning
   // as the shift-level "تنظیماتِ پیشرفته" toggle — editing shouldn't hide settings in use.
-  var hasAdvValues = entry && [entry.dayOtStartMinutes, entry.dayOtMiddleMinutes, entry.dayOtEndMinutes, entry.dayLateAllowedMinutes, entry.dayEarlyAllowedMinutes, entry.dayFloatBeforeShiftMinutes, entry.dayAttendanceWindowStart, entry.dayAttendanceWindowEnd, entry.nightShiftStart].some(function(v){ return v; });
+  var hasAdvValues = entry && ([entry.dayOtStartMinutes, entry.dayOtMiddleMinutes, entry.dayOtEndMinutes, entry.dayLateAllowedMinutes, entry.dayEarlyAllowedMinutes, entry.dayFloatBeforeShiftMinutes, entry.dayAttendanceWindowStart, entry.dayAttendanceWindowEnd, entry.nightShiftStart, entry.dayBreakMinutes].some(function(v){ return v; }) || breakDisabled);
   document.getElementById('shiftDayAdvancedBox').style.display = hasAdvValues ? 'block' : 'none';
   document.getElementById('shiftDayAdvToggleBtn').textContent = hasAdvValues ? '➖ تنظیماتِ پیشرفته' : '➕ تنظیماتِ پیشرفته';
 
@@ -5684,6 +5707,9 @@ function onShiftDayFirstPartToggle(){
 function onShiftDaySecondToggle(){
   document.getElementById('shiftDaySecondWrap').style.display = document.getElementById('shiftDayHasSecond').checked ? 'block' : 'none';
 }
+function onShiftDayBreakToggle(){
+  document.getElementById('shiftDayBreakMinutesWrap').style.display = document.getElementById('shiftDayBreakEnabled').checked ? 'block' : 'none';
+}
 function closeShiftDayEditModal(){
   document.getElementById('shiftDayEditModal').style.display = 'none';
   document.getElementById('shiftDayEditBackdrop').style.display = 'none';
@@ -5707,7 +5733,9 @@ function saveShiftDayModal(){
     nightShiftCrossesNextDay: document.getElementById('shiftDayNightCrosses').checked,
     nightShiftStart: document.getElementById('shiftDayNightStart').value,
     nightShiftDuration: document.getElementById('shiftDayNightDuration').value,
-    isNightShift: !!(document.getElementById('shiftDayNightStart').value || document.getElementById('shiftDayNightDuration').value)
+    isNightShift: !!(document.getElementById('shiftDayNightStart').value || document.getElementById('shiftDayNightDuration').value),
+    dayBreakEnabled: document.getElementById('shiftDayBreakEnabled').checked ? 'yes' : 'no',
+    dayBreakMinutes: document.getElementById('shiftDayBreakEnabled').checked ? document.getElementById('shiftDayBreakMinutes').value : ''
   };
   if(isFloating){
     var dailyRequired = document.getElementById('shiftDayDailyRequired').value;
@@ -5848,6 +5876,9 @@ function toggleShiftAdvanced(){
   box.style.display = isOpen ? 'none' : 'block';
   btn.textContent = isOpen ? '➕ تنظیماتِ پیشرفته' : '➖ تنظیماتِ پیشرفته';
 }
+function onShiftFormBreakToggle(){
+  document.getElementById('shiftFormBreakMinutesWrap').style.display = document.getElementById('shiftFormBreakEnabled').checked ? 'block' : 'none';
+}
 function onShiftTopTypeChange(){
   var isCustom = document.getElementById('shiftTopTypeCustom').checked;
   document.getElementById('shiftWeeklyPatternWrap').style.display = isCustom ? 'none' : 'block';
@@ -5881,9 +5912,12 @@ function startEditShift(id){
   document.getElementById('shiftFormWindowStart').value = s.attendanceWindowStart || '';
   document.getElementById('shiftFormWindowEnd').value = s.attendanceWindowEnd || '';
   document.getElementById('shiftFormFollowHolidays').checked = String(s.followOfficialHolidays||'').toLowerCase() !== 'no';
+  document.getElementById('shiftFormBreakEnabled').checked = String(s.breakEnabled||'').toLowerCase() !== 'no';
+  document.getElementById('shiftFormBreakMinutes').value = s.breakMinutes || '';
+  onShiftFormBreakToggle();
   // If any advanced field actually has a value, open the box automatically so editing this
   // shift doesn't hide settings it already relies on behind a collapsed toggle.
-  var hasAdvValues = [s.otStartMinutes, s.otMiddleMinutes, s.otEndMinutes, s.lateAllowedMinutes, s.earlyLeaveAllowedMinutes, s.floatBeforeShiftMinutes, s.attendanceWindowStart, s.attendanceWindowEnd].some(function(v){ return v; });
+  var hasAdvValues = [s.otStartMinutes, s.otMiddleMinutes, s.otEndMinutes, s.lateAllowedMinutes, s.earlyLeaveAllowedMinutes, s.floatBeforeShiftMinutes, s.attendanceWindowStart, s.attendanceWindowEnd, s.breakMinutes].some(function(v){ return v; }) || String(s.breakEnabled||'').toLowerCase() === 'no';
   document.getElementById('shiftAdvancedBox').style.display = hasAdvValues ? 'block' : 'none';
   document.getElementById('shiftAdvToggleBtn').textContent = hasAdvValues ? '➖ تنظیماتِ پیشرفته' : '➕ تنظیماتِ پیشرفته';
   renderShiftWeekTable(); // always blank — the weekly grid is only ever a pattern to generate FROM, not a display of what's already saved
@@ -5915,6 +5949,9 @@ function cancelShiftEdit(){
   document.getElementById('shiftFormWindowStart').value = '';
   document.getElementById('shiftFormWindowEnd').value = '';
   document.getElementById('shiftFormFollowHolidays').checked = true;
+  document.getElementById('shiftFormBreakEnabled').checked = true;
+  document.getElementById('shiftFormBreakMinutes').value = '';
+  onShiftFormBreakToggle();
   document.getElementById('shiftAdvancedBox').style.display = 'none';
   document.getElementById('shiftAdvToggleBtn').textContent = '➕ تنظیماتِ پیشرفته';
   document.getElementById('shiftCalendarOpenRow').style.display = 'none';
@@ -5944,7 +5981,9 @@ function saveShift(){
     floatBeforeShiftMinutes: isCustom ? '' : document.getElementById('shiftFormFloatBefore').value,
     attendanceWindowStart: isCustom ? '' : document.getElementById('shiftFormWindowStart').value,
     attendanceWindowEnd: isCustom ? '' : document.getElementById('shiftFormWindowEnd').value,
-    followOfficialHolidays: document.getElementById('shiftFormFollowHolidays').checked
+    followOfficialHolidays: document.getElementById('shiftFormFollowHolidays').checked,
+    breakEnabled: isCustom ? true : document.getElementById('shiftFormBreakEnabled').checked,
+    breakMinutes: isCustom ? '' : document.getElementById('shiftFormBreakMinutes').value
   };
   clearAdminNotice();
   document.getElementById('shiftFormCancel').style.display = 'block';
