@@ -246,125 +246,6 @@
     .erp-modal-close:hover{ background:var(--border-soft); }
     .erp-modal-trigger{ display:inline-flex; width:auto; margin-bottom:14px; }
   }
-  /* ============================================================
-     نمایِ دسکتاپِ پنلِ مدیریت — گامِ ۱: سایدبارِ ثابت + نوارِ بالا + داشبورد.
-     کاملاً افزودنی و ایزوله:
-       • فقط داخلِ min-width:1024px فعاله، پس موبایل هیچ تغییری نمی‌کنه؛
-       • فقط وقتی body کلاسِ .admin-shell داره اعمال می‌شه، یعنی فقط داخلِ پنلِ
-         مدیریت — صفحه‌یِ ورود و پنلِ کارمند دست‌نخورده می‌مونن؛
-       • هیچ id، تابع، یا محاسبه‌ای عوض نشده. فقط لایه‌یِ ظاهری.
-     ============================================================ */
-  @media (min-width: 1024px){
-    body.admin-shell{
-      --dk-bg:#eef1f6;
-      --dk-surface:#ffffff;
-      --dk-line:#e4e9f0;
-      --dk-line-soft:#eef1f6;
-      --dk-side:252px;
-      --dk-topbar:64px;
-      background:var(--dk-bg);
-      padding:0;
-      font-size:14px;
-    }
-    html[data-theme="dark"] body.admin-shell{
-      --dk-bg:#0e1626; --dk-surface:#161d2e; --dk-line:#2a3550; --dk-line-soft:#202a42;
-      background:var(--dk-bg);
-    }
-
-    /* ---- ستونِ محتوا: کنارِ سایدبار، تمام‌عرض ---- */
-    body.admin-shell .wrap{
-      max-width:none; margin:0 var(--dk-side) 0 0; padding:0 26px 56px;
-    }
-
-    /* ---- سایدبارِ ثابت ----
-       همون #admDrawer موبایله؛ فقط روی دسکتاپ به‌جایِ کشویی، همیشه بازه. چون
-       transform اینجا خنثی می‌شه، toggleDrawer/closeDrawer هر کلاسی بذارن یا
-       بردارن، ظاهرش عوض نمی‌شه — پس کلیک روی آیتم‌هایِ منو مثلِ قبل کار می‌کنه. */
-    body.admin-shell #admDrawer{
-      transform:none !important; top:0; right:0; height:100vh; width:var(--dk-side);
-      max-width:none; z-index:900; padding:0 0 18px; overflow-y:auto;
-      background:linear-gradient(180deg, var(--navy-2) 0%, var(--navy) 100%);
-      border-left:1px solid #ffffff12; box-shadow:none;
-    }
-    body.admin-shell #admDrawer::-webkit-scrollbar{ width:6px; }
-    body.admin-shell #admDrawer::-webkit-scrollbar-thumb{ background:#ffffff26; border-radius:3px; }
-    body.admin-shell .drawer-overlay{ display:none !important; }
-    body.admin-shell .hamburger-btn{ display:none; }
-    body.admin-shell #admDrawer .drawer-header{
-      padding:0 20px; margin:0; height:var(--dk-topbar); border-bottom:1px solid #ffffff14;
-      color:#fff; font-size:16.5px; font-weight:800; display:flex; align-items:center; gap:9px;
-    }
-    body.admin-shell .drawer-nav-group-title{
-      display:block; font-size:10.5px; color:#93a6c6; padding:18px 20px 7px;
-      font-weight:700; letter-spacing:.3px; text-transform:none;
-    }
-    body.admin-shell #admDrawer .drawer-item{
-      background:transparent; border:none; box-shadow:none; color:#c9d6ea;
-      margin:2px 12px; border-radius:8px; padding:10px 12px; font-size:13.5px; font-weight:600;
-      transition:background .2s, color .2s;
-    }
-    body.admin-shell #admDrawer .drawer-item:hover{ background:#ffffff14; color:#fff; transform:none; }
-    body.admin-shell #admDrawer .drawer-item.active{
-      background:linear-gradient(135deg, var(--orange), var(--orange-dark));
-      color:#fff; box-shadow:0 6px 16px -8px var(--orange-dark);
-    }
-    body.admin-shell #admDrawer .drawer-item .dicon{ font-size:16px; width:22px; opacity:.95; }
-
-    /* ---- نوارِ بالا ---- */
-    body.admin-shell #adminView > .app-header-sticky{
-      height:var(--dk-topbar); margin:0 -26px 24px; padding:0 26px; border-radius:0;
-      background:var(--dk-surface); border:none; border-bottom:1px solid var(--dk-line);
-      box-shadow:0 1px 2px rgba(0,0,0,.03); font-size:15px; font-weight:800; color:var(--ink);
-      z-index:120;
-    }
-
-    /* ---- کارت‌ها: سفید، گوشه‌یِ ۱۰، سایه‌یِ ملایم به‌جایِ سایه‌یِ عمیقِ موبایل ---- */
-    body.admin-shell .admin-section .card{
-      border-radius:10px; border:1px solid var(--dk-line);
-      box-shadow:0 1px 2px rgba(0,0,0,.03); padding:20px 22px; margin-bottom:18px;
-    }
-    body.admin-shell .admin-section .card > .eyebrow:first-child,
-    body.admin-shell #admSec-dashboard .eyebrow{
-      font-size:14.5px; font-weight:800; color:var(--ink);
-      padding-bottom:12px; margin-bottom:16px; border-bottom:1px solid var(--dk-line-soft);
-    }
-
-    /* ---- کارت‌هایِ آمارِ داشبورد ---- */
-    body.admin-shell .dash-stat-grid{ grid-template-columns:repeat(5, 1fr); gap:14px; }
-    body.admin-shell .dash-stat-card{
-      border-radius:10px; padding:16px 18px; text-align:right; position:relative; overflow:hidden;
-      border:1px solid var(--dk-line); box-shadow:0 1px 2px rgba(0,0,0,.03);
-      transition:box-shadow .2s ease, transform .2s ease;
-      display:flex; flex-direction:column; align-items:flex-start;
-    }
-    body.admin-shell .dash-stat-card:hover{ transform:translateY(-2px); box-shadow:0 8px 18px -10px rgba(23,32,51,.35); }
-    body.admin-shell .dash-stat-card::before{ content:''; position:absolute; top:0; right:0; width:3px; height:100%; left:auto; }
-    body.admin-shell .dash-stat-card.ds-total::before{ background:var(--navy); }
-    body.admin-shell .dash-stat-card.ds-present::before{ background:#1f7a4d; }
-    body.admin-shell .dash-stat-card.ds-absent::before{ background:#a32a2a; }
-    body.admin-shell .dash-stat-card.ds-leave::before{ background:var(--orange); }
-    body.admin-shell .dash-stat-card.ds-left::before{ background:#3b4a8f; }
-    body.admin-shell .dash-stat-card .dash-stat-icon{
-      display:flex; width:36px; height:36px; border-radius:9px; align-items:center;
-      justify-content:center; font-size:17px; margin:0 0 10px;
-    }
-    body.admin-shell .dash-stat-card .dash-stat-num{ font-size:30px; font-weight:800; letter-spacing:-.5px; }
-    body.admin-shell .dash-stat-card .dash-stat-label{ font-size:12.5px; color:var(--muted); margin-top:5px; font-weight:600; }
-
-    /* ---- ردیفِ نمودارها ---- */
-    body.admin-shell .dash-charts-row{ gap:24px; margin-top:22px; }
-    body.admin-shell .dash-donut-hole{ box-shadow:none; border:1px solid var(--dk-line); }
-
-    /* ---- جدولِ تردد‌هایِ داشبورد ---- */
-    body.admin-shell .dash-traffic-table .dtc{
-      padding:10px 12px; border-bottom:1px solid var(--dk-line-soft); font-size:13px;
-    }
-    body.admin-shell .dash-traffic-table .dth .dtc{
-      background:var(--dk-bg); font-size:12px; font-weight:700; color:var(--muted);
-      border-bottom:1px solid var(--dk-line);
-    }
-    body.admin-shell .dash-traffic-table .dtr:not(.dth):hover{ background:var(--dk-line-soft); }
-  }
   @media (max-width: 1023px){
     .erp-modal-trigger{ display:none; } /* mobile keeps the form always inline — no trigger needed */
   }
@@ -2672,17 +2553,17 @@ function switchTab(which){
   if(which==='admin'){
     if(adminPin && adminUsername){
       document.getElementById('adminGate').style.display='none';
-      document.getElementById('adminView').style.display='block'; syncAdminShellClass();
+      document.getElementById('adminView').style.display='block';
       refreshAdminView();
       requestNotificationPermission();
       startAdminLogWatcher();
     } else {
       document.getElementById('adminGate').style.display='block';
-      document.getElementById('adminView').style.display='none'; syncAdminShellClass();
+      document.getElementById('adminView').style.display='none';
     }
   } else {
     document.getElementById('adminGate').style.display='none';
-    document.getElementById('adminView').style.display='none'; syncAdminShellClass();
+    document.getElementById('adminView').style.display='none';
     stopAdminLogWatcher();
   }
 }
@@ -2906,7 +2787,7 @@ async function checkPin(){
       await cacheAdminCreds(enteredUser, entered);
     }
     document.getElementById('adminGate').style.display='none';
-    document.getElementById('adminView').style.display='block'; syncAdminShellClass();
+    document.getElementById('adminView').style.display='block';
     refreshAdminView();
     requestNotificationPermission();
     startAdminLogWatcher();
@@ -3046,7 +2927,7 @@ async function tryAdminFingerprintLogin(){
   sessionStorage.setItem('adminPin', adminPin);
   sessionStorage.setItem('adminUsername', adminUsername);
   document.getElementById('adminGate').style.display='none';
-  document.getElementById('adminView').style.display='block'; syncAdminShellClass();
+  document.getElementById('adminView').style.display='block';
   refreshAdminView();
   requestNotificationPermission();
   startAdminLogWatcher();
@@ -3083,14 +2964,6 @@ function closeDrawer(){
   document.getElementById('admDrawer').classList.remove('open');
   document.getElementById('empDrawer').classList.remove('open');
   document.getElementById('drawerOverlay').classList.remove('open');
-}
-// تنها کاری که برایِ نمایِ دسکتاپِ پنلِ مدیریت لازم بود: یک کلاس رویِ body که می‌گه الان
-// پنلِ مدیریت بازه. تمامِ استایلِ دسکتاپ به همین کلاس + عرضِ ۱۰۲۴ گره خورده، پس صفحه‌یِ
-// ورود و پنلِ کارمند و کلِ نمایِ موبایل هیچ تغییری نمی‌کنن.
-function syncAdminShellClass(){
-  var v = document.getElementById('adminView');
-  var on = !!v && v.style.display !== 'none';
-  document.body.classList.toggle('admin-shell', on);
 }
 // ---------- Back-button navigation: non-home sections push a history entry, ----------
 // ---------- so the phone's back button returns to the home section instead of exiting the app ----------
@@ -4478,7 +4351,7 @@ function adminLogout(){
   adminUsername = null;
   sessionStorage.removeItem('adminPin');
   sessionStorage.removeItem('adminUsername');
-  document.getElementById('adminView').style.display='none'; syncAdminShellClass();
+  document.getElementById('adminView').style.display='none';
   document.getElementById('adminGate').style.display='block';
   document.getElementById('pinInput').value='';
   document.getElementById('adminUsernameInput').value='';
