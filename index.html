@@ -1609,8 +1609,10 @@
       <button type="button" class="btn btn-ghost" onclick="syncEmployeeNamesBtn()">🏷️ به‌روزرسانیِ نامِ پرسنل در همه‌ی شیت‌ها</button>
       <div class="hint" style="margin-top:10px;">این گزینه یک فیلتر (فلش‌های بالای ستون‌ها) به تمام شیت‌های اصلی گوگل‌شیت اضافه می‌کند. شیت Logs بر اساس تاریخ و ساعت واقعی مرتب می‌شود؛ سایر شیت‌ها فقط فیلتر دریافت می‌کنند و مرتب‌سازی آن‌ها از طریق فلش فیلتر امکان‌پذیر است.</div>
       <button type="button" class="btn btn-ghost" onclick="setupSheetFiltersBtn()">📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها</button>
-      <div class="hint" style="margin-top:10px;">این گزینه بررسی می‌کند دیروز تعطیل بوده یا نه؛ در صورت تعطیل بودن، برای پرسنلی که تردد یا مرخصی/مأموریتی برای آن روز ثبت نشده، وضعیت «آف» را در سیستم ثبت می‌کند. این کار به‌صورت خودکار و روزانه هم قابل انجام است — برای فعال‌سازی زمان‌بندی خودکار، به راهنمای فنی مراجعه کنید.</div>
-      <button type="button" class="btn btn-ghost" onclick="runOffMarkerJobBtn()">🏠 ثبت وضعیت «آف» برای دیروز</button>
+      <div class="hint" style="margin-top:10px;">این گزینه برای پرسنلی که دیروز تردد یا مرخصی/مأموریتی ثبت نکرده‌اند، وضعیت روز را ثبت می‌کند. تصمیم بر اساس موظفیِ واقعیِ همان روز برای همان فرد گرفته می‌شود: اگر موظفی صفر باشد (شیفتی که از تعطیلات رسمی تبعیت می‌کند و دیروز جمعه یا تعطیل بوده، یا روزِ بدون شیفت) وضعیت «آف» ثبت می‌شود، و اگر موظفی داشته باشد (مثلاً شیفتی که تیک تعطیلات ندارد و جمعه هم برایش روز کاری است) «غیبت». این کار به‌صورت خودکار و روزانه هم قابل انجام است — برای فعال‌سازی زمان‌بندی خودکار، به راهنمای فنی مراجعه کنید.</div>
+      <button type="button" class="btn btn-ghost" onclick="runOffMarkerJobBtn()">🏠 ثبت وضعیت روزِ دیروز (آف/غیبت)</button>
+      <div class="hint" style="margin-top:10px;">مرخصی‌هایی که پیش از این ثبت شده‌اند، با عدد ثابت ۷:۲۰ در شیت ذخیره شده‌اند و برای پرسنل شیفتی باعث کسریِ کار می‌شوند. این گزینه همه‌ی آن‌ها را یکجا بازمحاسبه می‌کند: مرخصیِ روزانه به اندازه‌ی موظفیِ واقعیِ همان روزِ همان پرسنل، و مرخصیِ ساعتی به اندازه‌ی مدتِ واقعیِ همان درخواست. ماموریت‌ها و وضعیت‌های غیبت و آف دست نمی‌خورند و اجرای دوباره هم بی‌خطر است.</div>
+      <button type="button" class="btn btn-ghost" onclick="recalcLeaveHoursBtn()">🏖️ به‌روزرسانی مرخصی‌های قدیمی بر اساس موظفی</button>
     </div>
     <div class="card">
       <div class="eyebrow">چک کردن نسخه‌ی سرور و صفحه</div>
@@ -4409,12 +4411,22 @@ async function recalcAllTimestamps(){
   alert('انجام شد. از '+res.total+' ثبت، '+res.fixed+' مورد اصلاح شد.');
   refreshCurrentAdminSection();
 }
+async function recalcLeaveHoursBtn(){
+  if(!confirm('همه‌ی مرخصی‌های ثبت‌شده بر اساس موظفیِ همان روز بازمحاسبه می‌شوند. ماموریت، غیبت و آف دست نمی‌خورند. ادامه می‌دهید؟')) return;
+  var btn = event.target;
+  btn.disabled = true; btn.textContent = 'در حال بازمحاسبه...';
+  var res = await apiCall(function(){ return apiPost('recalcLeaveMarkerHours', {pin:adminPin}); });
+  btn.disabled = false; btn.textContent = '🏖️ به‌روزرسانی مرخصی‌های قدیمی بر اساس موظفی';
+  if(!res.ok){ showAdminNotice('بازمحاسبه ناموفق بود: ' + (res.error||'')); alert('بازمحاسبه ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  alert('انجام شد.\nمرخصی‌های بررسی‌شده: ' + (res.scanned||0) + '\nبه‌روزرسانی‌شده: ' + (res.updated||0));
+}
 async function runOffMarkerJobBtn(){
-  if(!confirm('اگر دیروز تعطیل بوده، برای پرسنلی که تردد یا مرخصی/مأموریتی ثبت نکرده‌اند، وضعیت «آف» ثبت می‌شود. ادامه می‌دهید؟')) return;
+  if(!confirm('برای پرسنلی که دیروز تردد یا مرخصی/مأموریتی ثبت نکرده‌اند، وضعیت روز ثبت می‌شود: «آف» اگر موظفیِ آن روز صفر بوده، و «غیبت» اگر موظفی داشته. ادامه می‌دهید؟')) return;
   var btn = event.target;
   btn.disabled = true; btn.textContent = 'در حال بررسی...';
   var res = await apiCall(function(){ return apiPost('runOffMarkerJobManually', {pin:adminPin}); });
-  btn.disabled = false; btn.textContent = '🏠 ثبت وضعیت «آف» برای دیروز';
+  btn.disabled = false; btn.textContent = '🏠 ثبت وضعیت روزِ دیروز (آف/غیبت)';
   if(!res.ok){ showAdminNotice('این عملیات ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   alert('عملیات با موفقیت انجام شد.');
