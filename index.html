@@ -3748,6 +3748,24 @@ async function saveSingleBulkDay(d){
       return;
     }
 
+    // ترتیب: اول حذف، بعد ویرایش، آخر ساخت. قبلاً برعکس بود (ساخت → ویرایش → حذف) و برایِ
+    // همین هر ویرایشی که ساعتش رویِ ساعتِ یک ثبتِ در صفِ حذف می‌رفت، قبل از آزادشدنِ اون ساعت
+    // اجرا می‌شد و time_conflict می‌گرفت.
+    if(toDeleteS.length){
+      await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDeleteS}); });
+    }
+    if(toUpdateS.length){
+      var updatesPayloadS = toUpdateS.map(function(u){
+        return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: project, type: u.type};
+      });
+      var uresS = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: updatesPayloadS}); });
+      if(!uresS.ok){
+        statusEl.textContent = '⛔ ویرایش ناموفق بود' + (uresS.row ? (' — ثبتِ ' + uresS.row) : '') + ': ' + friendlyLogErrorMsg(uresS.error, uresS.at);
+        statusEl.style.display = 'block';
+        window._submissionInProgress = false;
+        return;
+      }
+    }
     if(toCreateS.length){
       var resS = await apiCall(function(){ return apiPost('adminAddLogBatch', {
         pin: adminPin, username: username, project: project, entries: toCreateS
@@ -3767,21 +3785,6 @@ async function saveSingleBulkDay(d){
         window._submissionInProgress = false;
         return;
       }
-    }
-    if(toUpdateS.length){
-      var updatesPayloadS = toUpdateS.map(function(u){
-        return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: project, type: u.type};
-      });
-      var uresS = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: updatesPayloadS}); });
-      if(!uresS.ok){
-        statusEl.textContent = '⛔ ویرایش ناموفق بود: ' + (uresS.error||'');
-        statusEl.style.display = 'block';
-        window._submissionInProgress = false;
-        return;
-      }
-    }
-    if(toDeleteS.length){
-      await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDeleteS}); });
     }
 
     window._submissionInProgress = false;
@@ -4015,6 +4018,28 @@ async function submitMonthlyBulkLog(){
       }
       stepProgress('ثبت مرخصی‌ها/ماموریت‌ها...');
     }
+    // ترتیب: اول حذف، بعد ویرایش، آخر ساخت — تا ساعتی که قراره آزاد بشه، قبل از رسیدنِ
+    // ویرایشی که می‌خواد رویِ همون ساعت بشینه آزاد شده باشه (منشاءِ خطایِ time_conflict).
+    if(toDelete.length){
+      await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDelete}); });
+      stepProgress('حذف ثبت‌های خالی‌شده...');
+    }
+    if(toUpdate.length){
+      var updatesPayload = toUpdate.map(function(u){
+        return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: u.project, type: u.type};
+      });
+      var ures = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: updatesPayload}); });
+      if(!ures.ok){
+        // row = ثبتی که داشت ویرایش می‌شد، at = ثبتی که باهاش تداخل داره — هر دو نشون داده
+        // می‌شن تا معلوم باشه دقیقاً کدوم دو تا به هم خورده‌ن.
+        statusEl.textContent = '⛔ ویرایش ناموفق بود' + (ures.row ? (' — ثبتِ ' + ures.row) : '') + ': ' + friendlyLogErrorMsg(ures.error, ures.at);
+        statusEl.style.display = 'block';
+        window._submissionInProgress = false;
+        hideBulkProgress();
+        return;
+      }
+      stepProgress('ویرایش ثبت‌های موجود...');
+    }
     if(toCreate.length){
       // adminAddLogBatch only accepts ONE project for the whole batch call, but entries here
       // can each carry a different per-day project now — group by project and issue one call
@@ -4052,24 +4077,6 @@ async function submitMonthlyBulkLog(){
         }
       }
       stepProgress('ثبت ورود/خروج‌های جدید...');
-    }
-    if(toUpdate.length){
-      var updatesPayload = toUpdate.map(function(u){
-        return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: u.project, type: u.type};
-      });
-      var ures = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: updatesPayload}); });
-      if(!ures.ok){
-        statusEl.textContent = '⛔ ویرایش ناموفق بود' + (ures.at ? (' (دور ' + ures.at + ')') : '') + ': ' + (ures.error||'');
-        statusEl.style.display = 'block';
-        window._submissionInProgress = false;
-        hideBulkProgress();
-        return;
-      }
-      stepProgress('ویرایش ثبت‌های موجود...');
-    }
-    if(toDelete.length){
-      await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: toDelete}); });
-      stepProgress('حذف ثبت‌های خالی‌شده...');
     }
 
     if(statusChanged){
@@ -4526,6 +4533,7 @@ function friendlyLogErrorMsg(err, at){
   if(err === 'must_be_after_last_entry') return 'این ساعت زودتر یا هم‌زمان با آخرین ثبتِ موجودِ این پرسنله' + atSuffix + ' — برای اصلاحِ ثبت‌هایِ قدیمی، از ✏️ ویرایش توی گزارش استفاده کن.';
   if(err === 'duplicate_entry') return 'یه ثبت دقیقاً با همین تاریخ/ساعت' + atSuffix + ' از قبل موجوده.';
   if(err === 'time_conflict') return 'دقیقاً همین تاریخ/ساعت برایِ این پرسنل قبلاً یه ثبتِ دیگه داره' + atSuffix + ' — یه ثانیه فرق بذار.';
+  if(err === 'not_found') return 'این ثبت رویِ سرور پیدا نشد — احتمالاً قبلاً حذف شده. یک بار گزارش رو دوباره بارگذاری کن.';
   if(err === 'expected_checkout_first') return 'این پرسنل هنوز خروج زده نشده و ورودِ بازِ قبلی داره' + atSuffix + ' — اول باید خروجش رو ثبت کنی.';
   if(err === 'expected_checkin_first') return 'خروج بدونِ ورودِ بازِ قبلش' + atSuffix + ' — اول باید یه ورود براش ثبت کنی.';
   if(err === 'no_open_checkin') return 'این پرسنل قبل از این ساعت' + atSuffix + ' هیچ ورودِ بازی نداره — اول باید ورودش رو ثبت کنی.';
@@ -7418,6 +7426,7 @@ var PERF_METRIC_LABELS = [
   {key:'requiredMin', label:'ساعت موظفی'},
   {key:'usefulMin', label:'ساعت مفید'},
   {key:'overtimeMin', label:'اضافه‌کاری'},
+  {key:'shortfallMin', label:'کسریِ کار'},
   {key:'leaveMin', label:'مرخصی'},
   {key:'nightMin', label:'شب‌کاری'},
   {key:'fridayMin', label:'جمعه‌کاری'},
@@ -7565,10 +7574,10 @@ async function generateEmployeeFormExcel(){
     ]);
   });
   rows.push([]);
-  rows.push(['موظفی','کارکرد','مفید','شب‌کاری','اضافه‌کاری','تعطیل‌کاری','جمعه‌کاری','مرخصی','استراحت (عادی)','استراحت (جمعه/تعطیل)','جمعِ کلِ اضافه‌کاری','تعداد روز ماموریت']);
+  rows.push(['موظفی','کارکرد','مفید','شب‌کاری','اضافه‌کاری','کسریِ کار','تعطیل‌کاری','جمعه‌کاری','مرخصی','استراحت (عادی)','استراحت (جمعه/تعطیل)','جمعِ کلِ اضافه‌کاری','تعداد روز ماموریت']);
   rows.push([
     minutesToHM(t.requiredMin), minutesToHM(t.workedMin), minutesToHM(t.usefulMin), minutesToHM(t.nightMin),
-    minutesToHM(t.overtimeMin), minutesToHM(t.holidayMin), minutesToHM(t.fridayMin), minutesToHM(t.leaveMin),
+    minutesToHM(t.overtimeMin), minutesToHM(t.shortfallMin), minutesToHM(t.holidayMin), minutesToHM(t.fridayMin), minutesToHM(t.leaveMin),
     minutesToHM(t.breakMin), minutesToHM(t.holidayBreakMin), minutesToHM(t.grandOvertimeMin), missionDaysCount
   ]);
   rows.push([]);
@@ -7774,18 +7783,46 @@ async function saveEditLogSingle(pairKey, side, existingId){
 }
 async function deleteLogPair(inId, outId){
   if(!confirm('این ردیف (ورود و خروج) حذف بشه؟ این کار قابل بازگشت نیست.')) return;
-  if(inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:inId}); });
-  if(outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:outId}); });
-  clearAdminNotice();
+  // نتیجه‌یِ هر دو حذف بررسی می‌شه. قبلاً هیچ‌کدوم چک نمی‌شد، پس اگه سرور حذف نمی‌کرد هم
+  // برنامه بی‌صدا جدول رو دوباره می‌ساخت و ردیف سرِ جاش می‌موند، بدونِ هیچ پیامی.
+  var failed = [];
+  if(inId){
+    var r1 = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:inId, fallback: logFallbackFor(inId)}); });
+    if(!r1.ok) failed.push('ورود: ' + friendlyLogErrorMsg(r1.error, r1.at));
+  }
+  if(outId){
+    var r2 = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:outId, fallback: logFallbackFor(outId)}); });
+    if(!r2.ok) failed.push('خروج: ' + friendlyLogErrorMsg(r2.error, r2.at));
+  }
+  if(failed.length){
+    showAdminNotice('حذف ناموفق بود — ' + failed.join(' | '));
+    alert('حذف ناموفق بود:\n' + failed.join('\n'));
+  } else {
+    clearAdminNotice();
+  }
   await loadFullLog();
 }
 async function deleteSingleLogEntry(id){
   if(!confirm('فقط همین ثبت حذف بشه؟ این کار قابل بازگشت نیست.')) return;
-  var res = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:id}); });
-  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  var res = await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:id, fallback: logFallbackFor(id)}); });
+  if(!res.ok){
+    // خطا حالا با alert هم نشون داده می‌شه، نه فقط showAdminNotice که بالایِ صفحه‌ست و وقتی
+    // پایینِ جدول باشی اصلاً دیده نمی‌شه — همون چیزی که «هیچ اتفاقی نمی‌افتد» به‌نظر می‌رسید.
+    var m = friendlyLogErrorMsg(res.error, res.at);
+    showAdminNotice('حذف ناموفق بود: ' + m);
+    alert('حذف ناموفق بود: ' + m);
+    return;
+  }
   clearAdminNotice();
   editingEntry = null;
   await loadFullLog();
+}
+// مشخصاتِ خودِ ثبت، برایِ وقتی که شناسه‌یِ ردیف رویِ سرور پیدا نشه (ردیف‌هایِ قدیمی که شناسه‌شون
+// بعداً ساخته شده). سرور فقط وقتی ازش استفاده می‌کنه که دقیقاً یک ردیف باهاش بخوره.
+function logFallbackFor(id){
+  var e = (window._allEntries||[]).filter(function(x){ return String(x.id) === String(id); })[0];
+  if(!e) return null;
+  return {username: e.username||'', jalaliDate: e.jalaliDate||'', time: e.time||'', type: e.type||''};
 }
 function exportCSV(){
   var all = window._allEntries || [];
@@ -7990,7 +8027,8 @@ async function loadDailyPerf(){
 }
 var PERF_METRIC_LABELS_DAILY = [
   {key:'workedMin', label:'کارکرد'}, {key:'requiredMin', label:'موظفی'}, {key:'usefulMin', label:'مفید'},
-  {key:'overtimeMin', label:'اضافه‌کاری'}, {key:'leaveMin', label:'مرخصی'}, {key:'nightMin', label:'شب‌کاری'},
+  {key:'overtimeMin', label:'اضافه‌کاری'}, {key:'shortfallMin', label:'کسریِ کار'},
+  {key:'leaveMin', label:'مرخصی'}, {key:'nightMin', label:'شب‌کاری'},
   {key:'fridayMin', label:'جمعه‌کاری'}, {key:'holidayMin', label:'تعطیل‌کاری'}
 ];
 var myShiftViewYear = null, myShiftViewMonth = null;
