@@ -1818,10 +1818,25 @@
         <option value="in">ورود</option>
         <option value="out">خروج</option>
         <option value="leave">مرخصی (کل روز)</option>
+        <option value="leaveHourly">مرخصی ساعتی</option>
         <option value="absence">غیبت</option>
         <option value="off">Off (تعطیل)</option>
         <option value="mission">ماموریت (کل روز)</option>
       </select>
+      <div id="adminLogHourlyRow" style="display:none;">
+        <label>بازه‌یِ مرخصیِ ساعتی</label>
+        <div class="date-row">
+          <div style="flex:1;">
+            <label style="font-size:12px;">از ساعت</label>
+            <input type="time" id="adminLogLeaveStart">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:12px;">تا ساعت</label>
+            <input type="time" id="adminLogLeaveEnd">
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-4px;">همین مقدار به‌عنوانِ مرخصی حساب می‌شه و از موظفیِ همون روز کم می‌شه، پس بابتش کسریِ کار ثبت نمی‌شه.</div>
+      </div>
       <div id="adminLogLeaveCategoryRow" style="display:none;">
         <label>نوع مرخصی</label>
         <select id="adminLogLeaveCategory">
@@ -4111,9 +4126,11 @@ function closeAdminLogSheet(){
 }
 function onAdminLogTypeChange(){
   var type = document.getElementById('adminLogType').value;
-  var isLeaveOrMission = (type === 'leave' || type === 'mission');
+  var isLeaveOrMission = (type === 'leave' || type === 'leaveHourly' || type === 'mission');
   var isAbsenceOrOff = (type === 'absence' || type === 'off');
-  document.getElementById('adminLogLeaveCategoryRow').style.display = (type === 'leave') ? 'block' : 'none';
+  var isLeaveAny = (type === 'leave' || type === 'leaveHourly');
+  document.getElementById('adminLogLeaveCategoryRow').style.display = isLeaveAny ? 'block' : 'none';
+  document.getElementById('adminLogHourlyRow').style.display = (type === 'leaveHourly') ? 'block' : 'none';
   document.getElementById('adminLogTimeRow').style.display = (isLeaveOrMission || isAbsenceOrOff) ? 'none' : 'block';
 }
 async function submitAdminLog(){
@@ -4124,12 +4141,19 @@ async function submitAdminLog(){
   var reasonVal = document.getElementById('adminLogReason').value.trim();
   if(!username){ alert('یک پرسنل انتخاب کن'); return; }
 
-  if(type === 'leave' || type === 'mission'){
+  if(type === 'leave' || type === 'leaveHourly' || type === 'mission'){
     var leaveCat = document.getElementById('adminLogLeaveCategory').value;
+    var isHourlyAL = (type === 'leaveHourly');
+    var startAL = isHourlyAL ? (document.getElementById('adminLogLeaveStart').value||'') : '';
+    var endAL = isHourlyAL ? (document.getElementById('adminLogLeaveEnd').value||'') : '';
+    if(isHourlyAL && (!startAL || !endAL)){ alert('برایِ مرخصیِ ساعتی، ساعتِ شروع و پایان را وارد کن'); return; }
+    // مرخصیِ ساعتی همون مسیرِ سرورِ مرخصیِ عادی رو می‌ره — سرور از قبل leaveType='hourly' با
+    // startTime/endTime رو پشتیبانی می‌کرد و خودش مدتش رو حساب و ثبت می‌کنه.
+    var reqTypeAL = (type === 'mission') ? 'mission' : 'leave';
     var res = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
       pin: adminPin, username: username,
-      entries: [{date: jalaliDate, requestType: type, leaveType: 'daily', project: project}],
-      leaveCategory: leaveCat, reason: reasonVal || (type === 'leave' ? 'ثبت مستقیم مرخصی توسط مدیر' : 'ثبت مستقیم ماموریت توسط مدیر')
+      entries: [{date: jalaliDate, requestType: reqTypeAL, leaveType: (isHourlyAL ? 'hourly' : 'daily'), startTime: startAL, endTime: endAL, project: project}],
+      leaveCategory: leaveCat, reason: reasonVal || (reqTypeAL === 'leave' ? 'ثبت مستقیم مرخصی توسط مدیر' : 'ثبت مستقیم ماموریت توسط مدیر')
     }); });
     if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + (res.error||'')); return; }
     clearAdminNotice(); closeAdminLogSheet(); alert('ثبت شد.'); refreshCurrentAdminSection();
@@ -7632,17 +7656,112 @@ async function loadStatusReport(status){
     }
     var labelMap = {absence:'غیبت', leave:'مرخصی', mission:'ماموریت', holiday:'تعطیل / آف'};
     results.sort(function(a,b){ return (a.jalaliDate||'').localeCompare(b.jalaliDate||''); });
-    box.innerHTML = results.map(function(r){
+    _statusReportRows = results;
+    box.innerHTML = results.map(function(r, idx){
       // Label each row by its OWN actual status (r.status), never by the currently-selected
       // filter — if a row's real status ever doesn't match what was requested, this makes
       // that visible instead of silently mislabeling it.
-      return '<div class="list-item"><div><b>'+esc(r.fullName)+'</b>'+(r.employeeCode?(' · کد '+esc(r.employeeCode)):'')+
-        '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+r.jalaliDate+'</bdi> — '+esc(labelMap[r.status]||r.status)+'</div></div></div>';
+      var metaExtra = '';
+      if(r.status === 'leave' && r.leaveHours){
+        metaExtra = ' — ' + (String(r.leaveKind||'').toLowerCase() === 'hourly' ? 'ساعتی' : 'روزانه') + ' (' + esc(r.leaveHours) + ')';
+      }
+      // ویرایش فقط برایِ مرخصی و ماموریت معنی داره؛ حذف برایِ هر چهار وضعیت — البته فقط
+      // وقتی این ردیف واقعاً یک رکوردِ ثبت‌شده باشه. ردیف‌هایِ غیبتی که هیچ رکوردی ندارن و
+      // صرفاً از «نبودِ تردد» نتیجه گرفته شدن، چیزی برایِ حذف‌کردن ندارن.
+      var canEdit = (r.status === 'leave' || r.status === 'mission') && r.markerId;
+      var canDelete = !!r.markerId;
+      var btns = '';
+      if(canEdit) btns += '<button type="button" class="icon-btn" title="ویرایش" onclick="openStatusMarkerEdit('+idx+')">✏️</button>';
+      if(canDelete) btns += '<button type="button" class="icon-btn" title="حذف" onclick="deleteStatusMarker('+idx+')">🗑️</button>';
+      return '<div class="list-item" id="statusRow-'+idx+'">' +
+        '<div><b>'+esc(r.fullName)+'</b>'+(r.employeeCode?(' · کد '+esc(r.employeeCode)):'')+
+        '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+r.jalaliDate+'</bdi> — '+esc(labelMap[r.status]||r.status)+metaExtra+'</div></div>' +
+        (btns ? ('<div style="display:flex; gap:6px;">'+btns+'</div>') : '') +
+        '</div>';
     }).join('');
   } catch(err){
     if(myReqId !== _statusReportReqId) return;
     box.innerHTML = '<div class="empty">خطا در نمایش گزارش: ' + esc((err && err.message) || 'نامشخص') + '</div>';
   }
+}
+var _statusReportRows = [];
+// فرمِ ویرایشِ یک ردیفِ وضعیت، همون‌جا زیرِ خودِ ردیف باز می‌شه — نه صفحه‌یِ جدا، نه مودال.
+function openStatusMarkerEdit(idx){
+  var r = _statusReportRows[idx];
+  if(!r || !r.markerId) return;
+  var host = document.getElementById('statusRow-'+idx);
+  if(!host) return;
+  var existing = document.getElementById('statusEditBox-'+idx);
+  if(existing){ existing.parentNode.removeChild(existing); return; }
+  var isHourly = String(r.leaveKind||'').toLowerCase() === 'hourly';
+  var box = document.createElement('div');
+  box.id = 'statusEditBox-'+idx;
+  box.className = 'card';
+  box.style.margin = '8px 0 12px';
+  box.innerHTML =
+    '<label>وضعیتِ روز</label>' +
+    '<select id="statusEditType-'+idx+'" onchange="onStatusEditTypeChange('+idx+')">' +
+      '<option value="مرخصی"'+(r.status==='leave'?' selected':'')+'>مرخصی</option>' +
+      '<option value="ماموریت"'+(r.status==='mission'?' selected':'')+'>ماموریت</option>' +
+    '</select>' +
+    '<div id="statusEditLeaveWrap-'+idx+'">' +
+      '<label>نوعِ مرخصی</label>' +
+      '<select id="statusEditKind-'+idx+'" onchange="onStatusEditTypeChange('+idx+')">' +
+        '<option value="daily"'+(!isHourly?' selected':'')+'>روزانه (به اندازه‌یِ موظفیِ همان روز)</option>' +
+        '<option value="hourly"'+(isHourly?' selected':'')+'>ساعتی</option>' +
+      '</select>' +
+      '<div id="statusEditHoursWrap-'+idx+'">' +
+        '<label>مدتِ مرخصیِ ساعتی (ساعت:دقیقه)</label>' +
+        '<input type="text" id="statusEditHours-'+idx+'" class="field-mono" placeholder="مثلاً 2:30" value="'+(isHourly?esc(r.leaveHours||''):'')+'">' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex; gap:8px; margin-top:10px;">' +
+      '<button type="button" class="btn btn-primary" onclick="saveStatusMarkerEdit('+idx+')">💾 ذخیره</button>' +
+      '<button type="button" class="btn btn-ghost" onclick="openStatusMarkerEdit('+idx+')">انصراف</button>' +
+    '</div>' +
+    '<div class="hint" id="statusEditMsg-'+idx+'" style="margin-top:8px;"></div>';
+  host.parentNode.insertBefore(box, host.nextSibling);
+  onStatusEditTypeChange(idx);
+}
+function onStatusEditTypeChange(idx){
+  var type = document.getElementById('statusEditType-'+idx).value;
+  var kindSel = document.getElementById('statusEditKind-'+idx);
+  document.getElementById('statusEditLeaveWrap-'+idx).style.display = (type === 'مرخصی') ? 'block' : 'none';
+  document.getElementById('statusEditHoursWrap-'+idx).style.display = (type === 'مرخصی' && kindSel.value === 'hourly') ? 'block' : 'none';
+}
+async function saveStatusMarkerEdit(idx){
+  var r = _statusReportRows[idx];
+  var msg = document.getElementById('statusEditMsg-'+idx);
+  var type = document.getElementById('statusEditType-'+idx).value;
+  var kind = document.getElementById('statusEditKind-'+idx).value;
+  var hours = (document.getElementById('statusEditHours-'+idx).value||'').trim();
+  if(type === 'مرخصی' && kind === 'hourly' && !/^\d{1,2}:\d{2}$/.test(hours)){
+    msg.textContent = '⛔ مدتِ مرخصیِ ساعتی را به شکلِ ساعت:دقیقه بنویس، مثلاً 2:30';
+    return;
+  }
+  msg.textContent = 'در حال ذخیره...';
+  var res = await apiCall(function(){ return apiPost('updateDayStatusMarker', {
+    pin: adminPin, id: r.markerId, status: type,
+    leaveKind: (type === 'مرخصی' ? kind : ''), leaveHours: (type === 'مرخصی' && kind === 'hourly' ? hours : '')
+  }); });
+  if(!res.ok){
+    msg.textContent = '⛔ ذخیره ناموفق بود: ' + (res.error === 'not_found' ? 'این ردیف پیدا نشد — گزارش را دوباره بارگذاری کن.' : (res.error||''));
+    return;
+  }
+  await loadStatusReport(document.getElementById('logStatusFilter').value);
+}
+async function deleteStatusMarker(idx){
+  var r = _statusReportRows[idx];
+  if(!r || !r.markerId) return;
+  if(!confirm('وضعیتِ این روز برایِ ' + r.fullName + ' (' + r.jalaliDate + ') حذف بشه؟ بعدش این روز دوباره بر اساسِ ترددِ ثبت‌شده محاسبه می‌شه.')) return;
+  var res = await apiCall(function(){ return apiPost('deleteDayStatusMarker', {pin: adminPin, id: r.markerId}); });
+  if(!res.ok){
+    var m = (res.error === 'not_found') ? 'این ردیف پیدا نشد — احتمالاً قبلاً حذف شده.' : (res.error||'');
+    showAdminNotice('حذف ناموفق بود: ' + m);
+    alert('حذف ناموفق بود: ' + m);
+    return;
+  }
+  await loadStatusReport(document.getElementById('logStatusFilter').value);
 }
 function renderLogTable(){
   var tbody = document.getElementById('logTableBody');
