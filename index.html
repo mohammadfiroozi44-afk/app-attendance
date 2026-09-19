@@ -8185,15 +8185,22 @@ function renderLogTable(){
       var sideE = isEditingIn ? p.inE : p.outE;
       var existingId = sideE ? sideE.id : null;
       var refE = p.inE || p.outE;
+      // ثبتی که مقدارهایِ فرم باید از رویِ اون پر بشه: خودِ همون ورود/خروجی که داره ویرایش
+      // می‌شه، نه ردیفِ مرجع. قبلاً پروژه همیشه از p.inE خونده می‌شد، پس وقتی خروجِ یه روزی
+      // که ورود و خروجش رویِ دو پروژه‌یِ متفاوت بود ویرایش می‌شد، پروژه‌یِ ورود تویِ فرم
+      // می‌نشست و با ذخیره‌شدن، پروژه‌یِ خروج هم بی‌صدا عوض می‌شد.
+      // اگه این سمت اصلاً ثبتی نداره (داریم خروجِ جاافتاده رو اضافه می‌کنیم)، همون پروژه‌یِ
+      // ورود منطقی‌ترین پیش‌فرضه.
+      var formSourceE = sideE || refE;
       // Match by username first (reliable, since it's the true identity key), but fall back
       // to matching the .employee name string if THIS row happens to have no username at all
       // (some older/admin-entered rows never got one) — matching by username alone left the
       // dropdown showing nothing whenever that field was empty, which is worse than the
       // original bug this was meant to fix. Falling back keeps both cases working.
-      var matchedEmpForEdit = employees.filter(function(emp){ return refE.username && emp.username === refE.username; })[0]
-        || employees.filter(function(emp){ return emp.fullName === refE.employee; })[0];
+      var matchedEmpForEdit = employees.filter(function(emp){ return formSourceE.username && emp.username === formSourceE.username; })[0]
+        || employees.filter(function(emp){ return emp.fullName === formSourceE.employee; })[0];
       var empOpts = employees.map(function(emp){ return '<option'+(matchedEmpForEdit && emp.username===matchedEmpForEdit.username?' selected':'')+'>'+esc(emp.fullName)+'</option>'; }).join('');
-      var prOpts = projects.map(function(pr){ return '<option'+(pr.name===refE.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
+      var prOpts = projects.map(function(pr){ return '<option'+(pr.name===formSourceE.project?' selected':'')+'>'+esc(pr.name)+'</option>'; }).join('');
       var defaultDate = sideE ? sideE.jalaliDate : (refE ? refE.jalaliDate : jalaliString(new Date()));
       var timeVal = sideE ? normTimeForSubmit(sideE.time) : '';
       return '<tr class="edit-row"><td colspan="6">'+
