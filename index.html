@@ -246,6 +246,18 @@
     .erp-modal-close:hover{ background:var(--border-soft); }
     .erp-modal-trigger{ display:inline-flex; width:auto; margin-bottom:14px; }
   }
+  /* چهار پنلِ روزِ جاریِ داشبورد — گوشی: ردیفی زیرِ هم، دسکتاپ: مربعِ ۲×۲ */
+  .dash-quad-grid{ display:grid; grid-template-columns:1fr; gap:14px; margin-top:14px; }
+  .dash-quad-cell{
+    background:var(--paper); border:1px solid var(--border-soft); border-radius:var(--r-md);
+    padding:14px; min-width:0;
+  }
+  .dash-quad-cell .eyebrow{ margin-top:0; }
+  .dash-quad-cell > div[id]{ max-height:320px; overflow-y:auto; }
+  @media (min-width: 1024px){
+    .dash-quad-grid{ grid-template-columns:1fr 1fr; gap:18px; }
+    .dash-quad-cell > div[id]{ max-height:360px; }
+  }
   @media (max-width: 1023px){
     .erp-modal-trigger{ display:none; } /* mobile keeps the form always inline — no trigger needed */
   }
@@ -1111,12 +1123,29 @@
       </div>
 
       <div class="divider"></div>
-      <div class="eyebrow">در انتظار تایید</div>
-      <div id="dashPending" class="empty">در حال بارگذاری...</div>
-      <div class="divider"></div>
-      <div class="eyebrow">آخرین تردد‌ها</div>
-      <div id="dashTodayTraffic" class="empty">در حال بارگذاری...</div>
-      <div class="dash-traffic-table" id="dashTodayTrafficTable" style="display:none;"></div>
+      <div class="eyebrow">درخواست‌ها</div>
+      <div id="dashRequests" class="empty">در حال بارگذاری...</div>
+
+      <!-- چهار پنلِ روزِ جاری: رویِ دسکتاپ مربعِ ۲×۲، رویِ گوشی ردیفی زیرِ هم -->
+      <div class="dash-quad-grid">
+        <div class="dash-quad-cell">
+          <div class="eyebrow">تردد‌های امروز</div>
+          <div id="dashTodayTraffic" class="empty">در حال بارگذاری...</div>
+          <div class="dash-traffic-table" id="dashTodayTrafficTable" style="display:none;"></div>
+        </div>
+        <div class="dash-quad-cell">
+          <div class="eyebrow">غایبینِ امروز</div>
+          <div id="dashAbsentList" class="empty">در حال بارگذاری...</div>
+        </div>
+        <div class="dash-quad-cell">
+          <div class="eyebrow">مرخصی‌های امروز</div>
+          <div id="dashLeaveList" class="empty">در حال بارگذاری...</div>
+        </div>
+        <div class="dash-quad-cell">
+          <div class="eyebrow">ماموریت‌های امروز</div>
+          <div id="dashMissionList" class="empty">در حال بارگذاری...</div>
+        </div>
+      </div>
     </div>
     </div><!-- /admSec-dashboard -->
 
@@ -2587,6 +2616,8 @@ function switchTab(which){
 
 // ---------- Employee login ----------
 function enterEmployeeSession(empData){
+  // هر چیزی که از پرسنلِ قبلی رویِ صفحه مونده، قبل از نشون‌دادنِ پنل پاک می‌شه
+  clearEmployeeViewState();
   loggedInEmployee = empData;
   localStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee));
   document.getElementById('empUsername').value='';
@@ -2659,10 +2690,38 @@ function updateFpQuickLoginVisibility(){
 function employeeLogout(){
   loggedInEmployee = null;
   localStorage.removeItem('loggedInEmployee');
+  clearEmployeeViewState();
   document.getElementById('empLoginGate').style.display='block';
   document.getElementById('empView').style.display='none';
   updateFpQuickLoginVisibility();
   stopEmployeeMessageWatcher();
+}
+// پاک‌کردنِ هر چیزی که رویِ صفحه از پرسنلِ قبلی مونده. بدونِ این، وقتی یکی خروج می‌زد و
+// نفرِ بعدی وارد می‌شد، تا وقتی هر بخش خودش دوباره بارگذاری نشده بود، سوابق و کارکرد و
+// شیفتِ نفرِ قبلی همچنان دیده می‌شد. هم موقعِ خروج صدا زده می‌شه هم بلافاصله بعد از ورودِ
+// موفق، تا حتی یک لحظه هم داده‌یِ نفرِ قبلی به نفرِ جدید نشون داده نشه.
+function clearEmployeeViewState(){
+  var placeholders = {
+    myHistoryList: 'ماه و سال موردنظر را انتخاب کرده و «بارگذاری سوابق» را بزنید.',
+    dailyStatsCards: 'ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.',
+    perfStatsCards: 'ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.',
+    myLogs: 'در حال بارگذاری...',
+    myRequests: 'در حال بارگذاری...',
+    myLeaves: 'در حال بارگذاری...'
+  };
+  Object.keys(placeholders).forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.innerHTML = '<div class="empty">' + placeholders[id] + '</div>';
+  });
+  ['myShiftTable','myMessagesList','mySentMessagesList'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.innerHTML = '';
+  });
+  var shiftHint = document.getElementById('myShiftNameHint');
+  if(shiftHint) shiftHint.textContent = 'در حالِ بارگذاری...';
+  // کش‌هایِ درون‌حافظه‌ای هم باید خالی بشن، وگرنه رندرِ بعدی دوباره از همین‌ها می‌خونه
+  if(typeof window._myShiftDaysCache !== 'undefined') window._myShiftDaysCache = null;
+  if(typeof window._myLogsCache !== 'undefined') window._myLogsCache = null;
 }
 
 // ---------- Admin live check-in/check-out notifications ----------
@@ -4270,10 +4329,16 @@ function showEmpSection(name){
     document.getElementById('myHistoryList').innerHTML = '<div class="empty">ماه و سال موردنظر را انتخاب کرده و «بارگذاری سوابق» را بزنید.</div>';
   }
   else if(name === 'perf'){
+    // هر بار که وارد این بخش می‌شی، نتیجه‌یِ دفعه‌یِ قبل پاک می‌شه تا عددِ قدیمی به‌اشتباه
+    // به‌جایِ عددِ ماهِ تازه‌انتخاب‌شده خونده نشه.
     populateMonthYearFilter('perfMonth','perfYear', true);
+    var perfBoxES = document.getElementById('perfStatsCards');
+    if(perfBoxES) perfBoxES.innerHTML = '<div class="empty">ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.</div>';
   }
   else if(name === 'daily'){
     populateMonthYearFilter('dailyPerfMonth','dailyPerfYear', true);
+    var dailyBoxES = document.getElementById('dailyStatsCards');
+    if(dailyBoxES) dailyBoxES.innerHTML = '<div class="empty">ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.</div>';
   }
   else if(name === 'myshift') loadMyShiftInfo();
   else if(name === 'messages') switchEmpMsgTab('sent');
@@ -4350,8 +4415,16 @@ async function refreshAdminSection(name){
     document.getElementById('normalReportView').style.display = 'block';
     document.getElementById('statusReportView').style.display = 'none';
     document.getElementById('logTableBody').innerHTML = '<tr><td colspan="6" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</td></tr>';
+    window._allEntries = [];
+    _statusReportRows = [];
+    var statusListBox = document.getElementById('statusReportList');
+    if(statusListBox) statusListBox.innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</div>';
   }
   else if(name === 'performance'){
+    // نتیجه‌یِ گزارشِ قبلی پاک می‌شه تا با ماهِ تازه اشتباه گرفته نشه
+    _perfReportResults = [];
+    var perfCardsBox = document.getElementById('perfReportCards');
+    if(perfCardsBox) perfCardsBox.innerHTML = '<div class="empty">ماه و سال را انتخاب کرده و «بارگذاری گزارش کارکرد» را بزنید.</div>';
     await ensureEmployeesFresh();
     populateMonthYearFilter('perfReportMonth','perfReportYear', true);
     populateMonthYearFilter('pdfExportMonth','pdfExportYear', true);
@@ -7023,6 +7096,107 @@ function readDateSelect(prefix){
 }
 
 // ---------- Holidays ----------
+// ---------- پنل‌هایِ داشبورد ----------
+// درخواست‌ها: هم درخواست‌هایِ ترددی (Requests) و هم مرخصی/ماموریت (LeaveRequests)، با نوعِ
+// درخواست و وضعیتش (تاییدشده / ردشده / دیده‌نشده). برخلافِ چهار پنلِ دیگه، این یکی محدود به
+// امروز نیست — تازه‌ترین درخواست‌ها نشون داده می‌شن.
+function dashStatusBadge(status){
+  var st = String(status||'').toLowerCase();
+  if(st === 'approved') return '<span class="in-tag">تاییدشده</span>';
+  if(st === 'rejected') return '<span class="out-tag">ردشده</span>';
+  return '<span style="background:#a3701a22; color:#a3701a; border-radius:6px; padding:1px 7px; font-size:11px;">دیده‌نشده</span>';
+}
+function renderDashboardRequests(attendanceReqs, leaveReqs){
+  var box = document.getElementById('dashRequests');
+  if(!box) return;
+  var items = [];
+  (attendanceReqs||[]).forEach(function(r){
+    var typeTxt = (r.type === 'in') ? 'درخواستِ ثبتِ ورود' : ((r.type === 'out') ? 'درخواستِ ثبتِ خروج' : 'درخواستِ تردد');
+    items.push({
+      username: r.username, employee: r.employee, employeeCode: r.employeeCode,
+      typeTxt: typeTxt, status: r.status,
+      dateTxt: (r.requestedDate||'') + (r.requestedTime ? (' ساعتِ ' + r.requestedTime) : ''),
+      createdAt: r.createdAt||'', createdTime: r.createdTime||''
+    });
+  });
+  (leaveReqs||[]).forEach(function(r){
+    var isMission = (r.requestType === 'mission');
+    var kindTxt = (r.leaveType === 'hourly') ? 'ساعتی' : 'روزانه';
+    var rangeTxt = r.startDate + ((r.endDate && r.endDate !== r.startDate) ? (' تا ' + r.endDate) : '');
+    if(r.leaveType === 'hourly' && r.startTime && r.endTime) rangeTxt += ' (' + r.startTime + ' تا ' + r.endTime + ')';
+    items.push({
+      username: r.username, employee: r.employee, employeeCode: r.employeeCode,
+      typeTxt: (isMission ? 'درخواستِ ماموریت' : 'درخواستِ مرخصی') + ' — ' + kindTxt,
+      status: r.status, dateTxt: rangeTxt,
+      createdAt: r.createdAt||'', createdTime: r.createdTime||''
+    });
+  });
+  if(items.length === 0){
+    box.className = 'empty';
+    box.innerHTML = 'درخواستی ثبت نشده است';
+    return;
+  }
+  // تازه‌ترین‌ها بالا، و در کل حداکثر ۲۰ تا تا داشبورد شلوغ نشه
+  items.sort(function(a,b){
+    var ka = jalaliDateSortKeyClient(a.createdAt) + ' ' + (a.createdTime||'');
+    var kb = jalaliDateSortKeyClient(b.createdAt) + ' ' + (b.createdTime||'');
+    return kb.localeCompare(ka);
+  });
+  items = items.slice(0, 20);
+  box.className = '';
+  box.innerHTML = items.map(function(it){
+    return '<div class="list-item"><div><b>' + nameWithCode(it.username, it.employee, it.employeeCode) + '</b> ' + dashStatusBadge(it.status) +
+      '<div class="meta">' + esc(it.typeTxt) + (it.dateTxt ? (' · <bdi dir="ltr" style="unicode-bidi:isolate;">' + esc(it.dateTxt) + '</bdi>') : '') + '</div></div></div>';
+  }).join('');
+}
+// سه پنلِ دیگه — همگی فقط برایِ روزِ جاری، و با اسمِ خودِ افراد نه فقط تعداد
+function renderDashboardDayPanels(emps, hadAttendanceTodayUsers, onLeaveDetail, onMissionDetail, isTodayHoliday){
+  var absentBox = document.getElementById('dashAbsentList');
+  var leaveBox = document.getElementById('dashLeaveList');
+  var missionBox = document.getElementById('dashMissionList');
+  if(absentBox){
+    if(isTodayHoliday){
+      absentBox.className = 'empty';
+      absentBox.innerHTML = 'امروز تعطیل است';
+    } else {
+      var absentees = emps.filter(function(e){
+        return !hadAttendanceTodayUsers[e.username] && !onLeaveDetail[e.username] && !onMissionDetail[e.username];
+      });
+      if(absentees.length === 0){
+        absentBox.className = 'empty';
+        absentBox.innerHTML = 'غایبی وجود ندارد';
+      } else {
+        absentBox.className = '';
+        absentBox.innerHTML = absentees.map(function(e){
+          return '<div class="list-item"><div><b>' + nameWithCode(e.username, e.fullName, e.employeeCode) + '</b>' +
+            '<div class="meta">بدونِ تردد و بدونِ مرخصی/ماموریت</div></div></div>';
+        }).join('');
+      }
+    }
+  }
+  function renderLeaveLike(box, detailMap, emptyTxt){
+    if(!box) return;
+    var users = Object.keys(detailMap);
+    if(users.length === 0){
+      box.className = 'empty';
+      box.innerHTML = emptyTxt;
+      return;
+    }
+    box.className = '';
+    box.innerHTML = users.map(function(u){
+      var l = detailMap[u];
+      var kindTxt = (l.leaveType === 'hourly') ? 'ساعتی' : 'روزانه';
+      var detailTxt = kindTxt;
+      if(l.leaveType === 'hourly' && l.startTime && l.endTime) detailTxt += ' · ' + l.startTime + ' تا ' + l.endTime;
+      else if(l.endDate && l.endDate !== l.startDate) detailTxt += ' · ' + l.startDate + ' تا ' + l.endDate;
+      if(l.leaveCategory) detailTxt += ' · ' + l.leaveCategory;
+      return '<div class="list-item"><div><b>' + nameWithCode(l.username, l.employee, l.employeeCode) + '</b>' +
+        '<div class="meta">' + esc(detailTxt) + '</div></div></div>';
+    }).join('');
+  }
+  renderLeaveLike(leaveBox, onLeaveDetail, 'امروز کسی مرخصی نیست');
+  renderLeaveLike(missionBox, onMissionDetail, 'امروز کسی در ماموریت نیست');
+}
 async function loadDashboard(){
   var ddRes = await apiCall(function(){ return apiPost('getDashboardData', {pin:adminPin, daysBack:3}); });
   var empRes = ddRes, logsRes = ddRes, leavesRes = ddRes, reqRes = ddRes, holRes = ddRes;
@@ -7077,6 +7251,21 @@ async function loadDashboard(){
     var sKey = jalaliDateSortKeyClient(l.startDate), eKey = jalaliDateSortKeyClient(l.endDate);
     if(todayKey >= sKey && todayKey <= eKey) onLeaveUsers[l.username] = true;
   });
+  // مرخصی و ماموریت جدا از هم نگه داشته می‌شن تا هر کدوم پنلِ خودش رو داشته باشه —
+  // شمارشِ بالایِ صفحه مثلِ قبل جمعِ هر دوئه.
+  var onLeaveDetail = {}, onMissionDetail = {};
+  leaves.forEach(function(l){
+    var covers;
+    if(l.leaveType === 'hourly'){
+      covers = (l.startDate === todayStr);
+    } else {
+      var sK = jalaliDateSortKeyClient(l.startDate), eK = jalaliDateSortKeyClient(l.endDate);
+      covers = (todayKey >= sK && todayKey <= eK);
+    }
+    if(!covers) return;
+    var bucket = (l.requestType === 'mission') ? onMissionDetail : onLeaveDetail;
+    if(!bucket[l.username]) bucket[l.username] = l;
+  });
   var leaveCount = Object.keys(onLeaveUsers).length;
   var absentCount = isTodayHoliday ? 0 : Math.max(0, emps.length - hadAttendanceCount - leaveCount);
 
@@ -7096,13 +7285,8 @@ async function loadDashboard(){
     leftEl.textContent = Object.keys(checkedOutTodayUsers).length;
   }
 
-  var pendingReq = reqRes.ok ? (reqRes.requests||[]).filter(function(r){return r.status==='pending';}) : [];
-  var pendingLeave = leavesRes.ok ? leaves.length!==undefined ? (leavesRes.leaves||[]).filter(function(r){return r.status==='pending';}) : [] : [];
-  var pendingTotal = pendingReq.length + pendingLeave.length;
-  var pendBox = document.getElementById('dashPending');
-  pendBox.innerHTML = pendingTotal === 0
-    ? '<div class="empty">درخواست در انتظاری وجود ندارد</div>'
-    : '<div class="hint" style="margin:0;">📨 '+pendingTotal+' درخواست در انتظار تایید — از تب «درخواست‌ها» بررسی کن</div>';
+  renderDashboardRequests(reqRes.ok ? (reqRes.requests||[]) : [], leavesRes.ok ? (leavesRes.leaves||[]) : []);
+  renderDashboardDayPanels(emps, hadAttendanceTodayUsers, onLeaveDetail, onMissionDetail, isTodayHoliday);
 
   var trafficBox = document.getElementById('dashTodayTraffic');
   var allPairsForToday = pairLogEntriesForDisplay(logs);
@@ -8346,28 +8530,80 @@ function showMyShiftDayDetail(idx){
   var lines = [];
   lines.push('تاریخ: ' + d.jalaliDate);
   if(d.shiftDetails) lines.push('نامِ شیفت: ' + d.shiftDetails.shiftName);
+  var day = d.dayDetails || {};   // تنظیماتِ خودِ این روز (اگه تعریف شده باشه)
+  var det = d.shiftDetails || null; // تنظیماتِ سطحِ شیفت — undefined رویِ روزِ «ساعتی»
+  // هر مقدار اول از خودِ روز خونده می‌شه و اگه رویِ روز خالی بود، از سطحِ شیفت. دقیقاً همون
+  // آبشاری که سرور موقعِ محاسبه استفاده می‌کنه، تا چیزی که پرسنل می‌بینه با چیزی که براش
+  // حساب می‌شه یکی باشه.
+  function eff(dayVal, shiftVal){
+    if(dayVal !== undefined && dayVal !== null && String(dayVal) !== '') return dayVal;
+    if(shiftVal !== undefined && shiftVal !== null && String(shiftVal) !== '') return shiftVal;
+    return '';
+  }
+  function fmtMin(v){
+    var n = parseInt(v, 10);
+    if(!n) return '';
+    var h = Math.floor(n/60), m = n%60;
+    return h ? (n + ' دقیقه (' + h + ':' + (m<10?'0':'') + m + ')') : (n + ' دقیقه');
+  }
   if(d.isNormalOff){
     lines.push('وضعیت: تعطیل (جمعه)');
   } else if(!d.hasShift){
     lines.push('وضعیت: بدونِ شیفت — این روز برایِ شما تعریف نشده');
   } else if(d.isFlexibleHours){
     lines.push('وضعیت: ساعتی — هر ساعتی می‌تونید ورود/خروج بزنید، طبقِ قوانینِ عادی');
+  } else if(d.isFloatingDay){
+    lines.push('نوعِ روز: شناور — ساعتِ ثابتِ ورود/خروج نداره');
+    if(day.dailyRequiredMinutes) lines.push('موظفیِ این روز: ' + fmtMin(day.dailyRequiredMinutes));
   } else {
+    lines.push('نوعِ روز: ساده');
     lines.push('قسمتِ اولِ روز: از ' + d.start1 + ' تا ' + d.end1);
     if(d.hasSecondPart) lines.push('قسمتِ دومِ روز: از ' + d.start2 + ' تا ' + d.end2);
   }
-  var det = d.shiftDetails; // undefined on a شیفتِ عادی ("ساعتی") day — nothing extra to show
-  if(det){
-    lines.push('———');
-    if(det.floatingMinutes) lines.push('زمانِ شناوری: '+det.floatingMinutes+' دقیقه');
-    if(det.floatBeforeShiftMinutes) lines.push('شناوریِ قبلِ شیفت: '+det.floatBeforeShiftMinutes+' دقیقه');
-    if(det.lateAllowedMinutes) lines.push('تاخیرِ مجاز: '+det.lateAllowedMinutes+' دقیقه');
-    if(det.earlyLeaveAllowedMinutes) lines.push('تعجیلِ مجاز: '+det.earlyLeaveAllowedMinutes+' دقیقه');
-    if(det.dailyOvertimeCapMinutes) lines.push('سقفِ اضافه‌کاریِ روزِ بدونِ شیفت: '+det.dailyOvertimeCapMinutes+' دقیقه');
-    if(det.otStartMinutes) lines.push('سقفِ اضافه‌کار از ابتدایِ شیفت: '+det.otStartMinutes+' دقیقه');
-    if(det.otMiddleMinutes) lines.push('سقفِ اضافه‌کار در میانه‌یِ شیفت: '+det.otMiddleMinutes+' دقیقه');
-    if(det.otEndMinutes) lines.push('سقفِ اضافه‌کار از انتهایِ شیفت: '+det.otEndMinutes+' دقیقه');
-    if(det.attendanceWindowStart || det.attendanceWindowEnd) lines.push('بازه‌یِ مجازِ ثبتِ تردد: '+(det.attendanceWindowStart||'—')+' تا '+(det.attendanceWindowEnd||'—'));
+  if(det || d.dayDetails){
+    var extra = [];
+    var floatEff = eff(day.dayFloatingMinutes, det && det.floatingMinutes);
+    if(floatEff) extra.push('زمانِ شناوری: ' + fmtMin(floatEff));
+    var floatBeforeEff = eff(day.dayFloatBeforeShiftMinutes, det && det.floatBeforeShiftMinutes);
+    if(floatBeforeEff) extra.push('شناوریِ قبلِ شیفت: ' + fmtMin(floatBeforeEff));
+    var lateEff = eff(day.dayLateAllowedMinutes, det && det.lateAllowedMinutes);
+    if(lateEff) extra.push('تاخیرِ مجاز: ' + fmtMin(lateEff));
+    var earlyEff = eff(day.dayEarlyAllowedMinutes, det && det.earlyLeaveAllowedMinutes);
+    if(earlyEff) extra.push('تعجیلِ مجاز: ' + fmtMin(earlyEff));
+    // استراحت: خاموش‌بودن هم باید دیده بشه، نه اینکه فقط وقتی عددی داره نشون داده بشه
+    var breakOnRaw = eff(day.dayBreakEnabled, det && det.breakEnabled);
+    var breakOff = String(breakOnRaw||'').toLowerCase() === 'no';
+    if(breakOff){
+      extra.push('استراحت: برایِ این روز کسر نمی‌شه');
+    } else {
+      var breakMinEff = eff(day.dayBreakMinutes, det && det.breakMinutes);
+      if(breakMinEff) extra.push('مدتِ استراحت: ' + fmtMin(breakMinEff));
+    }
+    if(String(day.isNightShift||'').toLowerCase() === 'yes'){
+      var nightTxt = 'شب‌کاری: بله';
+      if(day.nightShiftStart) nightTxt += ' — از ' + day.nightShiftStart;
+      if(day.nightShiftDuration) nightTxt += ' به مدتِ ' + fmtMin(day.nightShiftDuration);
+      if(String(day.nightShiftCrossesNextDay||'').toLowerCase() === 'yes') nightTxt += ' (تا روزِ بعد ادامه داره)';
+      extra.push(nightTxt);
+    }
+    var capEff = eff(day.dayOvertimeCapMinutes, det && det.dailyOvertimeCapMinutes);
+    if(capEff) extra.push('سقفِ اضافه‌کاریِ روزانه: ' + fmtMin(capEff));
+    var otStartEff = eff(day.dayOtStartMinutes, det && det.otStartMinutes);
+    if(otStartEff) extra.push('سقفِ اضافه‌کار از ابتدایِ شیفت: ' + fmtMin(otStartEff));
+    var otMidEff = eff(day.dayOtMiddleMinutes, det && det.otMiddleMinutes);
+    if(otMidEff) extra.push('سقفِ اضافه‌کار در میانه‌یِ شیفت: ' + fmtMin(otMidEff));
+    var otEndEff = eff(day.dayOtEndMinutes, det && det.otEndMinutes);
+    if(otEndEff) extra.push('سقفِ اضافه‌کار از انتهایِ شیفت: ' + fmtMin(otEndEff));
+    var winStart = eff(day.dayAttendanceWindowStart, det && det.attendanceWindowStart);
+    var winEnd = eff(day.dayAttendanceWindowEnd, det && det.attendanceWindowEnd);
+    if(winStart || winEnd) extra.push('بازه‌یِ مجازِ ثبتِ تردد: ' + (winStart||'—') + ' تا ' + (winEnd||'—'));
+    if(det && String(det.followOfficialHolidays||'').toLowerCase() === 'no'){
+      extra.push('تعطیلاتِ رسمی: این شیفت از تعطیلات تبعیت نمی‌کنه (جمعه و تعطیل هم روزِ کاریه)');
+    }
+    if(extra.length){
+      lines.push('———');
+      extra.forEach(function(x){ lines.push(x); });
+    }
   }
   alert(lines.join('\n'));
 }
