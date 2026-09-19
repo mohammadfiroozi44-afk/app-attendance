@@ -2478,20 +2478,31 @@ function isWriteAction(action){
   if(action === 'holidaysPublic') return false;
   return true;
 }
+// ---------- «هنوز در حال ثبت است» ----------
+// این پرچم فقط باید وقتی روشن باشه که کاری که خودِ کاربر همین الان شروع کرده هنوز تموم نشده.
+// دو ایرادی که باعث می‌شد الکی بالا بیاد:
+//   ۱) درخواست‌هایِ پس‌زمینه (silent) — مثلِ همگام‌سازیِ آفلاین و پُلِ نوتیفیکیشن — هم پرچم رو
+//      روشن می‌کردن، پس درست وسطِ یه کارِ خودکار اگه کاربر برمی‌گشت یا صفحه‌ای رو می‌بست،
+//      پیامِ هشدار می‌گرفت، بدونِ اینکه اصلاً چیزی ثبت کرده باشه.
+//   ۲) جریان‌هایِ چندمرحله‌ای پرچم رو دستی روشن می‌کنن؛ اگه یکی از مسیرها بدونِ خاموش‌کردنش
+//      تموم می‌شد (خطایِ غیرمنتظره)، پرچم برایِ همیشه روشن می‌موند و از اون به بعد هر بار
+//      پیام می‌اومد. حالا روشن‌بودنِ دستی خودش بعد از ۶۰ ثانیه منقضی می‌شه.
+var _manualBusyUntil = 0;
+function markSubmissionBusy(){ _manualBusyUntil = Date.now() + 60000; }
+function clearSubmissionBusy(){ _manualBusyUntil = 0; }
+function isSubmissionBusy(){ return _activeWriteCalls > 0 || Date.now() < _manualBusyUntil; }
 function beginApiTracking(action, silent){
   _activeApiCalls++;
   if(!silent) showGlobalProgress();
-  var isWrite = isWriteAction(action);
-  if(isWrite){ _activeWriteCalls++; window._submissionInProgress = true; }
+  // درخواستِ پس‌زمینه هیچ‌وقت باعثِ هشدارِ خروج نمی‌شه
+  var isWrite = isWriteAction(action) && !silent;
+  if(isWrite) _activeWriteCalls++;
   return isWrite;
 }
 function endApiTracking(wasWrite){
   _activeApiCalls = Math.max(0, _activeApiCalls-1);
   if(_activeApiCalls === 0) hideGlobalProgress();
-  if(wasWrite){
-    _activeWriteCalls = Math.max(0, _activeWriteCalls-1);
-    if(_activeWriteCalls === 0) window._submissionInProgress = false;
-  }
+  if(wasWrite) _activeWriteCalls = Math.max(0, _activeWriteCalls-1);
 }
 window._appStartupTime = Date.now();
 var STARTUP_GRACE_MS = 4500; // covers not just the splash screen itself, but the burst of
@@ -2524,7 +2535,7 @@ function hideGlobalProgress(){
   if(bar) bar.style.display = 'none';
 }
 function confirmLeaveIfBusy(){
-  if(!window._submissionInProgress) return true;
+  if(!isSubmissionBusy()) return true;
   return confirm('یه عملیات هنوز در حال ثبته — اگه الان خارج بشی ممکنه بخشی از اطلاعات ثبت نشه. مطمئنی؟');
 }
 async function parseJsonResponse(res){
@@ -3081,7 +3092,7 @@ function pushSectionHistory(name, isHome){
   history.pushState({section:name}, '', '#'+name);
 }
 window.addEventListener('beforeunload', function(e){
-  if(window._submissionInProgress){
+  if(isSubmissionBusy()){
     e.preventDefault();
     e.returnValue = '';
   }
@@ -3677,7 +3688,7 @@ async function saveSingleBulkDay(d){
     var offChk = document.getElementById('bulkDay'+d+'Off');
     var missionChk = document.getElementById('bulkDay'+d+'Mission');
 
-    window._submissionInProgress = true;
+    markSubmissionBusy();
 
     if(leaveChk && leaveChk.checked){
       if(ex.inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.inId}); });
@@ -3687,9 +3698,9 @@ async function saveSingleBulkDay(d){
         var lres = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
           pin: adminPin, username: username, entries: [{date: jalaliDate, requestType:'leave', leaveType:'daily'}], leaveCategory: leaveCategory
         }); });
-        if(!lres.ok){ statusEl.textContent = '⛔ ثبت مرخصی ناموفق بود: ' + (lres.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+        if(!lres.ok){ statusEl.textContent = '⛔ ثبت مرخصی ناموفق بود: ' + (lres.error||''); statusEl.style.display='block'; clearSubmissionBusy(); return; }
       }
-      window._submissionInProgress = false;
+      clearSubmissionBusy();
       alert(d + 'ام ذخیره شد.');
       await loadMonthDaysForBulkEntry();
       return;
@@ -3712,7 +3723,7 @@ async function saveSingleBulkDay(d){
         var mres = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
           pin: adminPin, username: username, entries: [mEntry]
         }); });
-        if(!mres.ok){ statusEl.textContent = '⛔ ثبت ماموریت ناموفق بود: ' + (mres.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+        if(!mres.ok){ statusEl.textContent = '⛔ ثبت ماموریت ناموفق بود: ' + (mres.error||''); statusEl.style.display='block'; clearSubmissionBusy(); return; }
       }
       // also save the mission's start/end time as real Log entries, so it shows up in the report
       var mToCreate = [], mToUpdate = [], mToDelete = [];
@@ -3742,17 +3753,17 @@ async function saveSingleBulkDay(d){
       }
       if(mToCreate.length){
         var mcres = await apiCall(function(){ return apiPost('adminAddLogBatch', {pin: adminPin, username: username, project: project, entries: mToCreate}); });
-        if(!mcres.ok){ statusEl.textContent = '⛔ ثبتِ ساعتِ ماموریت ناموفق بود: ' + (mcres.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+        if(!mcres.ok){ statusEl.textContent = '⛔ ثبتِ ساعتِ ماموریت ناموفق بود: ' + (mcres.error||''); statusEl.style.display='block'; clearSubmissionBusy(); return; }
       }
       if(mToUpdate.length){
         var mupPayload = mToUpdate.map(function(u){ return {id: u.id, jalaliDate: u.jalaliDate, time: u.time, employee: employeeFullName, project: project, type: u.type}; });
         var mures = await apiCall(function(){ return apiPost('updateLogBatch', {pin: adminPin, updates: mupPayload}); });
-        if(!mures.ok){ statusEl.textContent = '⛔ ویرایشِ ساعتِ ماموریت ناموفق بود: ' + (mures.error||''); statusEl.style.display='block'; window._submissionInProgress=false; return; }
+        if(!mures.ok){ statusEl.textContent = '⛔ ویرایشِ ساعتِ ماموریت ناموفق بود: ' + (mures.error||''); statusEl.style.display='block'; clearSubmissionBusy(); return; }
       }
       if(mToDelete.length){
         await apiCall(function(){ return apiPost('deleteLogBatch', {pin: adminPin, ids: mToDelete}); });
       }
-      window._submissionInProgress = false;
+      clearSubmissionBusy();
       alert(d + 'ام ذخیره شد.');
       await loadMonthDaysForBulkEntry();
       return;
@@ -3768,7 +3779,7 @@ async function saveSingleBulkDay(d){
       await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
         pin: adminPin, username: username, allDatesInMonth: [jalaliDate], entries: [{jalaliDate: jalaliDate, status: statusVal}]
       }); });
-      window._submissionInProgress = false;
+      clearSubmissionBusy();
       alert(d + 'ام ذخیره شد.');
       await loadMonthDaysForBulkEntry();
       return;
@@ -3850,7 +3861,7 @@ async function saveSingleBulkDay(d){
     }); });
 
     if(toCreateS.length===0 && toUpdateS.length===0 && toDeleteS.length===0){
-      window._submissionInProgress = false;
+      clearSubmissionBusy();
       alert('هیچ تغییری برای این روز وجود نداره.');
       return;
     }
@@ -3869,7 +3880,7 @@ async function saveSingleBulkDay(d){
       if(!uresS.ok){
         statusEl.textContent = '⛔ ویرایش ناموفق بود' + (uresS.row ? (' — ثبتِ ' + uresS.row) : '') + ': ' + friendlyLogErrorMsg(uresS.error, uresS.at);
         statusEl.style.display = 'block';
-        window._submissionInProgress = false;
+        clearSubmissionBusy();
         return;
       }
     }
@@ -3889,18 +3900,18 @@ async function saveSingleBulkDay(d){
           : (resS.error || 'خطای شبکه');
         statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msgS;
         statusEl.style.display = 'block';
-        window._submissionInProgress = false;
+        clearSubmissionBusy();
         return;
       }
     }
 
-    window._submissionInProgress = false;
+    clearSubmissionBusy();
     alert(d + 'ام ذخیره شد.');
     await loadMonthDaysForBulkEntry();
   } catch(err){
     statusEl.textContent = '⛔ خطای غیرمنتظره: ' + (err && err.message ? err.message : String(err));
     statusEl.style.display = 'block';
-    window._submissionInProgress = false;
+    clearSubmissionBusy();
   }
 }
 async function submitMonthlyBulkLog(){
@@ -4092,7 +4103,7 @@ async function submitMonthlyBulkLog(){
     if(statusChanged) summary.push('علامت‌های غیبت/Off به‌روزرسانی می‌شن');
     if(!confirm(summary.join('، ') + ' — اعمال بشه؟')) return;
 
-    window._submissionInProgress = true;
+    markSubmissionBusy();
     var totalSteps = (leaveIdsToDelete.length?1:0) + (leaveEntries.length?1:0) + (toCreate.length?1:0) + (toUpdate.length?1:0) + (toDelete.length?1:0) + (statusChanged?1:0);
     var stepsDone = 0;
     function stepProgress(label){
@@ -4119,7 +4130,7 @@ async function submitMonthlyBulkLog(){
       if(!lres.ok){
         statusEl.textContent = '⛔ ثبت مرخصی/ماموریت ناموفق بود: ' + (lres.error||'');
         statusEl.style.display = 'block';
-        window._submissionInProgress = false;
+        clearSubmissionBusy();
         hideBulkProgress();
         return;
       }
@@ -4141,7 +4152,7 @@ async function submitMonthlyBulkLog(){
         // می‌شن تا معلوم باشه دقیقاً کدوم دو تا به هم خورده‌ن.
         statusEl.textContent = '⛔ ویرایش ناموفق بود' + (ures.row ? (' — ثبتِ ' + ures.row) : '') + ': ' + friendlyLogErrorMsg(ures.error, ures.at);
         statusEl.style.display = 'block';
-        window._submissionInProgress = false;
+        clearSubmissionBusy();
         hideBulkProgress();
         return;
       }
@@ -4178,7 +4189,7 @@ async function submitMonthlyBulkLog(){
           statusEl.textContent = '⛔ ثبت ناموفق بود: ' + msg;
           statusEl.style.display = 'block';
           showAdminNotice('ثبت گروهی ناموفق بود: ' + msg);
-          window._submissionInProgress = false;
+          clearSubmissionBusy();
           hideBulkProgress();
           return;
         }
@@ -4194,7 +4205,7 @@ async function submitMonthlyBulkLog(){
     }
 
     showBulkProgress(100, 'انجام شد!');
-    window._submissionInProgress = false;
+    clearSubmissionBusy();
     clearAdminNotice();
     setTimeout(function(){
       hideBulkProgress();
@@ -4205,13 +4216,13 @@ async function submitMonthlyBulkLog(){
   } catch(err){
     statusEl.textContent = '⛔ خطای غیرمنتظره: ' + (err && err.message ? err.message : String(err)) + ' — اگه داده‌ای ذخیره شده، از گزارش چک کن، بعد دوباره تلاش کن.';
     statusEl.style.display = 'block';
-    window._submissionInProgress = false;
+    clearSubmissionBusy();
     hideBulkProgress();
   }
 }
 function closeAdminLogSheet(){
   if(!confirmLeaveIfBusy()) return;
-  window._submissionInProgress = false;
+  clearSubmissionBusy();
   document.getElementById('adminLogOverlay').classList.remove('open');
   document.getElementById('adminLogSheet').classList.remove('open');
   hideBulkProgress();
@@ -5242,7 +5253,7 @@ function renderOpenSessions(){
     box.innerHTML = list.map(function(r){
       return '<div class="list-item"><div>'+
         '<b>'+esc(currentEmployeeName(r.username, r.employee))+'</b>'+(r.employeeCode?(' (کد '+esc(r.employeeCode)+')'):'')+' · '+esc(r.project)+
-        '<div class="meta">ورود: <bdi dir="ltr" style="unicode-bidi:isolate;">'+esc(r.jalaliDate)+' '+esc(r.time)+'</bdi> — هنوز خروج نزده</div>'+
+        '<div class="meta">ورود: <bdi style="unicode-bidi:isolate;">'+esc(r.jalaliDate)+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate;">'+esc(r.time)+'</bdi> — هنوز خروج نزده</div>'+
         '<div class="date-row" style="margin-top:8px; align-items:center; flex-wrap:wrap;">'+
           buildDateSelects('openClose'+r.id, r.jalaliDate)+
           '<input type="time" id="openCloseTime'+r.id+'" step="1" class="field-mono" style="width:104px;">'+
@@ -7012,8 +7023,8 @@ async function loadMyLogs(){
     var holBadge = isHolidayEntry(p.inE||p.outE) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
     var inNote = p.inE ? displayNote(p.inE.note) : '';
     var outNote = p.outE ? displayNote(p.outE.note) : '';
-    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
-    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi> <bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
+    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi> <bdi style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
+    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi> <bdi style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
     var projHtml = p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>';
     return '<div class="list-item"><div>'+
       '<b>'+projHtml+'</b>'+holBadge+
@@ -7174,8 +7185,16 @@ function renderDataTable(rows, columns, emptyText){
   }).join('') + '</tbody>';
   return '<div class="data-table-wrap"><table class="data-table">' + head + body + '</table></div>';
 }
+// عددها و ساعت‌ها باید چپ‌به‌راست باشن، ولی تاریخِ شمسی («۲۸ شهریور ۱۴۰۵») متنِ فارسیه و اگه
+// به‌زور dir="ltr" بشه، ترتیبش به‌هم می‌ریزه و روز میفته بعد از نامِ ماه. پس هر مقداری که حرفِ
+// فارسی داره، فقط ایزوله می‌شه و جهتش خودکار (راست‌به‌چپ) می‌مونه.
+function hasPersianLetters(v){
+  return /[\u0600-\u06FF]/.test(String(v||''));
+}
 function ltrCell(v){
-  return v ? '<bdi dir="ltr" style="unicode-bidi:isolate;">' + esc(v) + '</bdi>' : '';
+  if(!v) return '';
+  if(hasPersianLetters(v)) return '<bdi style="unicode-bidi:isolate;">' + esc(v) + '</bdi>';
+  return '<bdi dir="ltr" style="unicode-bidi:isolate;">' + esc(v) + '</bdi>';
 }
 // ---------- پنل‌هایِ داشبورد ----------
 // درخواست‌ها: هم درخواست‌هایِ ترددی (Requests) و هم مرخصی/ماموریت (LeaveRequests)، با نوعِ
@@ -8102,11 +8121,11 @@ function renderLogTable(){
       if(!e) return '<span style="color:#b5ae98;">—</span> '+editBtn;
       var noteDisp2 = displayNote(e.note);
       var noteHtml = noteDisp2 ? '<br><span style="color:#a32a2a; font-size:10px;">'+esc(noteDisp2)+'</span>' : '';
-      var dateHtml = '<br><bdi dir="ltr" style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+e.jalaliDate+')</bdi>';
+      var dateHtml = '<br><bdi style="unicode-bidi:isolate; font-size:11px; color:#1f7a4d;">('+e.jalaliDate+')</bdi>';
       return '<bdi dir="ltr" class="mono" style="unicode-bidi:isolate;">'+e.time+'</bdi> '+editBtn+dateHtml+noteHtml;
     }
     var pairActions = '<button class="icon-btn del" title="حذف کل ردیف (ورود و خروج)" onclick="deleteLogPair(\''+(p.inE?p.inE.id:'')+'\',\''+(p.outE?p.outE.id:'')+'\')">✕</button>';
-    return '<tr><td><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+nightHtml+'</td>'+
+    return '<tr><td><bdi style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi>'+holHtml+nightHtml+'</td>'+
       '<td>'+nameWithCode(p.username, p.employee, p.employeeCode)+'</td><td>'+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+'</td>'+
       '<td>'+cellFor(p.inE,'in')+'</td><td>'+cellFor(p.outE,'out')+'</td>'+
       '<td style="white-space:nowrap;">'+pairActions+'</td></tr>';
