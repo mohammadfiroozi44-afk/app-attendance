@@ -1073,6 +1073,10 @@
       <div class="divider"></div>
       <label>حداکثر تعدادِ پرسنل</label>
       <input type="number" id="suMaxEmployees" min="0" placeholder="۰ = بدونِ محدودیت">
+      <div class="divider"></div>
+      <label>منوهایِ فعال</label>
+      <div class="hint" style="margin-top:-6px;">هر منویی که تیکش برداشته بشه، دیگه تویِ اون پنل نمایش داده نمی‌شه. منوهایی که بعداً به برنامه اضافه بشن، خودشون همین‌جا ظاهر می‌شن و پیش‌فرض تیک‌خورده‌ن.</div>
+      <div id="suMenuVisibilityBox" style="margin-top:8px;"></div>
       <button type="button" class="btn btn-primary" onclick="saveSuperAdminSettingsBtn()" style="margin-top:12px;">✅ ثبتِ تنظیمات</button>
       <div class="divider"></div>
       <div style="background:#fdeaea; border:1px solid #e3a3a3; border-radius:10px; padding:14px; margin-top:6px;">
@@ -2972,6 +2976,89 @@ async function loadSuperAdminSettingsData(){
   } else {
     suLicenseNoLimit = true;
   }
+  _hiddenMenuKeys = parseHiddenMenus(res.hiddenMenus);
+  renderMenuVisibilityCheckboxes();
+}
+
+// ============================================================================
+// محدودکردنِ منوها
+// فهرستِ منوها از خودِ منویِ کناریِ برنامه خونده می‌شه، نه از یه لیستِ دستی — پس هر منویی که
+// بعداً به پنلِ مدیریت یا کارمند اضافه بشه، خودکار همین‌جا هم ظاهر می‌شه و چون تویِ فهرستِ
+// «مخفی‌ها» نیست، پیش‌فرض تیک‌خورده و قابلِ دیدنه.
+// ============================================================================
+var _hiddenMenuKeys = [];
+function parseHiddenMenus(raw){
+  try{
+    var arr = JSON.parse(raw || '[]');
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+function collectMenuItems(){
+  var out = [];
+  [['admin','admDrawer','پنلِ مدیریت'], ['emp','empDrawer','پنلِ کارمند']].forEach(function(cfg){
+    var root = document.getElementById(cfg[1]);
+    if(!root) return;
+    Array.prototype.forEach.call(root.querySelectorAll('.drawer-item'), function(el){
+      var onclick = el.getAttribute('onclick') || '';
+      // «خروج» هیچ‌وقت قابلِ مخفی‌کردن نیست — وگرنه راهی برایِ بیرون‌اومدن از پنل نمی‌مونه
+      if(/Logout/i.test(onclick)) return;
+      var label = (el.textContent || '').trim();
+      out.push({
+        panel: cfg[0], panelLabel: cfg[2], label: label,
+        key: cfg[0] + '|' + (el.id || label),
+        section: (onclick.match(/show(?:Admin|Emp)Section\('([^']+)'\)/) || [])[1] || '',
+        el: el
+      });
+    });
+  });
+  return out;
+}
+function renderMenuVisibilityCheckboxes(){
+  var box = document.getElementById('suMenuVisibilityBox');
+  if(!box) return;
+  var items = collectMenuItems();
+  var html = '';
+  ['admin','emp'].forEach(function(panel){
+    var group = items.filter(function(i){ return i.panel === panel; });
+    if(!group.length) return;
+    html += '<div class="hint" style="margin:10px 0 4px; font-weight:800; color:var(--ink);">' + esc(group[0].panelLabel) + '</div>';
+    html += group.map(function(i){
+      var checked = _hiddenMenuKeys.indexOf(i.key) === -1 ? ' checked' : '';
+      return '<label class="chk-item" style="width:100%; box-sizing:border-box;">' +
+        '<input type="checkbox" class="su-menu-chk" data-menu-key="' + esc(i.key) + '"' + checked + '> ' + esc(i.label) + '</label>';
+    }).join('');
+  });
+  box.innerHTML = html || '<div class="empty">منویی پیدا نشد</div>';
+}
+function readMenuVisibilityFromForm(){
+  var hidden = [];
+  Array.prototype.forEach.call(document.querySelectorAll('.su-menu-chk'), function(chk){
+    if(!chk.checked) hidden.push(chk.getAttribute('data-menu-key'));
+  });
+  return hidden;
+}
+// اعمالِ فهرست رویِ خودِ منوها
+function applyMenuVisibility(){
+  collectMenuItems().forEach(function(i){
+    i.el.style.display = (_hiddenMenuKeys.indexOf(i.key) >= 0) ? 'none' : '';
+  });
+}
+function isMenuSectionHidden(panel, section){
+  return collectMenuItems().some(function(i){
+    return i.panel === panel && i.section === section && _hiddenMenuKeys.indexOf(i.key) >= 0;
+  });
+}
+// اگه بخشی که قراره باز بشه مخفی شده، به اولین بخشِ قابلِ دیدن می‌ریم
+function firstVisibleSection(panel){
+  var found = collectMenuItems().filter(function(i){
+    return i.panel === panel && i.section && _hiddenMenuKeys.indexOf(i.key) === -1;
+  })[0];
+  return found ? found.section : '';
+}
+async function loadMenuVisibility(){
+  var res = await apiCall(function(){ return apiPost('getMenuVisibility', {}, true); });
+  if(res && res.ok) _hiddenMenuKeys = parseHiddenMenus(res.hiddenMenus);
+  applyMenuVisibility();
 }
 function setDateSelectFromStr(prefix, dateStr){
   var p = parseJalaliDateStr(dateStr);
@@ -2989,10 +3076,13 @@ async function saveSuperAdminSettingsBtn(){
     suUsername: suUsername, suPassword: suPassword,
     licenseStart: suLicenseNoLimit ? '' : readDateSelect('suLicenseStart'),
     licenseEnd: suLicenseNoLimit ? '' : readDateSelect('suLicenseEnd'),
-    maxEmployees: document.getElementById('suMaxEmployees').value || 0
+    maxEmployees: document.getElementById('suMaxEmployees').value || 0,
+    hiddenMenus: JSON.stringify(readMenuVisibilityFromForm())
   };
   var res = await apiCall(function(){ return apiPost('saveSuperAdminSettings', payload); });
   if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
+  _hiddenMenuKeys = readMenuVisibilityFromForm();
+  applyMenuVisibility(); // بدونِ نیاز به بارگذاریِ دوباره‌یِ صفحه، همین الان اعمال می‌شه
   alert('تنظیمات ذخیره شد.');
   closeSuperAdminModal();
 }
@@ -4378,6 +4468,12 @@ async function submitLeaveFromSheet(){
 }
 
 function showEmpSection(name){
+  // اگه این منو توسطِ سوپرادمین مخفی شده، به اولین منویِ قابلِ دیدن می‌ریم — تا بخشِ مخفی‌شده
+  // از هیچ مسیری (دکمه‌یِ برگشت، لینکِ داخلی، حالتِ ذخیره‌شده) باز نشه.
+  if(isMenuSectionHidden('emp', name)){
+    var fallbackES = firstVisibleSection('emp');
+    if(fallbackES && fallbackES !== name){ showEmpSection(fallbackES); return; }
+  }
   ['checkin','request','history','perf','daily','myshift','messages'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
@@ -4416,6 +4512,10 @@ function refreshCurrentAdminSection(){
 }
 var _lastAdminSection = null;
 function showAdminSection(name){
+  if(isMenuSectionHidden('admin', name)){
+    var fallbackAS = firstVisibleSection('admin');
+    if(fallbackAS && fallbackAS !== name){ showAdminSection(fallbackAS); return; }
+  }
   // Leaving "شیفت" without saving shouldn't leave stale, half-typed data sitting in the form
   // for next time — reset it exactly the same way the "لغو ویرایش" button already does.
   if(_lastAdminSection === 'shifts' && name !== 'shifts' && typeof cancelShiftEdit === 'function'){
@@ -8848,6 +8948,7 @@ function init(){
   document.getElementById('mainApp').style.display='block';
 
   loadProjectsPublic();
+  loadMenuVisibility(); // منوهایی که سوپرادمین خاموششون کرده، همون اولِ کار مخفی می‌شن
 
   var savedEmp = localStorage.getItem('loggedInEmployee');
   if(savedEmp){
