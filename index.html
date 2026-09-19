@@ -174,8 +174,6 @@
     .dash-bar{ width:9px; border-radius:3px 3px 0 0; transition:height .3s; min-height:2px; }
     .dash-bar-hourlabel{ font-size:10px; color:var(--muted); margin-top:2px; }
     .dash-traffic-table{ display:table; width:100%; border-collapse:collapse; }
-    #dashTodayTraffic{ display:none !important; } /* desktop shows the table version instead */
-    #dashTodayTrafficTable{ display:table !important; }
     .dash-traffic-table .dtr{ display:table-row; }
     .dash-traffic-table .dtr:not(.dth):hover{ background:var(--paper-2); }
     .dash-traffic-table .dtc{ display:table-cell; padding:11px 10px; border-bottom:1px solid var(--border-soft); font-size:13.5px; vertical-align:middle; }
@@ -246,6 +244,31 @@
     .erp-modal-close:hover{ background:var(--border-soft); }
     .erp-modal-trigger{ display:inline-flex; width:auto; margin-bottom:14px; }
   }
+  /* ---- جدولِ عمومیِ داده ----
+     همه‌یِ فهرست‌هایِ گزارشی (داشبورد، گزارش‌ها، سوابقِ پرسنل) از همین یک استایل استفاده
+     می‌کنن تا همه‌جا یک‌شکل باشه. رویِ گوشی هم جدول می‌مونه، فقط اگه ستون‌ها جا نشدن
+     افقی اسکرول می‌شه — نه اینکه به ردیف‌هایِ زیرِ هم تبدیل بشه. */
+  .data-table-wrap{ width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table.data-table{
+    width:100%; border-collapse:collapse; font-size:12.5px; background:var(--paper);
+    border:1px solid var(--border-soft); border-radius:var(--r-md); overflow:hidden;
+  }
+  table.data-table th, table.data-table td{
+    padding:8px 10px; text-align:right; border-bottom:1px solid var(--border-soft);
+    white-space:nowrap; vertical-align:middle;
+  }
+  table.data-table th{
+    background:var(--paper-2); font-size:11.5px; font-weight:800; color:var(--muted);
+    position:sticky; top:0; z-index:1;
+  }
+  table.data-table tbody tr:last-child td{ border-bottom:none; }
+  table.data-table tbody tr:hover{ background:var(--paper-2); }
+  table.data-table td.dt-wrap{ white-space:normal; min-width:150px; }
+  table.data-table .dt-muted{ color:var(--muted); }
+  @media (min-width: 1024px){
+    table.data-table{ font-size:13px; }
+  }
+
   /* چهار پنلِ روزِ جاریِ داشبورد — گوشی: ردیفی زیرِ هم، دسکتاپ: مربعِ ۲×۲ */
   .dash-quad-grid{ display:grid; grid-template-columns:1fr; gap:14px; margin-top:14px; }
   .dash-quad-cell{
@@ -1131,7 +1154,6 @@
         <div class="dash-quad-cell">
           <div class="eyebrow">تردد‌های امروز</div>
           <div id="dashTodayTraffic" class="empty">در حال بارگذاری...</div>
-          <div class="dash-traffic-table" id="dashTodayTrafficTable" style="display:none;"></div>
         </div>
         <div class="dash-quad-cell">
           <div class="eyebrow">غایبینِ امروز</div>
@@ -1876,9 +1898,18 @@
           <option value="بدون‌حقوق">بدون‌حقوق</option>
         </select>
       </div>
-      <label>تاریخ</label>
+      <label id="adminLogDateLabel">تاریخ</label>
       <div class="date-row">
         <select id="adminLogDay"></select><select id="adminLogMonth"></select><select id="adminLogYear"></select>
+      </div>
+      <!-- تاریخِ پایانِ بازه — فقط برایِ مرخصی/ماموریتِ کلِ روز نشون داده می‌شه تا بشه چند
+           روزِ پشتِ سرِ هم رو یکجا ثبت کرد، نه روز به روز. -->
+      <div id="adminLogDateEndRow" style="display:none;">
+        <label>تا تاریخ</label>
+        <div class="date-row">
+          <select id="adminLogEndDay"></select><select id="adminLogEndMonth"></select><select id="adminLogEndYear"></select>
+        </div>
+        <div class="hint" style="margin-top:-4px;">اگر فقط یک روز است، همین تاریخ را مثل تاریخ شروع بگذار.</div>
       </div>
       <div id="adminLogTimeRow">
         <label>ساعت</label>
@@ -4193,6 +4224,21 @@ function onAdminLogTypeChange(){
   document.getElementById('adminLogLeaveCategoryRow').style.display = isLeaveAny ? 'block' : 'none';
   document.getElementById('adminLogHourlyRow').style.display = (type === 'leaveHourly') ? 'block' : 'none';
   document.getElementById('adminLogTimeRow').style.display = (isLeaveOrMission || isAbsenceOrOff) ? 'none' : 'block';
+  // بازه‌یِ تاریخ فقط برایِ مرخصی و ماموریتِ کلِ روز معنی داره — مرخصیِ ساعتی و ورود/خروج و
+  // غیبت/آف همگی مالِ یک روزِ مشخصن.
+  var isRange = (type === 'leave' || type === 'mission');
+  document.getElementById('adminLogDateEndRow').style.display = isRange ? 'block' : 'none';
+  document.getElementById('adminLogDateLabel').textContent = isRange ? 'از تاریخ' : 'تاریخ';
+  if(isRange) syncAdminLogEndDateToStart();
+}
+// پیش‌فرضِ تاریخِ پایان همون تاریخِ شروعه، تا اگه فقط یک روزه، کاربر کاری نداشته باشه
+function syncAdminLogEndDateToStart(){
+  ['Day','Month','Year'].forEach(function(part){
+    var startSel = document.getElementById('adminLog'+part);
+    var endSel = document.getElementById('adminLogEnd'+part);
+    if(!startSel || !endSel) return;
+    if(!endSel.value) endSel.value = startSel.value;
+  });
 }
 async function submitAdminLog(){
   var username = document.getElementById('adminLogEmp').value;
@@ -4211,9 +4257,14 @@ async function submitAdminLog(){
     // مرخصیِ ساعتی همون مسیرِ سرورِ مرخصیِ عادی رو می‌ره — سرور از قبل leaveType='hourly' با
     // startTime/endTime رو پشتیبانی می‌کرد و خودش مدتش رو حساب و ثبت می‌کنه.
     var reqTypeAL = (type === 'mission') ? 'mission' : 'leave';
+    // برایِ مرخصی/ماموریتِ کلِ روز، تاریخِ پایانِ بازه هم فرستاده می‌شه؛ برایِ ساعتی همون یک روز.
+    var endDateAL = isHourlyAL ? jalaliDate : (readDateSelect('adminLogEnd') || jalaliDate);
+    if(!isHourlyAL && jalaliDateSortKeyClient(endDateAL) < jalaliDateSortKeyClient(jalaliDate)){
+      alert('تاریخِ پایان نمی‌تواند قبل از تاریخِ شروع باشد'); return;
+    }
     var res = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
       pin: adminPin, username: username,
-      entries: [{date: jalaliDate, requestType: reqTypeAL, leaveType: (isHourlyAL ? 'hourly' : 'daily'), startTime: startAL, endTime: endAL, project: project}],
+      entries: [{date: jalaliDate, endDate: endDateAL, requestType: reqTypeAL, leaveType: (isHourlyAL ? 'hourly' : 'daily'), startTime: startAL, endTime: endAL, project: project}],
       leaveCategory: leaveCat, reason: reasonVal || (reqTypeAL === 'leave' ? 'ثبت مستقیم مرخصی توسط مدیر' : 'ثبت مستقیم ماموریت توسط مدیر')
     }); });
     if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + (res.error||'')); return; }
@@ -6982,19 +7033,29 @@ async function loadMyHistory(){
   var yearFilter = document.getElementById('myHistFilterYear').value;
   var entries = (res.logs||[]).filter(function(e){ return matchesMonthYear(e.jalaliDate, monthFilter, yearFilter); });
   var pairs = pairLogEntriesForDisplay(entries).slice().reverse(); // newest first for browsing history
-  if(pairs.length===0){ box.innerHTML = '<div class="empty">ثبتی یافت نشد</div>'; return; }
-  box.innerHTML = pairs.map(function(p){
-    var holBadge = isHolidayEntry(p.inE||p.outE) ? ' · <span style="color:#1f7a4d;">🎌 '+esc(holidayReasonOf(p.inE||p.outE))+'</span>' : '';
-    var inNote = p.inE ? displayNote(p.inE.note) : '';
-    var outNote = p.outE ? displayNote(p.outE.note) : '';
-    var inHtml = p.inE ? ('<span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(inNote?(' · '+esc(inNote)):'')) : '<span style="color:#b5ae98;">بدون ورود</span>';
-    var outHtml = p.outE ? ('<span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(outNote?(' · '+esc(outNote)):'')) : '<span style="color:#b5ae98;">بدون خروج</span>';
-    var projHtml = p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>';
-    return '<div class="list-item"><div>'+
-      '<b>'+projHtml+'</b>'+holBadge+
-      '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+p.jalaliDate+'</bdi></div>'+
-      '<div class="meta">'+inHtml+'</div><div class="meta">'+outHtml+'</div></div></div>';
-  }).join('');
+  box.innerHTML = renderDataTable(pairs, [
+    {title:'تاریخ', cell:function(p){
+      var holBadge = isHolidayEntry(p.inE||p.outE) ? ' <span style="color:#1f7a4d;" title="'+esc(holidayReasonOf(p.inE||p.outE))+'">🎌</span>' : '';
+      return ltrCell(p.jalaliDate) + holBadge;
+    }},
+    {title:'ورود', cell:function(p){ return p.inE ? ltrCell(p.inE.time) : '<span class="dt-muted">بدون ورود</span>'; }},
+    {title:'خروج', cell:function(p){ return p.outE ? ltrCell(p.outE.time) : '<span class="dt-muted">بدون خروج</span>'; }},
+    {title:'مدت', cell:function(p){
+      if(!p.inE || !p.outE) return '';
+      var mins = Math.round((new Date(p.outE.isoTimestamp).getTime() - new Date(p.inE.isoTimestamp).getTime())/60000);
+      if(!isFinite(mins) || mins <= 0) return '';
+      return ltrCell(Math.floor(mins/60) + ':' + (mins%60 < 10 ? '0' : '') + (mins%60));
+    }},
+    {title:'پروژه', cell:function(p){ return p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>'; }, wrap:true},
+    {title:'توضیح', cell:function(p){
+      var notes = [];
+      var inNote = p.inE ? displayNote(p.inE.note) : '';
+      var outNote = p.outE ? displayNote(p.outE.note) : '';
+      if(inNote) notes.push('ورود: ' + inNote);
+      if(outNote) notes.push('خروج: ' + outNote);
+      return esc(notes.join(' · '));
+    }, wrap:true}
+  ], 'ثبتی یافت نشد');
 }
 function updateTodayStatusHint(){
   var hint = todayLastType === 'ورود'
@@ -7078,7 +7139,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','adminLogEnd','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
@@ -7096,6 +7157,26 @@ function readDateSelect(prefix){
 }
 
 // ---------- Holidays ----------
+// ---------- جدولِ عمومیِ داده ----------
+// تنها جایی که HTMLِ جدول ساخته می‌شه. هر گزارشی فقط ستون‌هاش و ردیف‌هاش رو می‌ده.
+// columns: [{title:'نام', cell:function(row){ return 'HTML' }, wrap:true}]
+// مقدارِ برگشتیِ cell به‌عنوانِ HTML درج می‌شه، پس هر جا متنِ خام داری خودت esc کن.
+function renderDataTable(rows, columns, emptyText){
+  if(!rows || rows.length === 0){
+    return '<div class="empty">' + (emptyText || 'موردی یافت نشد') + '</div>';
+  }
+  var head = '<thead><tr>' + columns.map(function(c){ return '<th>' + c.title + '</th>'; }).join('') + '</tr></thead>';
+  var body = '<tbody>' + rows.map(function(r, i){
+    return '<tr>' + columns.map(function(c){
+      var v = c.cell(r, i);
+      return '<td' + (c.wrap ? ' class="dt-wrap"' : '') + '>' + (v === '' || v === null || v === undefined ? '<span class="dt-muted">—</span>' : v) + '</td>';
+    }).join('') + '</tr>';
+  }).join('') + '</tbody>';
+  return '<div class="data-table-wrap"><table class="data-table">' + head + body + '</table></div>';
+}
+function ltrCell(v){
+  return v ? '<bdi dir="ltr" style="unicode-bidi:isolate;">' + esc(v) + '</bdi>' : '';
+}
 // ---------- پنل‌هایِ داشبورد ----------
 // درخواست‌ها: هم درخواست‌هایِ ترددی (Requests) و هم مرخصی/ماموریت (LeaveRequests)، با نوعِ
 // درخواست و وضعیتش (تاییدشده / ردشده / دیده‌نشده). برخلافِ چهار پنلِ دیگه، این یکی محدود به
@@ -7106,12 +7187,12 @@ function dashStatusBadge(status){
   if(st === 'rejected') return '<span class="out-tag">ردشده</span>';
   return '<span style="background:#a3701a22; color:#a3701a; border-radius:6px; padding:1px 7px; font-size:11px;">دیده‌نشده</span>';
 }
-function renderDashboardRequests(attendanceReqs, leaveReqs){
+function renderDashboardRequests(attendanceReqs, leaveReqs, todayStr){
   var box = document.getElementById('dashRequests');
   if(!box) return;
   var items = [];
   (attendanceReqs||[]).forEach(function(r){
-    var typeTxt = (r.type === 'in') ? 'درخواستِ ثبتِ ورود' : ((r.type === 'out') ? 'درخواستِ ثبتِ خروج' : 'درخواستِ تردد');
+    var typeTxt = (r.type === 'in') ? 'ثبتِ ورود' : ((r.type === 'out') ? 'ثبتِ خروج' : 'تردد');
     items.push({
       username: r.username, employee: r.employee, employeeCode: r.employeeCode,
       typeTxt: typeTxt, status: r.status,
@@ -7126,35 +7207,39 @@ function renderDashboardRequests(attendanceReqs, leaveReqs){
     if(r.leaveType === 'hourly' && r.startTime && r.endTime) rangeTxt += ' (' + r.startTime + ' تا ' + r.endTime + ')';
     items.push({
       username: r.username, employee: r.employee, employeeCode: r.employeeCode,
-      typeTxt: (isMission ? 'درخواستِ ماموریت' : 'درخواستِ مرخصی') + ' — ' + kindTxt,
+      typeTxt: (isMission ? 'ماموریت' : 'مرخصی') + ' — ' + kindTxt,
       status: r.status, dateTxt: rangeTxt,
       createdAt: r.createdAt||'', createdTime: r.createdTime||''
     });
   });
-  if(items.length === 0){
-    box.className = 'empty';
-    box.innerHTML = 'درخواستی ثبت نشده است';
-    return;
-  }
-  // تازه‌ترین‌ها بالا، و در کل حداکثر ۲۰ تا تا داشبورد شلوغ نشه
+  // فقط درخواست‌هایِ همین امروز، و هر درخواستِ دیده‌نشده‌ای که هنوز بی‌جواب مونده — حتی اگه
+  // مالِ روزهایِ قبل باشه، چون اون‌ها دقیقاً همون‌هان که نباید فراموش بشن.
+  items = items.filter(function(it){
+    var isPending = String(it.status||'').toLowerCase() === 'pending';
+    return isPending || (todayStr && it.createdAt === todayStr);
+  });
   items.sort(function(a,b){
     var ka = jalaliDateSortKeyClient(a.createdAt) + ' ' + (a.createdTime||'');
     var kb = jalaliDateSortKeyClient(b.createdAt) + ' ' + (b.createdTime||'');
     return kb.localeCompare(ka);
   });
-  items = items.slice(0, 20);
   box.className = '';
-  box.innerHTML = items.map(function(it){
-    return '<div class="list-item"><div><b>' + nameWithCode(it.username, it.employee, it.employeeCode) + '</b> ' + dashStatusBadge(it.status) +
-      '<div class="meta">' + esc(it.typeTxt) + (it.dateTxt ? (' · <bdi dir="ltr" style="unicode-bidi:isolate;">' + esc(it.dateTxt) + '</bdi>') : '') + '</div></div></div>';
-  }).join('');
+  box.innerHTML = renderDataTable(items, [
+    {title:'نام و نام خانوادگی', cell:function(it){ return esc(it.employee||it.username); }, wrap:true},
+    {title:'کد پرسنلی', cell:function(it){ return esc(it.employeeCode||''); }},
+    {title:'نوعِ درخواست', cell:function(it){ return esc(it.typeTxt); }, wrap:true},
+    {title:'تاریخِ درخواست‌شده', cell:function(it){ return ltrCell(it.dateTxt); }, wrap:true},
+    {title:'ثبت‌شده در', cell:function(it){ return ltrCell(it.createdAt + (it.createdTime ? (' ' + it.createdTime) : '')); }},
+    {title:'وضعیت', cell:function(it){ return dashStatusBadge(it.status); }}
+  ], 'درخواستی برایِ امروز ثبت نشده و درخواستِ دیده‌نشده‌ای هم باقی نمانده');
 }
-// سه پنلِ دیگه — همگی فقط برایِ روزِ جاری، و با اسمِ خودِ افراد نه فقط تعداد
+// سه پنلِ دیگه — همگی فقط برایِ روزِ جاری، همه به‌صورتِ جدول
 function renderDashboardDayPanels(emps, hadAttendanceTodayUsers, onLeaveDetail, onMissionDetail, isTodayHoliday){
   var absentBox = document.getElementById('dashAbsentList');
   var leaveBox = document.getElementById('dashLeaveList');
   var missionBox = document.getElementById('dashMissionList');
   if(absentBox){
+    absentBox.className = '';
     if(isTodayHoliday){
       absentBox.className = 'empty';
       absentBox.innerHTML = 'امروز تعطیل است';
@@ -7162,37 +7247,28 @@ function renderDashboardDayPanels(emps, hadAttendanceTodayUsers, onLeaveDetail, 
       var absentees = emps.filter(function(e){
         return !hadAttendanceTodayUsers[e.username] && !onLeaveDetail[e.username] && !onMissionDetail[e.username];
       });
-      if(absentees.length === 0){
-        absentBox.className = 'empty';
-        absentBox.innerHTML = 'غایبی وجود ندارد';
-      } else {
-        absentBox.className = '';
-        absentBox.innerHTML = absentees.map(function(e){
-          return '<div class="list-item"><div><b>' + nameWithCode(e.username, e.fullName, e.employeeCode) + '</b>' +
-            '<div class="meta">بدونِ تردد و بدونِ مرخصی/ماموریت</div></div></div>';
-        }).join('');
-      }
+      absentBox.innerHTML = renderDataTable(absentees, [
+        {title:'نام و نام خانوادگی', cell:function(e){ return esc(e.fullName||e.username); }, wrap:true},
+        {title:'کد پرسنلی', cell:function(e){ return esc(e.employeeCode||''); }},
+        {title:'وضعیت', cell:function(){ return 'بدونِ تردد و بدونِ مرخصی/ماموریت'; }, wrap:true}
+      ], 'غایبی وجود ندارد');
     }
   }
   function renderLeaveLike(box, detailMap, emptyTxt){
     if(!box) return;
-    var users = Object.keys(detailMap);
-    if(users.length === 0){
-      box.className = 'empty';
-      box.innerHTML = emptyTxt;
-      return;
-    }
+    var rows = Object.keys(detailMap).map(function(u){ return detailMap[u]; });
     box.className = '';
-    box.innerHTML = users.map(function(u){
-      var l = detailMap[u];
-      var kindTxt = (l.leaveType === 'hourly') ? 'ساعتی' : 'روزانه';
-      var detailTxt = kindTxt;
-      if(l.leaveType === 'hourly' && l.startTime && l.endTime) detailTxt += ' · ' + l.startTime + ' تا ' + l.endTime;
-      else if(l.endDate && l.endDate !== l.startDate) detailTxt += ' · ' + l.startDate + ' تا ' + l.endDate;
-      if(l.leaveCategory) detailTxt += ' · ' + l.leaveCategory;
-      return '<div class="list-item"><div><b>' + nameWithCode(l.username, l.employee, l.employeeCode) + '</b>' +
-        '<div class="meta">' + esc(detailTxt) + '</div></div></div>';
-    }).join('');
+    box.innerHTML = renderDataTable(rows, [
+      {title:'نام و نام خانوادگی', cell:function(l){ return esc(l.employee||l.username); }, wrap:true},
+      {title:'کد پرسنلی', cell:function(l){ return esc(l.employeeCode||''); }},
+      {title:'نوع', cell:function(l){ return (l.leaveType === 'hourly') ? 'ساعتی' : 'روزانه'; }},
+      {title:'بازه', cell:function(l){
+        if(l.leaveType === 'hourly' && l.startTime && l.endTime) return ltrCell(l.startTime + ' تا ' + l.endTime);
+        if(l.endDate && l.endDate !== l.startDate) return ltrCell(l.startDate + ' تا ' + l.endDate);
+        return ltrCell(l.startDate||'');
+      }, wrap:true},
+      {title:'دسته', cell:function(l){ return esc(l.leaveCategory||''); }, wrap:true}
+    ], emptyTxt);
   }
   renderLeaveLike(leaveBox, onLeaveDetail, 'امروز کسی مرخصی نیست');
   renderLeaveLike(missionBox, onMissionDetail, 'امروز کسی در ماموریت نیست');
@@ -7285,7 +7361,7 @@ async function loadDashboard(){
     leftEl.textContent = Object.keys(checkedOutTodayUsers).length;
   }
 
-  renderDashboardRequests(reqRes.ok ? (reqRes.requests||[]) : [], leavesRes.ok ? (leavesRes.leaves||[]) : []);
+  renderDashboardRequests(reqRes.ok ? (reqRes.requests||[]) : [], leavesRes.ok ? (leavesRes.leaves||[]) : [], todayStr);
   renderDashboardDayPanels(emps, hadAttendanceTodayUsers, onLeaveDetail, onMissionDetail, isTodayHoliday);
 
   var trafficBox = document.getElementById('dashTodayTraffic');
@@ -7299,16 +7375,21 @@ async function loadDashboard(){
     var stillOpenAndRecent = !p.outE && p.inE && presentNowUsers[p.username] && (nowMsDash - new Date(p.inE.isoTimestamp).getTime())/3600000 <= PRESENCE_HOURS_LIMIT;
     return inIsToday || outIsToday || stillOpenAndRecent;
   }).sort(function(a,b){ return String(b.sortKey).localeCompare(String(a.sortKey)); });
-  if(todayPairs.length === 0){
-    trafficBox.innerHTML = '<div class="empty">هنوز تردی ثبت نشده</div>';
-  } else {
-    trafficBox.innerHTML = todayPairs.map(function(p){
-      var inHtml = p.inE ? ('<bdi style="unicode-bidi:isolate;"><span class="in-tag">ورود</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(p.inE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.inE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">بدون ورود</span>';
-      var outHtml = p.outE ? ('<bdi style="unicode-bidi:isolate;"><span class="out-tag">خروج</span> <bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(p.outE.jalaliDate!==todayStr?(' <bdi dir="ltr" style="unicode-bidi:isolate; font-size:10px; color:#1f7a4d;">('+p.outE.jalaliDate+')</bdi>'):'')+'</bdi>') : '<span style="color:#b5ae98;">هنوز حاضر</span>';
-      return '<div class="list-item"><div><b>'+nameWithCode(p.username, p.employee, p.employeeCode)+'</b> · '+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+
-        '<div class="meta" style="display:flex; gap:14px; flex-wrap:wrap;">'+inHtml+outHtml+'</div></div></div>';
-    }).join('');
-  }
+  // همون جدولِ مشترکِ بقیه‌یِ گزارش‌ها — رویِ گوشی هم جدول می‌مونه، نه ردیف‌هایِ زیرِ هم
+  trafficBox.className = '';
+  trafficBox.innerHTML = renderDataTable(todayPairs, [
+    {title:'نام و نام خانوادگی', cell:function(p){ return esc(p.employee||p.username); }, wrap:true},
+    {title:'کد پرسنلی', cell:function(p){ return esc(p.employeeCode||''); }},
+    {title:'ورود', cell:function(p){
+      if(!p.inE) return '<span class="dt-muted">بدون ورود</span>';
+      return ltrCell(p.inE.time) + (p.inE.jalaliDate !== todayStr ? (' <span class="dt-muted" style="font-size:10px;">' + esc(p.inE.jalaliDate) + '</span>') : '');
+    }},
+    {title:'خروج', cell:function(p){
+      if(!p.outE) return '<span style="color:#1f7a4d;">هنوز حاضر</span>';
+      return ltrCell(p.outE.time) + (p.outE.jalaliDate !== todayStr ? (' <span class="dt-muted" style="font-size:10px;">' + esc(p.outE.jalaliDate) + '</span>') : '');
+    }},
+    {title:'پروژه', cell:function(p){ return p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>'; }, wrap:true}
+  ], 'هنوز ترددی ثبت نشده');
 
   // Desktop-only additions below — a donut chart, an hourly bar chart, and a table version of
   // the same traffic list above. All purely presentational, built from the exact same values
@@ -7316,7 +7397,6 @@ async function loadDashboard(){
   // nothing here recalculates anything or touches the existing mobile rendering at all.
   renderDashboardDonut(presentCount, absentCount, leaveCount, emps.length);
   renderDashboardBarChart(todayPairs, todayStr);
-  renderDashboardTrafficTable(todayPairs, todayStr);
 }
 // CSS conic-gradient donut — no chart library needed. Segments are ordered present/absent/
 // leave so the legend below reads top-to-bottom in the same order as the gradient sweep.
@@ -7390,25 +7470,6 @@ function renderDashboardBarChart(todayPairs, todayStr){
 }
 // Table version of the same "امروز ترددها" list already rendered above for mobile — same
 // data (todayPairs), just laid out as proper table rows for the wider desktop view.
-function renderDashboardTrafficTable(todayPairs, todayStr){
-  var tableEl = document.getElementById('dashTodayTrafficTable');
-  if(!tableEl) return;
-  var header = '<div class="dtr dth"><div class="dtc">نام</div><div class="dtc">پروژه</div><div class="dtc">ورود</div><div class="dtc">خروج</div></div>';
-  if(todayPairs.length === 0){
-    tableEl.innerHTML = header + '<div class="dtr"><div class="dtc" style="color:var(--muted);" colspan="4">هنوز ترددی ثبت نشده</div></div>';
-    return;
-  }
-  tableEl.innerHTML = header + todayPairs.map(function(p){
-    var inHtml = p.inE ? ('<bdi dir="ltr" style="unicode-bidi:isolate;">'+p.inE.time+'</bdi>'+(p.inE.jalaliDate!==todayStr?(' <span style="font-size:10px; color:#1f7a4d;">('+esc(p.inE.jalaliDate)+')</span>'):'')) : '<span style="color:#b5ae98;">—</span>';
-    var outHtml = p.outE ? ('<bdi dir="ltr" style="unicode-bidi:isolate;">'+p.outE.time+'</bdi>'+(p.outE.jalaliDate!==todayStr?(' <span style="font-size:10px; color:#1f7a4d;">('+esc(p.outE.jalaliDate)+')</span>'):'')) : '<span style="color:#b5ae98;">هنوز حاضر</span>';
-    return '<div class="dtr">'+
-      '<div class="dtc"><b>'+nameWithCode(p.username, p.employee, p.employeeCode)+'</b></div>'+
-      '<div class="dtc">'+(p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>')+'</div>'+
-      '<div class="dtc">'+inHtml+'</div>'+
-      '<div class="dtc">'+outHtml+'</div>'+
-    '</div>';
-  }).join('');
-}
 async function loadHolidays(){
   initLeaveDateSelects();
   var res = await apiCall(function(){ return apiPost('getHolidays', {pin:adminPin}); });
@@ -7853,28 +7914,31 @@ async function loadStatusReport(status){
     var labelMap = {absence:'غیبت', leave:'مرخصی', mission:'ماموریت', holiday:'تعطیل / آف'};
     results.sort(function(a,b){ return (a.jalaliDate||'').localeCompare(b.jalaliDate||''); });
     _statusReportRows = results;
-    box.innerHTML = results.map(function(r, idx){
-      // Label each row by its OWN actual status (r.status), never by the currently-selected
-      // filter — if a row's real status ever doesn't match what was requested, this makes
-      // that visible instead of silently mislabeling it.
-      var metaExtra = '';
-      if(r.status === 'leave' && r.leaveHours){
-        metaExtra = ' — ' + (String(r.leaveKind||'').toLowerCase() === 'hourly' ? 'ساعتی' : 'روزانه') + ' (' + esc(r.leaveHours) + ')';
-      }
-      // ویرایش فقط برایِ مرخصی و ماموریت معنی داره؛ حذف برایِ هر چهار وضعیت — البته فقط
-      // وقتی این ردیف واقعاً یک رکوردِ ثبت‌شده باشه. ردیف‌هایِ غیبتی که هیچ رکوردی ندارن و
-      // صرفاً از «نبودِ تردد» نتیجه گرفته شدن، چیزی برایِ حذف‌کردن ندارن.
-      var canEdit = (r.status === 'leave' || r.status === 'mission') && r.markerId;
-      var canDelete = !!r.markerId;
-      var btns = '';
-      if(canEdit) btns += '<button type="button" class="icon-btn" title="ویرایش" onclick="openStatusMarkerEdit('+idx+')">✏️</button>';
-      if(canDelete) btns += '<button type="button" class="icon-btn" title="حذف" onclick="deleteStatusMarker('+idx+')">🗑️</button>';
-      return '<div class="list-item" id="statusRow-'+idx+'">' +
-        '<div><b>'+esc(r.fullName)+'</b>'+(r.employeeCode?(' · کد '+esc(r.employeeCode)):'')+
-        '<div class="meta"><bdi dir="ltr" style="unicode-bidi:isolate;">'+r.jalaliDate+'</bdi> — '+esc(labelMap[r.status]||r.status)+metaExtra+'</div></div>' +
-        (btns ? ('<div style="display:flex; gap:6px;">'+btns+'</div>') : '') +
-        '</div>';
-    }).join('');
+    var statusLabelsSR = labelMap;
+    box.innerHTML = renderDataTable(results, [
+      {title:'نام و نام خانوادگی', cell:function(r){ return esc(r.fullName||r.username); }, wrap:true},
+      {title:'کد پرسنلی', cell:function(r){ return esc(r.employeeCode||''); }},
+      {title:'تاریخ', cell:function(r){ return ltrCell(r.jalaliDate); }},
+      {title:'وضعیت', cell:function(r){ return esc(statusLabelsSR[r.status] || r.status); }},
+      {title:'جزئیات', cell:function(r){
+        if(r.status === 'leave' && r.leaveHours){
+          return (String(r.leaveKind||'').toLowerCase() === 'hourly' ? 'ساعتی' : 'روزانه') + ' · ' + ltrCell(r.leaveHours);
+        }
+        return '';
+      }, wrap:true},
+      {title:'عملیات', cell:function(r, idx){
+        // ویرایش فقط برایِ مرخصی و ماموریت؛ حذف برایِ هر چهار وضعیت — البته فقط وقتی این
+        // ردیف واقعاً رکوردِ ثبت‌شده‌ای داشته باشه (نه غیبتی که صرفاً از نبودِ تردد نتیجه شده).
+        var btns = '';
+        if((r.status === 'leave' || r.status === 'mission') && r.markerId){
+          btns += '<button type="button" class="icon-btn" title="ویرایش" onclick="openStatusMarkerEdit('+idx+')">✏️</button>';
+        }
+        if(r.markerId){
+          btns += '<button type="button" class="icon-btn" title="حذف" onclick="deleteStatusMarker('+idx+')">🗑️</button>';
+        }
+        return btns ? ('<div style="display:flex; gap:6px;" id="statusRow-'+idx+'">' + btns + '</div>') : '';
+      }}
+    ], 'موردی یافت نشد');
   } catch(err){
     if(myReqId !== _statusReportReqId) return;
     box.innerHTML = '<div class="empty">خطا در نمایش گزارش: ' + esc((err && err.message) || 'نامشخص') + '</div>';
@@ -7885,7 +7949,9 @@ var _statusReportRows = [];
 function openStatusMarkerEdit(idx){
   var r = _statusReportRows[idx];
   if(!r || !r.markerId) return;
-  var host = document.getElementById('statusRow-'+idx);
+  // فرمِ ویرایش زیرِ خودِ جدول باز می‌شه، نه داخلِ سلولِ جدول — وگرنه تویِ یک ستونِ باریک
+  // له می‌شد و ستون‌هایِ جدول رو هم به‌هم می‌ریخت.
+  var host = document.getElementById('statusReportList');
   if(!host) return;
   var existing = document.getElementById('statusEditBox-'+idx);
   if(existing){ existing.parentNode.removeChild(existing); return; }
@@ -7916,7 +7982,7 @@ function openStatusMarkerEdit(idx){
       '<button type="button" class="btn btn-ghost" onclick="openStatusMarkerEdit('+idx+')">انصراف</button>' +
     '</div>' +
     '<div class="hint" id="statusEditMsg-'+idx+'" style="margin-top:8px;"></div>';
-  host.parentNode.insertBefore(box, host.nextSibling);
+  host.appendChild(box);
   onStatusEditTypeChange(idx);
 }
 function onStatusEditTypeChange(idx){
