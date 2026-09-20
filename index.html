@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ثبت تردد">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -97,8 +97,8 @@
   html[data-theme="dark"] ::-webkit-scrollbar-thumb{ background:#ffffff1f; }
 
   /* Base stat-card styling — applies at every screen size, mobile included. The desktop
-     media query below only adds/overrides a few specifics (bigger padding, icon badges,
-     right-aligned text) on top of this, rather than duplicating everything. */
+     media query below only adds/overrides a few specifics (bigger padding, larger icon
+     badges, right-aligned text) on top of this, rather than duplicating everything. */
   .dash-stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .dash-stat-card{ border-radius:11px; padding:14px; text-align:center; }
   .dash-stat-card.ds-total{ background:#f7f4ea; }
@@ -113,8 +113,34 @@
   .dash-stat-card.ds-leave .dash-stat-num{ color:#8a5a10; }
   .dash-stat-card.ds-left .dash-stat-num{ color:#3b4a8f; }
   .dash-stat-card .dash-stat-label{ font-size:12px; color:#7a7360; margin-top:2px; }
-  .dash-stat-card .dash-stat-icon{ display:none; } /* icon badges are a desktop-only touch */
+  .dash-stat-card .dash-stat-icon{
+    display:flex; width:34px; height:34px; border-radius:10px; align-items:center; justify-content:center;
+    font-size:15px; margin:0 auto 8px;
+  }
+  .dash-stat-card.ds-total .dash-stat-icon{ background:#eadfba; color:var(--navy); }
+  .dash-stat-card.ds-present .dash-stat-icon{ background:#bfe8d1; color:#1f7a4d; }
+  .dash-stat-card.ds-absent .dash-stat-icon{ background:#f5c6c6; color:#a32a2a; }
+  .dash-stat-card.ds-leave .dash-stat-icon{ background:#f5d99e; color:#8a5a10; }
+  .dash-stat-card.ds-left .dash-stat-icon{ background:#c3d3f0; color:#3b4a8f; }
   .drawer-nav-group-title{ display:none; } /* section grouping in the sidebar is a desktop-only touch */
+
+  /* Colorful icon badges for the side-drawer nav — one per menu item, echoing the app's
+     dashboard stat colors so the whole nav reads as one coherent color language instead of
+     plain flat glyphs. */
+  .drawer-item .dicon{
+    display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+    width:30px; height:30px; border-radius:9px; font-size:14px;
+  }
+  .dicon-blue{ background:#dce8fb; color:#2b5faa; }
+  .dicon-green{ background:#d4f2e2; color:#1f7a4d; }
+  .dicon-red{ background:#fad2d2; color:#a32a2a; }
+  .dicon-orange{ background:#fbe3b8; color:#8a5a10; }
+  .dicon-purple{ background:#e5dcf9; color:#5b3fa0; }
+  .dicon-teal{ background:#cdf1ec; color:#1a7a6d; }
+  .dicon-pink{ background:#fbdce9; color:#a3305f; }
+  .dicon-gray{ background:#e4e7ed; color:#4a5568; }
+  .dicon-navy{ background:#d7e0f7; color:var(--navy); }
+  #admDrawer .dicon, html[data-theme="dark"] .dicon{ filter:saturate(1.15); }
 
   /* ============================================================
      Desktop ERP-style admin layout — everything below only takes
@@ -161,14 +187,8 @@
     .dash-stat-card.ds-leave::before{ background:linear-gradient(90deg, #ed8936, #f6ad55); }
     .dash-stat-card.ds-left::before{ background:linear-gradient(90deg, #9f7aea, #b794f4); }
     .dash-stat-card .dash-stat-icon{
-      display:flex; width:44px; height:44px; border-radius:12px; align-items:center; justify-content:center;
-      font-size:20px; margin-bottom:12px;
+      width:44px; height:44px; border-radius:12px; font-size:20px; margin:0 0 12px;
     }
-    .dash-stat-card.ds-total .dash-stat-icon{ background:#eadfba; }
-    .dash-stat-card.ds-present .dash-stat-icon{ background:#bfe8d1; }
-    .dash-stat-card.ds-absent .dash-stat-icon{ background:#f5c6c6; }
-    .dash-stat-card.ds-leave .dash-stat-icon{ background:#f5d99e; }
-    .dash-stat-card.ds-left .dash-stat-icon{ background:#c3d3f0; }
     .dash-stat-card .dash-stat-num{ font-size:32px; }
     .dash-stat-card .dash-stat-label{ font-size:13px; color:var(--muted); margin-top:6px; }
     .dash-charts-row{ display:grid; grid-template-columns:1fr 1.4fr; gap:20px; margin-top:20px; }
@@ -313,7 +333,7 @@
     color:var(--on-dark); margin-bottom:16px; gap:10px;
   }
   header.top .title{
-    font-weight:800; font-size:21px; letter-spacing:.1px;
+    font-weight:900; font-size:22px; letter-spacing:.1px;
     background:linear-gradient(90deg, #fff, var(--cyan));
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
@@ -505,7 +525,7 @@
     background:linear-gradient(135deg, var(--orange), var(--orange-dark)); color:#fff;
     border-color:var(--orange-dark); box-shadow:0 6px 16px -6px #e6522a60;
   }
-  .drawer-item .dicon{ font-size:19px; width:26px; text-align:center; flex-shrink:0; }
+  .drawer-item.active .dicon{ background:#ffffff30; color:#fff; }
   .tab-btn{
     flex:1; padding:11px 8px; border-radius:var(--r-sm); border:1px solid #ffffff33;
     background:#ffffff14; color:var(--on-dark); font-family:var(--sans); font-weight:600;
@@ -565,9 +585,10 @@
   .status.err{background:#fbe8e8; color:#a32a2a; border-color:#f2cfcf; border-inline-start-color:var(--err);}
 
   .eyebrow{
-    font-family:var(--mono); font-size:11px; letter-spacing:1.8px; text-transform:uppercase;
-    color:var(--orange-dark); font-weight:700; margin-bottom:10px;
+    font-family:var(--sans); font-size:14px; letter-spacing:.1px; text-transform:none;
+    color:var(--navy); font-weight:800; margin-bottom:12px;
   }
+  html[data-theme="dark"] .eyebrow{ color:var(--cyan); }
 
   table{width:100%; border-collapse:collapse; font-size:12.5px;}
   th,td{padding:8px 6px; border-bottom:1px solid var(--border-soft); text-align:right;}
@@ -763,14 +784,14 @@
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:10px;">
-      <button type="button" class="hamburger-btn" id="quickThemeBtn" title="تغییر حالت روز/شب" onclick="quickToggleTheme()">🌙</button>
+      <button type="button" class="hamburger-btn" id="quickThemeBtn" title="تغییر حالت روز/شب" onclick="quickToggleTheme()"><i class="fa-solid fa-moon"></i></button>
       <div class="clock" id="clockBox">—</div>
     </div>
   </header>
 
   <div class="tabs">
-    <button class="tab-btn active" id="tabEmpBtn" onclick="switchTab('emp')">👷 کارمند</button>
-    <button class="tab-btn" id="tabAdminBtn" onclick="switchTab('admin')">⚙️ مدیریت</button>
+    <button class="tab-btn active" id="tabEmpBtn" onclick="switchTab('emp')"><i class="fa-solid fa-helmet-safety"></i> کارمند</button>
+    <button class="tab-btn" id="tabAdminBtn" onclick="switchTab('admin')"><i class="fa-solid fa-gear"></i> مدیریت</button>
   </div>
 
   <!-- EMPLOYEE LOGIN GATE -->
@@ -794,11 +815,11 @@
   <div id="empView" style="display:none;">
     <div class="card app-header-sticky" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
       <div style="display:flex; align-items:center; gap:10px;">
-        <button type="button" class="hamburger-btn" onclick="toggleDrawer('emp')">☰</button>
+        <button type="button" class="hamburger-btn" onclick="toggleDrawer('emp')"><i class="fa-solid fa-bars"></i></button>
         <img id="empHeaderPhoto" style="display:none; width:32px; height:32px; border-radius:50%; object-fit:cover;">
         <span>خوش آمدید، <b id="empWelcomeName"></b></span>
       </div>
-      <button type="button" class="btn btn-ghost btn-small" onclick="goToHomeSection()">🏠 خانه</button>
+      <button type="button" class="btn btn-ghost btn-small" onclick="goToHomeSection()"><i class="fa-solid fa-house"></i> خانه</button>
     </div>
 
     <div class="emp-section" id="empSec-checkin">
@@ -1157,10 +1178,10 @@
 
     <div class="card app-header-sticky" style="display:flex; align-items:center; justify-content:space-between; padding:12px 18px;">
       <div style="display:flex; align-items:center; gap:10px;">
-        <button type="button" class="hamburger-btn" onclick="toggleDrawer('admin')">☰</button>
+        <button type="button" class="hamburger-btn" onclick="toggleDrawer('admin')"><i class="fa-solid fa-bars"></i></button>
         <span>⚙️ پنل مدیریت</span>
       </div>
-      <button type="button" class="btn btn-ghost btn-small" onclick="goToHomeSection()">🏠 خانه</button>
+      <button type="button" class="btn btn-ghost btn-small" onclick="goToHomeSection()"><i class="fa-solid fa-house"></i> خانه</button>
     </div>
 
     <div id="adminNotice" class="status err" style="display:none; margin-bottom:14px;"></div>
@@ -1170,27 +1191,27 @@
       <div class="eyebrow">داشبورد امروز</div>
       <div class="dash-stat-grid">
         <div class="dash-stat-card ds-total">
-          <div class="dash-stat-icon">👥</div>
+          <div class="dash-stat-icon"><i class="fa-solid fa-users"></i></div>
           <div class="dash-stat-num" id="dashTotal">—</div>
           <div class="dash-stat-label">کل پرسنل</div>
         </div>
         <div class="dash-stat-card ds-present">
-          <div class="dash-stat-icon">🟢</div>
+          <div class="dash-stat-icon"><i class="fa-solid fa-user-check"></i></div>
           <div class="dash-stat-num" id="dashPresent">—</div>
           <div class="dash-stat-label">حاضرِ الان</div>
         </div>
         <div class="dash-stat-card ds-absent">
-          <div class="dash-stat-icon">🔴</div>
+          <div class="dash-stat-icon"><i class="fa-solid fa-user-xmark"></i></div>
           <div class="dash-stat-num" id="dashAbsent">—</div>
           <div class="dash-stat-label">غایبین امروز</div>
         </div>
         <div class="dash-stat-card ds-leave">
-          <div class="dash-stat-icon">🏖</div>
+          <div class="dash-stat-icon"><i class="fa-solid fa-umbrella-beach"></i></div>
           <div class="dash-stat-num" id="dashLeave">—</div>
           <div class="dash-stat-label">مرخصی/ماموریت امروز</div>
         </div>
         <div class="dash-stat-card ds-left">
-          <div class="dash-stat-icon">🚪</div>
+          <div class="dash-stat-icon"><i class="fa-solid fa-door-open"></i></div>
           <div class="dash-stat-num" id="dashLeftToday">—</div>
           <div class="dash-stat-label">خروج‌زده‌های امروز</div>
         </div>
@@ -2046,36 +2067,36 @@
   </div>
 
   <div class="side-drawer" id="admDrawer">
-    <div class="drawer-header">⚙️ پنل مدیریت</div>
+    <div class="drawer-header"><i class="fa-solid fa-gear"></i> پنل مدیریت</div>
     <div class="drawer-nav-group-title">منوی اصلی</div>
-    <div class="drawer-item active" id="admMenu-dashboard" onclick="showAdminSection('dashboard')"><span class="dicon">🏠</span> داشبورد</div>
-    <div class="drawer-item" id="admMenu-employees" onclick="showAdminSection('employees')"><span class="dicon">👥</span> پرسنل</div>
-    <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon">📍</span> پروژه‌ها</div>
-    <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon">🕗</span> شیفت</div>
-    <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon">📨</span> درخواست‌ها</div>
-    <div class="drawer-item" id="admMenu-messages" onclick="showAdminSection('messages')"><span class="dicon">💬</span> پیام‌ها</div>
+    <div class="drawer-item active" id="admMenu-dashboard" onclick="showAdminSection('dashboard')"><span class="dicon dicon-navy"><i class="fa-solid fa-house"></i></span> داشبورد</div>
+    <div class="drawer-item" id="admMenu-employees" onclick="showAdminSection('employees')"><span class="dicon dicon-blue"><i class="fa-solid fa-users"></i></span> پرسنل</div>
+    <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon dicon-orange"><i class="fa-solid fa-location-dot"></i></span> پروژه‌ها</div>
+    <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon dicon-purple"><i class="fa-solid fa-calendar-week"></i></span> شیفت</div>
+    <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها</div>
+    <div class="drawer-item" id="admMenu-messages" onclick="showAdminSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها</div>
     <div class="drawer-nav-group-title">گزارش‌ها</div>
-    <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon">📴</span> تردد ناقص</div>
-    <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon">📊</span> گزارش</div>
-    <div class="drawer-item" id="admMenu-performance" onclick="showAdminSection('performance')"><span class="dicon">⏱️</span> کارکردها</div>
+    <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon dicon-red"><i class="fa-solid fa-triangle-exclamation"></i></span> تردد ناقص</div>
+    <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon dicon-navy"><i class="fa-solid fa-chart-column"></i></span> گزارش</div>
+    <div class="drawer-item" id="admMenu-performance" onclick="showAdminSection('performance')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکردها</div>
     <div class="drawer-nav-group-title">سیستم</div>
-    <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon">⚙️</span> تنظیمات</div>
-    <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon">🕐</span> ثبت‌ها</div>
-    <div class="drawer-item" onclick="refreshCurrentAdminSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
-    <div class="drawer-item" onclick="adminLogout()"><span class="dicon">🚪</span> خروج از مدیریت</div>
+    <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon dicon-gray"><i class="fa-solid fa-gear"></i></span> تنظیمات</div>
+    <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon dicon-teal"><i class="fa-solid fa-clock-rotate-left"></i></span> ثبت‌ها</div>
+    <div class="drawer-item" onclick="refreshCurrentAdminSection(); closeDrawer();"><span class="dicon dicon-blue"><i class="fa-solid fa-arrows-rotate"></i></span> بروزرسانی</div>
+    <div class="drawer-item" onclick="adminLogout()"><span class="dicon dicon-red"><i class="fa-solid fa-right-from-bracket"></i></span> خروج از مدیریت</div>
   </div>
 
   <div class="side-drawer" id="empDrawer">
-    <div class="drawer-header">👷 پنل کارمند</div>
-    <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon">📍</span> ثبت تردد</div>
-    <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon">📨</span> درخواست‌ها</div>
-    <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon">📋</span> سوابق من</div>
-    <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon">⏱️</span> کارکرد من</div>
-    <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon">📆</span> عملکرد روزانه</div>
-    <div class="drawer-item" id="empMenu-myshift" onclick="showEmpSection('myshift')"><span class="dicon">🕗</span> شیفت‌هایِ من</div>
-    <div class="drawer-item" id="empMenu-messages" onclick="showEmpSection('messages')"><span class="dicon">💬</span> پیام‌ها</div>
-    <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon">🔄</span> بروزرسانی</div>
-    <div class="drawer-item" onclick="employeeLogout()"><span class="dicon">🚪</span> خروج از حساب</div>
+    <div class="drawer-header"><i class="fa-solid fa-helmet-safety"></i> پنل کارمند</div>
+    <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon dicon-green"><i class="fa-solid fa-location-dot"></i></span> ثبت تردد</div>
+    <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها</div>
+    <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon dicon-blue"><i class="fa-solid fa-list"></i></span> سوابق من</div>
+    <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکرد من</div>
+    <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon dicon-orange"><i class="fa-solid fa-calendar-day"></i></span> عملکرد روزانه</div>
+    <div class="drawer-item" id="empMenu-myshift" onclick="showEmpSection('myshift')"><span class="dicon dicon-purple"><i class="fa-solid fa-calendar-week"></i></span> شیفت‌هایِ من</div>
+    <div class="drawer-item" id="empMenu-messages" onclick="showEmpSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها</div>
+    <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon dicon-blue"><i class="fa-solid fa-arrows-rotate"></i></span> بروزرسانی</div>
+    <div class="drawer-item" onclick="employeeLogout()"><span class="dicon dicon-red"><i class="fa-solid fa-right-from-bracket"></i></span> خروج از حساب</div>
   </div>
 
   </div><!-- /mainApp -->
@@ -2370,7 +2391,10 @@ function applyTheme(theme){
   var toggle = document.getElementById('themeToggleChk');
   if(toggle) toggle.checked = (theme === 'dark');
   var quickBtn = document.getElementById('quickThemeBtn');
-  if(quickBtn) quickBtn.textContent = (theme === 'dark') ? '☀️' : '🌙';
+  if(quickBtn){
+    var quickIcon = quickBtn.querySelector('i');
+    if(quickIcon) quickIcon.className = (theme === 'dark') ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+  }
 }
 function toggleTheme(){
   applyTheme(document.getElementById('themeToggleChk').checked ? 'dark' : 'light');
