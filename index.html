@@ -678,6 +678,7 @@
 
   .date-row{display:flex; gap:6px; margin-bottom:14px;}
   .date-row select{margin-bottom:0; padding:10px 4px; font-size:13px;}
+  .date-row .picker-display-btn{margin-bottom:0; padding:10px 8px; font-size:13px;}
 
   @keyframes fadeInUp{
     from{ opacity:0; transform:translateY(10px); }
@@ -2205,7 +2206,6 @@ function openCustomPicker(selectId, displayBtnId, title){
   document.getElementById('customPickerSearch').value = '';
   renderPickerOptions(_pickerOptions);
   document.getElementById('customPickerOverlay').style.display = 'flex';
-  setTimeout(function(){ document.getElementById('customPickerSearch').focus(); }, 60);
 }
 function renderPickerOptions(opts){
   var list = document.getElementById('customPickerList');
@@ -2233,6 +2233,23 @@ function selectPickerOption(value){
 }
 function closeCustomPicker(){
   document.getElementById('customPickerOverlay').style.display = 'none';
+}
+// Auto-wires a plain <select> (month/year filters etc.) into the same themed search-picker
+// used for project/personnel, without needing a hand-placed button in the HTML for each one:
+// it creates the display button once, right after the select, and reuses it on later calls.
+function autoWirePicker(selectId, title){
+  var sel = document.getElementById(selectId);
+  if(!sel) return;
+  var btnId = selectId + '_pickerBtn';
+  if(sel.dataset.pickerWired){ syncCustomSelectDisplay(selectId, btnId); return; }
+  sel.dataset.pickerWired = '1';
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = btnId;
+  btn.className = 'picker-display-btn';
+  btn.innerHTML = '<span class="picker-display-text">انتخاب کنید</span><span class="picker-arrow">▾</span>';
+  sel.insertAdjacentElement('afterend', btn);
+  wireCustomPicker(selectId, btnId, title || 'انتخاب کنید');
 }
 
 // ---------- Custom time picker (replaces the native OS "Set time" wheel) ----------
@@ -2828,6 +2845,7 @@ function employeeLogout(){
   document.getElementById('empView').style.display='none';
   updateFpQuickLoginVisibility();
   stopEmployeeMessageWatcher();
+  stopPendingOfflineWatcher();
 }
 // پاک‌کردنِ هر چیزی که رویِ صفحه از پرسنلِ قبلی مونده. بدونِ این، وقتی یکی خروج می‌زد و
 // نفرِ بعدی وارد می‌شد، تا وقتی هر بخش خودش دوباره بارگذاری نشده بود، سوابق و کارکرد و
@@ -6900,6 +6918,22 @@ function canQueueOffline(){
   }
   return {ok:true};
 }
+// Re-checks a pending offline entry's status on its own every 20s while it's outstanding, so
+// once the admin approves/rejects it, the "waiting for admin" notice clears by itself instead
+// of staying stuck until the employee happens to manually refresh the page.
+var _pendingOfflineWatcherTimer = null;
+function startPendingOfflineWatcher(){
+  if(_pendingOfflineWatcherTimer) return; // already running
+  _pendingOfflineWatcherTimer = setInterval(async function(){
+    if(!loggedInEmployee){ stopPendingOfflineWatcher(); return; }
+    await loadMyLogs(); // refreshes hasPendingOffline from the server and updates the notice
+    if(!hasPendingOffline) stopPendingOfflineWatcher();
+  }, 20000);
+}
+function stopPendingOfflineWatcher(){
+  if(_pendingOfflineWatcherTimer) clearInterval(_pendingOfflineWatcherTimer);
+  _pendingOfflineWatcherTimer = null;
+}
 function updatePendingOfflineNotice(){
   var box = document.getElementById('pendingOfflineNotice');
   if(!box) return;
@@ -7159,6 +7193,7 @@ async function loadMyLogs(){
   }
   hasPendingOffline = res.ok && res.pendingOffline && res.pendingOffline.length > 0;
   updatePendingOfflineNotice();
+  if(hasPendingOffline) startPendingOfflineWatcher(); // keeps re-checking on its own until the admin resolves it, so the notice clears without the employee having to manually refresh
 
   var queue = getOfflineQueue().filter(function(q){ return q.entry.username === loggedInEmployee.username; });
 
@@ -8997,6 +9032,8 @@ function populateMonthYearFilter(monthId, yearId, defaultToCurrent){
     monthSel.value = jMonths[curJM-1];
     yearSel.value = String(curJY);
   }
+  autoWirePicker(monthId, 'انتخابِ ماه');
+  autoWirePicker(yearId, 'انتخابِ سال');
 }
 function displayNote(rawNote){
   if(!rawNote) return '';
