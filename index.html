@@ -1142,15 +1142,15 @@
       <div class="eyebrow" style="font-size:14px;">ترددیار</div>
       <label>محدودیتِ برنامه (بازه‌ی اشتراک)</label>
       <div class="hint" style="margin-top:-6px;">فقط تویِ این بازه، مدیریت و کارمند می‌تونن واردِ برنامه بشن. خالی بذاری، هیچ محدودیتی اعمال نمی‌شه.</div>
-      <div class="date-row">
-        <div style="flex:1;">
-          <label>از تاریخ</label>
+      <div>
+        <label>از تاریخ</label>
+        <div class="date-row">
           <select id="suLicenseStartDay" onchange="suLicenseNoLimit=false"></select><select id="suLicenseStartMonth" onchange="suLicenseNoLimit=false"></select><select id="suLicenseStartYear" onchange="suLicenseNoLimit=false"></select>
         </div>
       </div>
-      <div class="date-row">
-        <div style="flex:1;">
-          <label>تا تاریخ</label>
+      <div>
+        <label>تا تاریخ</label>
+        <div class="date-row">
           <select id="suLicenseEndDay" onchange="suLicenseNoLimit=false"></select><select id="suLicenseEndMonth" onchange="suLicenseNoLimit=false"></select><select id="suLicenseEndYear" onchange="suLicenseNoLimit=false"></select>
         </div>
       </div>
@@ -1320,11 +1320,15 @@
         <div class="date-row">
           <div style="flex:1;">
             <label id="empShiftAssignStartLabel">از تاریخ</label>
-            <select id="empShiftStartDay"></select><select id="empShiftStartMonth"></select><select id="empShiftStartYear"></select>
+            <div class="date-row">
+              <select id="empShiftStartDay"></select><select id="empShiftStartMonth"></select><select id="empShiftStartYear"></select>
+            </div>
           </div>
           <div style="flex:1;" id="empShiftAssignEndWrap">
             <label>تا تاریخ</label>
-            <select id="empShiftEndDay"></select><select id="empShiftEndMonth"></select><select id="empShiftEndYear"></select>
+            <div class="date-row">
+              <select id="empShiftEndDay"></select><select id="empShiftEndMonth"></select><select id="empShiftEndYear"></select>
+            </div>
           </div>
         </div>
         <button type="button" class="btn btn-ghost" onclick="assignShiftToEmployee()">➕ ثبتِ اختصاص</button>
@@ -2248,6 +2252,10 @@ function autoWirePicker(selectId, title){
   btn.id = btnId;
   btn.className = 'picker-display-btn';
   btn.innerHTML = '<span class="picker-display-text">انتخاب کنید</span><span class="picker-arrow">▾</span>';
+  // Carries over any inline sizing the original <select> had (flex/width/margin overrides for
+  // its specific spot in a row) so swapping it for a themed button doesn't reflow that layout.
+  var inlineStyle = sel.getAttribute('style');
+  if(inlineStyle) btn.setAttribute('style', inlineStyle);
   sel.insertAdjacentElement('afterend', btn);
   wireCustomPicker(selectId, btnId, title || 'انتخاب کنید');
 }
@@ -3471,6 +3479,9 @@ async function openAdminLogSheet(){
   wireCustomPicker('adminLogEmp', 'adminLogEmpBtn', 'انتخاب پرسنل');
   var projSel = document.getElementById('adminLogProj');
   projSel.innerHTML = projects.map(function(p){ return '<option>'+esc(p.name)+'</option>'; }).join('');
+  autoWirePicker('adminLogProj', 'انتخابِ پروژه');
+  autoWirePicker('adminLogType', 'نوعِ ثبت');
+  autoWirePicker('adminLogLeaveCategory', 'نوعِ مرخصی');
   document.getElementById('adminLogTime').value = '';
   document.getElementById('adminLogReason').value = '';
   wireCustomTimePicker('adminLogTime', 'adminLogTimeBtn', 'انتخاب ساعت');
@@ -3485,6 +3496,9 @@ async function openAdminLogSheet(){
     for(var y=tj[0]+1; y>=tj[0]-3; y--){ mYearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
     mYearSel.value = String(tj[0]);
   }
+  autoWirePicker('adminLogMonthlyMonth', 'انتخابِ ماه');
+  autoWirePicker('adminLogMonthlyYear', 'انتخابِ سال');
+  autoWirePicker('bulkLeaveCategory', 'نوعِ مرخصی');
   document.getElementById('bulkDaysContainer').innerHTML = '';
   document.getElementById('bulkFixedTimeBox').style.display = 'none';
   document.getElementById('bulkSubmitBtn').style.display = 'none';
@@ -3694,6 +3708,7 @@ async function loadMonthDaysForBulkEntry(){
     wireCustomTimePicker('bulkFixedOut', 'bulkFixedOutBtn', 'ساعت خروجِ ثابت');
     document.getElementById('bulkFixedProj').innerHTML = '<option value="">— بدون تغییرِ پروژه —</option>' +
       projects.map(function(p){ return '<option>'+esc(p.name)+'</option>'; }).join('');
+    autoWirePicker('bulkFixedProj', 'انتخابِ پروژه');
     document.getElementById('bulkFixedTimeBox').style.display = 'block';
     document.getElementById('bulkSubmitBtn').style.display = 'block';
     var dayOpts = '';
@@ -3704,6 +3719,8 @@ async function loadMonthDaysForBulkEntry(){
     toSel.innerHTML = dayOpts;
     fromSel.value = '1';
     toSel.value = String(daysCount);
+    autoWirePicker('bulkRangeFrom', 'از روز');
+    autoWirePicker('bulkRangeTo', 'تا روز');
   } catch(err){
     box.innerHTML = '<div class="empty">⛔ خطا در بارگذاری: ' + esc(err && err.message ? err.message : String(err)) + '</div>';
   }
@@ -4517,6 +4534,12 @@ function openAddRequestSheet(){
   document.getElementById('reqProject2').innerHTML = allowed.map(function(p){ return '<option value="'+projects.indexOf(p)+'">'+esc(p.name)+'</option>'; }).join('');
   document.getElementById('reqTime2').value = '';
   wireCustomTimePicker('reqTime2', 'reqTime2Btn', 'انتخاب ساعت');
+  autoWirePicker('newReqCategory', 'نوعِ درخواست');
+  autoWirePicker('reqType2', 'نوع');
+  autoWirePicker('reqProject2', 'انتخابِ پروژه');
+  autoWirePicker('leaveCategory2', 'دسته‌یِ مرخصی');
+  autoWirePicker('otherSubCategory2', 'انتخابِ زیردسته');
+  autoWirePicker('leaveType2', 'نوعِ بازه');
   onReqCategoryChange();
 }
 function closeAddRequestSheet(){
@@ -4659,12 +4682,14 @@ async function refreshAdminSection(name){
   else if(name === 'requests'){
     await ensureEmployeesFresh();
     populateMonthYearFilter('reqFilterMonth','reqFilterYear', true);
+    autoWirePicker('reqFilterStatus', 'وضعیت');
     document.getElementById('reqAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
   }
   else if(name === 'messages'){
     await ensureEmployeesFresh();
     var recSel = document.getElementById('msgRecipient');
     recSel.innerHTML = '<option value="">🌐 همه‌ی پرسنل</option>' + employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+'</option>'; }).join('');
+    autoWirePicker('msgRecipient', 'گیرنده');
     document.getElementById('msgText').value = '';
     pendingMsgImageDataUrl = null;
     document.getElementById('msgImageInput').value = '';
@@ -4678,7 +4703,9 @@ async function refreshAdminSection(name){
     if(dayFilterSelR.options.length <= 1){
       for(var ddR=1; ddR<=31; ddR++){ dayFilterSelR.innerHTML += '<option value="'+ddR+'">'+ddR+'</option>'; }
     }
+    autoWirePicker('logFilterDay', 'روز');
     document.getElementById('logStatusFilter').value = 'normal';
+    autoWirePicker('logStatusFilter', 'وضعیت');
     document.getElementById('normalReportView').style.display = 'block';
     document.getElementById('statusReportView').style.display = 'none';
     document.getElementById('logTableBody').innerHTML = '<tr><td colspan="6" class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.</td></tr>';
@@ -5285,6 +5312,7 @@ async function populateEmpShiftSelect(){
   var sel = document.getElementById('empShiftAssignSelect');
   sel.innerHTML = '<option value="">شیفتِ عادی (پیش‌فرض — بدونِ شیفتِ خاص)</option>' +
     shifts.map(function(s){ return '<option value="'+s.id+'">'+esc(s.name)+'</option>'; }).join('');
+  autoWirePicker('empShiftAssignSelect', 'انتخابِ شیفت');
 }
 async function loadEmployeeShiftAssignments(username){
   var box = document.getElementById('empShiftAssignList');
@@ -5774,6 +5802,7 @@ function populateShiftYearSelect(){
   var todayD = new Date();
   var tj = toJalaali(todayD.getFullYear(), todayD.getMonth()+1, todayD.getDate());
   for(var y=tj[0]+5; y>=tj[0]-2; y--){ sel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+  autoWirePicker('shiftFormYear', 'سالِ شیفت');
 }
 // This weekly grid is purely a PATTERN used once by "ساختِ تقویم" to generate the whole
 // year's calendar — it's not itself the stored shift data (ShiftDays, keyed by specific
@@ -5885,6 +5914,8 @@ function openShiftCalendar(preGeneratedDaysMap){
   var startYear = parseInt(document.getElementById('shiftFormYear').value, 10) || parseInt(yearSel.options[0].value, 10);
   shiftCalYear = startYear; shiftCalMonth = 1;
   yearSel.value = shiftCalYear; monthSel.value = shiftCalMonth;
+  autoWirePicker('shiftCalYear', 'سال');
+  autoWirePicker('shiftCalMonth', 'ماه');
 
   if(preGeneratedDaysMap){
     // New شیفتِ ساده (client-generated) or شیفتِ سفارشی (empty) — nothing to fetch, this IS
@@ -5913,6 +5944,8 @@ function navigateShiftCalMonth(delta){
   if(shiftCalMonth < 1){ shiftCalMonth = 12; shiftCalYear--; }
   document.getElementById('shiftCalYear').value = shiftCalYear;
   document.getElementById('shiftCalMonth').value = shiftCalMonth;
+  syncCustomSelectDisplay('shiftCalYear', 'shiftCalYear_pickerBtn');
+  syncCustomSelectDisplay('shiftCalMonth', 'shiftCalMonth_pickerBtn');
   // Navigating months never re-fetches — shiftCalDaysMap already holds every month's data (the
   // full shift, not just one month), and re-fetching here would silently overwrite any local,
   // not-yet-submitted edits.
@@ -7380,6 +7413,9 @@ function initLeaveDateSelects(){
     for(var d=1; d<=31; d++){ daySel.innerHTML += '<option value="'+d+'"'+(d===tj[2]?' selected':'')+'>'+d+'</option>'; }
     jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'"'+((i+1)===tj[1]?' selected':'')+'>'+m+'</option>'; });
     for(var y=curJY-1; y<=curJY+1; y++){ yearSel.innerHTML += '<option value="'+y+'"'+(y===curJY?' selected':'')+'>'+y+'</option>'; }
+    autoWirePicker(prefix+'Day', 'انتخابِ روز');
+    autoWirePicker(prefix+'Month', 'انتخابِ ماه');
+    autoWirePicker(prefix+'Year', 'انتخابِ سال');
   });
 }
 function readDateSelect(prefix){
@@ -8273,6 +8309,7 @@ function renderLogTable(){
   if(dayFilterSel.options.length <= 1){
     for(var dd2=1; dd2<=31; dd2++){ dayFilterSel.innerHTML += '<option value="'+dd2+'">'+dd2+'</option>'; }
   }
+  autoWirePicker('logFilterDay', 'روز');
   var all = window._allEntries || [];
   var codeFilter = document.getElementById('logFilterCode').value.trim().toLowerCase();
   var dayFilter = document.getElementById('logFilterDay').value;
@@ -8806,6 +8843,8 @@ async function loadMyShiftInfo(){
     myShiftViewYear = tj[0]; myShiftViewMonth = tj[1];
     yearSel.value = myShiftViewYear; monthSel.value = myShiftViewMonth;
   }
+  autoWirePicker('myShiftYear', 'سال');
+  autoWirePicker('myShiftMonth', 'ماه');
   hint.textContent = 'در حالِ بارگذاری...';
   table.innerHTML = '';
   var res = await apiCall(function(){ return apiPost('getMyShiftInfo', {username: loggedInEmployee.username, year: myShiftViewYear, month: myShiftViewMonth}); });
@@ -8927,6 +8966,8 @@ function navigateMyShiftMonth(delta){
   if(myShiftViewMonth < 1){ myShiftViewMonth = 12; myShiftViewYear--; }
   document.getElementById('myShiftYear').value = myShiftViewYear;
   document.getElementById('myShiftMonth').value = myShiftViewMonth;
+  syncCustomSelectDisplay('myShiftYear', 'myShiftYear_pickerBtn');
+  syncCustomSelectDisplay('myShiftMonth', 'myShiftMonth_pickerBtn');
   loadMyShiftInfo();
 }
 async function loadMyPerf(){
