@@ -1926,6 +1926,14 @@
       <div class="sheet-handle"></div>
       <div class="eyebrow" id="statusEditTitle">ویرایشِ وضعیت</div>
       <div class="hint" id="statusEditRangeHint" style="margin-top:-8px;"></div>
+      <label>از تاریخ</label>
+      <div class="date-row">
+        <select id="statusEditStartDay"></select><select id="statusEditStartMonth"></select><select id="statusEditStartYear"></select>
+      </div>
+      <label>تا تاریخ</label>
+      <div class="date-row">
+        <select id="statusEditEndDay"></select><select id="statusEditEndMonth"></select><select id="statusEditEndYear"></select>
+      </div>
       <label>وضعیتِ روز</label>
       <select id="statusEditType" onchange="onStatusEditTypeChange()">
         <option value="مرخصی">مرخصی</option>
@@ -7449,7 +7457,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','adminLogEnd','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','adminLogEnd','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd','statusEditStart','statusEditEnd'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
@@ -7467,6 +7475,17 @@ function readDateSelect(prefix){
   var mIdx = parseInt(document.getElementById(prefix+'Month').value, 10);
   var y = document.getElementById(prefix+'Year').value;
   return d + ' ' + jMonths[mIdx-1] + ' ' + y;
+}
+function setDateSelectValue(prefix, dateStr){
+  var p = parseJalaliDateStr(dateStr);
+  if(!p) return;
+  var monthIdx = jMonths.indexOf(p.month) + 1;
+  document.getElementById(prefix+'Day').value = p.day;
+  document.getElementById(prefix+'Month').value = String(monthIdx);
+  document.getElementById(prefix+'Year').value = p.year;
+  syncCustomSelectDisplay(prefix+'Day', prefix+'Day_pickerBtn');
+  syncCustomSelectDisplay(prefix+'Month', prefix+'Month_pickerBtn');
+  syncCustomSelectDisplay(prefix+'Year', prefix+'Year_pickerBtn');
 }
 
 // ---------- Holidays ----------
@@ -8311,8 +8330,11 @@ function openStatusMarkerEdit(idx){
   var isHourly = String(g.leaveKind||'').toLowerCase() === 'hourly';
   document.getElementById('statusEditTitle').textContent = 'ویرایشِ وضعیت — ' + (g.fullName||g.username);
   document.getElementById('statusEditRangeHint').textContent = g.rows.length > 1
-    ? ('این تغییر رویِ هر ' + g.rows.length + ' روزِ بازه‌یِ ' + g.startDate + ' تا ' + g.endDate + ' اعمال می‌شه.')
-    : ('برایِ روزِ ' + g.startDate + '.');
+    ? ('این گروه ' + g.rows.length + ' روزه — تاریخ‌ها و وضعیت رو زیر می‌تونی عوض کنی.')
+    : '';
+  initLeaveDateSelects();
+  setDateSelectValue('statusEditStart', g.startDate);
+  setDateSelectValue('statusEditEnd', g.endDate);
   document.getElementById('statusEditType').value = (g.status === 'mission') ? 'ماموریت' : 'مرخصی';
   document.getElementById('statusEditKind').value = isHourly ? 'hourly' : 'daily';
   document.getElementById('statusEditHours').value = isHourly ? (g.leaveHoursSingle||'') : '';
@@ -8343,17 +8365,22 @@ async function saveStatusMarkerEdit(){
     msg.textContent = '⛔ مدتِ مرخصیِ ساعتی را به شکلِ ساعت:دقیقه بنویس، مثلاً 2:30';
     return;
   }
-  msg.textContent = 'در حال ذخیره... (0 از ' + g.markerIds.length + ')';
-  for(var i=0; i<g.markerIds.length; i++){
-    var res = await apiCall(function(){ return apiPost('updateDayStatusMarker', {
-      pin: adminPin, id: g.markerIds[i], status: type,
-      leaveKind: (type === 'مرخصی' ? kind : ''), leaveHours: (type === 'مرخصی' && kind === 'hourly' ? hours : '')
-    }); });
-    if(!res.ok){
-      msg.textContent = '⛔ ذخیره‌یِ روزِ ' + g.rows[i].jalaliDate + ' ناموفق بود: ' + (res.error === 'not_found' ? 'این ردیف پیدا نشد — گزارش را دوباره بارگذاری کن.' : (res.error||''));
-      return;
-    }
-    msg.textContent = 'در حال ذخیره... (' + (i+1) + ' از ' + g.markerIds.length + ')';
+  var newStart = readDateSelect('statusEditStart');
+  var newEnd = readDateSelect('statusEditEnd');
+  msg.textContent = 'در حال ذخیره...';
+  var res = await apiCall(function(){ return apiPost('editLeaveRange', {
+    pin: adminPin, username: g.username, employee: g.fullName, employeeCode: g.employeeCode||'',
+    oldStartDate: g.startDate, oldEndDate: g.endDate,
+    newStartDate: newStart, newEndDate: newEnd,
+    requestType: (type === 'ماموریت') ? 'mission' : 'leave',
+    // مرخصیِ ساعتی اینجا فقط با یه «مدت» (مثلاً 2:30) کار می‌کنه، نه بازه‌یِ ساعتِ واقعی —
+    // چون این فرم فقط ویرایشِ یه وضعیتِ ازقبل‌ثبت‌شده‌ست. syncLeaveDayStatus مدت رو از
+    // تفاضلِ startTime/endTime حساب می‌کنه، پس «از نیمه‌شب تا مدت» همون عدد رو می‌ده.
+    leaveType: kind, startTime: (kind === 'hourly' ? '00:00' : ''), endTime: (kind === 'hourly' ? hours : '')
+  }); });
+  if(!res.ok){
+    msg.textContent = '⛔ ذخیره ناموفق بود: ' + (res.error||'');
+    return;
   }
   closeStatusMarkerEdit();
   await loadStatusReport(document.getElementById('logStatusFilter').value);
