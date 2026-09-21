@@ -1,0 +1,39 @@
+{
+  "name": "تنخواه‌یار",
+  "short_name": "تنخواه‌یار",
+  "description": "ثبت دریافتی، پرداختی، انتقال بین کارمندها و خرج‌های تنخواه",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a2e21",
+  "theme_color": "#0a2e21",
+  "dir": "rtl",
+  "lang": "fa",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

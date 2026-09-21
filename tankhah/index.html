@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>تنخواه‌یار</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a2e21">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="تنخواه‌یار">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  :root{
+    --green:#0d4a31;
+    --green-2:#0a2e21;
+    --green-3:#061c14;
+    --gold:#d4a84a;
+    --gold-dark:#a87f2f;
+    --paper:#ffffff;
+    --paper-2:#f5f7f4;
+    --ink:#172033;
+    --ok:#16a34a;
+    --err:#dc2626;
+    --warn:#b7791f;
+    --border-soft:#e3e8e2;
+    --input-bg:#fbfaf5;
+    --muted:#6b7568;
+    --sans:'Vazirmatn', Tahoma, sans-serif;
+    --r-sm:10px; --r-md:14px; --r-lg:22px;
+    --sh-sm: 0 2px 10px -4px #17203324;
+    --sh-md: 0 12px 30px -12px #17203345;
+    --sh-lg: 0 20px 48px -16px #1720334d;
+  }
+  html[data-theme="dark"]{
+    --green:#1a6b46;
+    --green-2:#0d1f17;
+    --green-3:#08140e;
+    --gold:#e5bd66;
+    --gold-dark:#c79a44;
+    --paper:#151f19;
+    --paper-2:#1b2921;
+    --ink:#e9f0ea;
+    --ok:#34d976;
+    --err:#f0554f;
+    --warn:#e0b354;
+    --border-soft:#2a3a2f;
+    --input-bg:#1b2921;
+    --muted:#9db2a3;
+  }
+  html[data-theme="dark"] body{ background-color:#0b1712; }
+  :root{ color-scheme: light; }
+  html[data-theme="dark"]{ color-scheme: dark; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--sans);
+    background:
+      radial-gradient(1100px 480px at 8% -8%, #1a6b4622 0%, transparent 60%),
+      radial-gradient(900px 460px at 105% 10%, #d4a84a26 0%, transparent 55%),
+      linear-gradient(180deg, var(--green-3), var(--green) 40%, var(--green-2));
+    background-attachment:fixed;
+    color:var(--ink);
+    min-height:100vh;
+    padding:18px 14px 90px;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
+  ::selection{ background:var(--gold); color:#171033; }
+  h1,h2,h3,p{margin:0;}
+  button{font-family:inherit;}
+  input,select,textarea{font-family:inherit;}
+
+  .hidden{display:none !important;}
+
+  /* ---- Login ---- */
+  .login-card{
+    background:var(--paper); border-radius:var(--r-lg); padding:28px 22px; box-shadow:var(--sh-lg);
+    margin-top:14vh;
+  }
+  .login-logo{
+    width:64px;height:64px;border-radius:18px;margin:0 auto 14px;
+    background:linear-gradient(160deg, var(--gold), var(--gold-dark));
+    display:flex;align-items:center;justify-content:center;font-size:28px;color:#241a06;
+    box-shadow:var(--sh-md);
+  }
+  .login-title{ text-align:center; font-size:20px; font-weight:800; color:var(--green-2); }
+  html[data-theme="dark"] .login-title{ color:var(--gold); }
+  .login-sub{ text-align:center; font-size:13px; color:var(--muted); margin-top:4px; margin-bottom:20px; }
+
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:6px; }
+  .field input, .field select, .field textarea{
+    width:100%; padding:12px 14px; border-radius:var(--r-sm); border:1.5px solid var(--border-soft);
+    background:var(--input-bg); color:var(--ink); font-size:15px; outline:none; transition:border-color .15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{ border-color:var(--gold-dark); }
+  .field textarea{ resize:vertical; min-height:70px; }
+
+  .btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:13px 16px; border-radius:var(--r-sm); border:none; cursor:pointer;
+    font-size:15px; font-weight:700; transition:transform .1s, opacity .15s; width:100%;
+  }
+  .btn:active{ transform:scale(.98); }
+  .btn:disabled{ opacity:.55; cursor:not-allowed; }
+  .btn-primary{ background:linear-gradient(160deg, var(--gold), var(--gold-dark)); color:#241a06; box-shadow:var(--sh-sm); }
+  .btn-outline{ background:transparent; border:1.5px solid var(--border-soft); color:var(--ink); }
+  .btn-danger{ background:#fdeaea; color:var(--err); }
+  html[data-theme="dark"] .btn-danger{ background:#3a1616; }
+  .btn-sm{ padding:8px 12px; font-size:13px; width:auto; }
+
+  .link-btn{ background:none; border:none; color:var(--gold-dark); font-size:13px; cursor:pointer; text-decoration:underline; padding:6px; }
+  html[data-theme="dark"] .link-btn{ color:var(--gold); }
+
+  .msg-box{ font-size:13px; border-radius:var(--r-sm); padding:10px 12px; margin-bottom:12px; display:none; }
+  .msg-box.show{ display:block; }
+  .msg-box.err{ background:#fdeaea; color:var(--err); }
+  .msg-box.ok{ background:#e7f7ef; color:var(--ok); }
+  html[data-theme="dark"] .msg-box.err{ background:#3a1616; }
+  html[data-theme="dark"] .msg-box.ok{ background:#0f2e1c; }
+
+  /* ---- App shell ---- */
+  .app-header{
+    background:var(--paper); border-radius:var(--r-lg); padding:16px 18px; box-shadow:var(--sh-md);
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;
+  }
+  .app-header .who{ display:flex; align-items:center; gap:10px; }
+  .avatar{
+    width:42px;height:42px;border-radius:12px; background:linear-gradient(160deg, var(--green), var(--green-2));
+    color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px;
+  }
+  .who-name{ font-weight:800; font-size:15px; }
+  .who-role{ font-size:12px; color:var(--muted); }
+  .header-actions{ display:flex; gap:6px; }
+  .icon-btn{
+    width:38px;height:38px;border-radius:10px;border:1.5px solid var(--border-soft);background:transparent;
+    color:var(--ink); display:flex;align-items:center;justify-content:center;cursor:pointer; font-size:15px;
+  }
+
+  .card{ background:var(--paper); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-md); margin-bottom:14px; }
+  .card-title{ font-size:14px; font-weight:800; color:var(--muted); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+
+  .balance-card{
+    background:linear-gradient(160deg, var(--green), var(--green-2)); color:#fff; border-radius:var(--r-lg);
+    padding:22px 20px; margin-bottom:14px; box-shadow:var(--sh-lg); position:relative; overflow:hidden;
+  }
+  .balance-card .lbl{ font-size:13px; opacity:.85; }
+  .balance-card .amt{ font-size:32px; font-weight:900; margin-top:6px; font-variant-numeric:tabular-nums; }
+  .balance-card .amt small{ font-size:15px; font-weight:600; opacity:.85; margin-right:6px; }
+
+  .quick-actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+  .qa-btn{
+    background:var(--paper); border-radius:var(--r-md); padding:16px 10px; text-align:center; box-shadow:var(--sh-sm);
+    border:none; cursor:pointer; color:var(--ink);
+  }
+  .qa-btn i{ font-size:20px; color:var(--gold-dark); margin-bottom:8px; display:block; }
+  .qa-btn span{ font-size:13px; font-weight:700; }
+
+  .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+  .stat-card{ background:var(--paper); border-radius:var(--r-md); padding:14px; text-align:center; box-shadow:var(--sh-sm); }
+  .stat-card .num{ font-size:20px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .stat-card .lbl{ font-size:11.5px; color:var(--muted); margin-top:4px; }
+
+  /* ---- Nav tabs ---- */
+  .tabbar{
+    position:fixed; bottom:0; left:0; right:0; background:var(--paper); box-shadow:0 -6px 20px -8px #17203330;
+    display:flex; padding:6px 8px calc(6px + env(safe-area-inset-bottom)); z-index:40;
+  }
+  .tab-btn{
+    flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:8px 4px; cursor:pointer; color:var(--muted); font-size:10.5px; border-radius:10px;
+  }
+  .tab-btn i{ font-size:17px; }
+  .tab-btn.active{ color:var(--gold-dark); }
+  html[data-theme="dark"] .tab-btn.active{ color:var(--gold); }
+
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  /* ---- Lists ---- */
+  .tx-item{
+    display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--border-soft);
+  }
+  .tx-item:last-child{ border-bottom:none; }
+  .tx-icon{
+    width:38px;height:38px;border-radius:11px; display:flex;align-items:center;justify-content:center; font-size:15px; flex:none;
+  }
+  .tx-icon.receipt{ background:#e7f7ef; color:var(--ok); }
+  .tx-icon.payment{ background:#fdeaea; color:var(--err); }
+  .tx-icon.transfer{ background:#eaf1fb; color:#3b5fbf; }
+  .tx-icon.expense{ background:#fff4e2; color:var(--warn); }
+  html[data-theme="dark"] .tx-icon.receipt{ background:#0f2e1c; }
+  html[data-theme="dark"] .tx-icon.payment{ background:#3a1616; }
+  html[data-theme="dark"] .tx-icon.transfer{ background:#16233a; }
+  html[data-theme="dark"] .tx-icon.expense{ background:#3a2c10; }
+  .tx-mid{ flex:1; min-width:0; }
+  .tx-title{ font-size:13.5px; font-weight:700; }
+  .tx-sub{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .tx-amt{ font-size:13.5px; font-weight:800; font-variant-numeric:tabular-nums; flex:none; }
+  .tx-amt.pos{ color:var(--ok); }
+  .tx-amt.neg{ color:var(--err); }
+  .tx-void{ opacity:.5; text-decoration:line-through; }
+  .tx-void-btn{ background:none;border:none;color:var(--err);cursor:pointer;font-size:12px;flex:none; }
+
+  .empty-note{ text-align:center; color:var(--muted); font-size:13px; padding:24px 10px; }
+
+  .filter-row{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .filter-row select, .filter-row input{ flex:1; min-width:110px; padding:9px 10px; border-radius:9px; border:1.5px solid var(--border-soft); background:var(--input-bg); color:var(--ink); font-size:12.5px; }
+
+  .emp-row{ display:flex; align-items:center; gap:10px; padding:12px 4px; border-bottom:1px solid var(--border-soft); }
+  .emp-row:last-child{ border-bottom:none; }
+  .emp-row .info{ flex:1; min-width:0; }
+  .emp-row .info .n{ font-size:13.5px; font-weight:700; }
+  .emp-row .info .u{ font-size:11.5px; color:var(--muted); }
+  .emp-row .bal{ font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .badge{ font-size:10px; padding:2px 7px; border-radius:20px; font-weight:700; }
+  .badge.admin{ background:#fff4e2; color:var(--warn); }
+  .badge.inactive{ background:#fdeaea; color:var(--err); }
+  html[data-theme="dark"] .badge.admin{ background:#3a2c10; }
+  html[data-theme="dark"] .badge.inactive{ background:#3a1616; }
+  .badge.receipt-pending{ background:#fdeaea; color:var(--err); cursor:pointer; border:none; }
+  .badge.receipt-received{ background:#e7f7ef; color:var(--ok); cursor:pointer; border:none; }
+  html[data-theme="dark"] .badge.receipt-pending{ background:#3a1616; }
+  html[data-theme="dark"] .badge.receipt-received{ background:#0f2e1c; }
+  .voucher-tag{ font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .receipt-link{ font-size:15px; color:var(--gold-dark); flex:none; }
+  html[data-theme="dark"] .receipt-link{ color:var(--gold); }
+  .receipt-preview{ margin-top:8px; max-width:140px; border-radius:10px; overflow:hidden; box-shadow:var(--sh-sm); }
+  .receipt-preview img{ display:block; width:100%; }
+
+  /* ---- Modal ---- */
+  .modal-overlay{
+    position:fixed; inset:0; background:#0a1712a8; display:none; align-items:flex-end; justify-content:center; z-index:100;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-sheet{
+    background:var(--paper); width:100%; max-width:640px; border-radius:22px 22px 0 0; padding:20px; max-height:88vh; overflow-y:auto;
+    animation:slideUp .18s ease-out;
+  }
+  @keyframes slideUp{ from{ transform:translateY(24px); opacity:0; } to{ transform:translateY(0); opacity:1; } }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .modal-head h3{ font-size:16px; font-weight:800; }
+  .modal-close{ background:none; border:none; font-size:18px; color:var(--muted); cursor:pointer; }
+
+  .seg{ display:flex; gap:6px; background:var(--paper-2); padding:4px; border-radius:12px; margin-bottom:16px; }
+  .seg button{ flex:1; padding:9px 6px; border:none; border-radius:9px; background:none; color:var(--muted); font-size:12.5px; font-weight:700; cursor:pointer; }
+  .seg button.active{ background:var(--paper); color:var(--gold-dark); box-shadow:var(--sh-sm); }
+
+  .toast{
+    position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:var(--green-2); color:#fff;
+    padding:11px 18px; border-radius:12px; font-size:13px; z-index:200; box-shadow:var(--sh-lg); opacity:0; pointer-events:none;
+    transition:opacity .2s, bottom .2s; max-width:88vw; text-align:center;
+  }
+  .toast.show{ opacity:1; bottom:96px; }
+  .toast.err{ background:#7a1f1f; }
+
+  #globalProgressBar{ position:fixed; top:0; left:0; right:0; height:3px; background:var(--gold); display:none; z-index:300; animation:prog 1s infinite linear; }
+  @keyframes prog{ 0%{ opacity:.4; } 50%{ opacity:1; } 100%{ opacity:.4; } }
+
+  .setup-note{ font-size:11.5px; color:var(--muted); text-align:center; margin-top:16px; line-height:1.7; }
+</style>
+</head>
+<body>
+<div id="globalProgressBar"></div>
+<div class="wrap">
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="loginView">
+    <div class="login-card">
+      <div class="login-logo"><i class="fa-solid fa-wallet"></i></div>
+      <div class="login-title">تنخواه‌یار</div>
+      <div class="login-sub">ثبت دریافتی، پرداختی، انتقال و خرج تنخواه</div>
+
+      <div id="loginMsg" class="msg-box err"></div>
+
+      <div class="field">
+        <label>نام‌کاربری</label>
+        <input id="loginUsername" type="text" autocomplete="username" placeholder="نام‌کاربری خود را وارد کنید">
+      </div>
+      <div class="field">
+        <label>رمز عبور</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button class="btn btn-primary" id="loginBtn"><i class="fa-solid fa-right-to-bracket"></i> ورود</button>
+
+      <div style="text-align:center;">
+        <button class="link-btn" id="openSetupBtn">راه‌اندازی اولیه (ساخت مدیر)</button>
+      </div>
+
+      <div class="setup-note" id="apiUrlWarning"></div>
+    </div>
+  </div>
+
+  <!-- ===================== APP SHELL ===================== -->
+  <div id="appView" class="hidden">
+    <div class="app-header">
+      <div class="who">
+        <div class="avatar" id="avatarInitial">؟</div>
+        <div>
+          <div class="who-name" id="headerName">—</div>
+          <div class="who-role" id="headerRole">—</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="themeToggleBtn"><i class="fa-solid fa-circle-half-stroke"></i></button>
+        <button class="icon-btn" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+
+    <!-- ---------- Employee: Dashboard ---------- -->
+    <div id="view-emp-dashboard" class="view">
+      <div class="balance-card">
+        <div class="lbl">موجودی تنخواه من</div>
+        <div class="amt" id="empBalanceAmt">۰ <small>تومان</small></div>
+      </div>
+      <div class="quick-actions">
+        <button class="qa-btn" id="empAddExpenseBtn"><i class="fa-solid fa-receipt"></i><span>ثبت خرج</span></button>
+        <button class="qa-btn" id="empTransferBtn"><i class="fa-solid fa-money-bill-transfer"></i><span>انتقال به همکار</span></button>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> آخرین تراکنش‌ها</div>
+        <div id="empRecentTx"><div class="empty-note">در حال بارگذاری…</div></div>
+      </div>
+    </div>
+
+    <!-- ---------- Employee: History ---------- -->
+    <div id="view-emp-history" class="view">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-list"></i> تاریخچه تراکنش‌های من</div>
+        <div class="filter-row">
+          <select id="empHistTypeFilter">
+            <option value="">همه انواع</option>
+            <option value="receipt">دریافتی</option>
+            <option value="payment">پرداختی</option>
+            <option value="transfer">انتقال</option>
+            <option value="expense">خرج</option>
+          </select>
+        </div>
+        <div id="empHistList"><div class="empty-note">در حال بارگذاری…</div></div>
+      </div>
+    </div>
+
+    <!-- ---------- Employee: Settings ---------- -->
+    <div id="view-emp-settings" class="view">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-key"></i> تغییر رمز عبور</div>
+        <div class="field"><label>رمز فعلی</label><input id="chgOldPass" type="password"></div>
+        <div class="field"><label>رمز جدید</label><input id="chgNewPass" type="password"></div>
+        <button class="btn btn-outline" id="chgPassBtn"><i class="fa-solid fa-check"></i> ذخیره رمز جدید</button>
+      </div>
+    </div>
+
+    <!-- ---------- Admin: Dashboard ---------- -->
+    <div id="view-admin-dashboard" class="view">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="num" id="stTotalHeld">۰</div><div class="lbl">موجودی نزد کارمندها (تومان)</div></div>
+        <div class="stat-card"><div class="num" id="stEmpCount">۰</div><div class="lbl">تعداد کارمند فعال</div></div>
+        <div class="stat-card"><div class="num" id="stTotalReceipts">۰</div><div class="lbl">جمع دریافتی‌ها</div></div>
+        <div class="stat-card"><div class="num" id="stTotalExpenses">۰</div><div class="lbl">جمع خرج‌ها</div></div>
+      </div>
+      <div class="quick-actions">
+        <button class="qa-btn" id="adminAddTxBtn"><i class="fa-solid fa-circle-plus"></i><span>ثبت تراکنش جدید</span></button>
+        <button class="qa-btn" id="adminAddEmpBtn"><i class="fa-solid fa-user-plus"></i><span>افزودن کارمند</span></button>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-users"></i> موجودی کارمندها</div>
+        <div id="adminEmpBalances"><div class="empty-note">در حال بارگذاری…</div></div>
+      </div>
+    </div>
+
+    <!-- ---------- Admin: Transactions ---------- -->
+    <div id="view-admin-tx" class="view">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-list"></i> همه تراکنش‌ها</div>
+        <div class="filter-row">
+          <select id="admTxTypeFilter">
+            <option value="">همه انواع</option>
+            <option value="receipt">دریافتی</option>
+            <option value="payment">پرداختی</option>
+            <option value="transfer">انتقال</option>
+            <option value="expense">خرج</option>
+          </select>
+          <select id="admTxEmpFilter"><option value="">همه کارمندها</option></select>
+        </div>
+        <div id="admTxList"><div class="empty-note">در حال بارگذاری…</div></div>
+      </div>
+    </div>
+
+    <!-- ---------- Admin: Employees ---------- -->
+    <div id="view-admin-emp" class="view">
+      <div class="card">
+        <div class="card-title" style="justify-content:space-between;">
+          <span><i class="fa-solid fa-users-gear"></i> مدیریت کارمندها</span>
+          <button class="btn btn-sm btn-primary" id="adminAddEmpBtn2"><i class="fa-solid fa-plus"></i> افزودن</button>
+        </div>
+        <div id="admEmpList"><div class="empty-note">در حال بارگذاری…</div></div>
+      </div>
+    </div>
+
+    <!-- ---------- Admin: Settings ---------- -->
+    <div id="view-admin-settings" class="view">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-key"></i> تغییر رمز عبور</div>
+        <div class="field"><label>رمز فعلی</label><input id="chgOldPassA" type="password"></div>
+        <div class="field"><label>رمز جدید</label><input id="chgNewPassA" type="password"></div>
+        <button class="btn btn-outline" id="chgPassBtnA"><i class="fa-solid fa-check"></i> ذخیره رمز جدید</button>
+      </div>
+    </div>
+
+    <div class="tabbar" id="tabbar"></div>
+  </div>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+
+<div class="modal-overlay" id="setupModal">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>راه‌اندازی اولیه</h3><button class="modal-close" data-close="setupModal">&times;</button></div>
+    <div id="setupMsg" class="msg-box err"></div>
+    <div class="field"><label>کلید راه‌اندازی (Setup Key)</label><input id="setupKey" type="text"></div>
+    <div class="field"><label>نام و نام‌خانوادگی مدیر</label><input id="setupName" type="text"></div>
+    <div class="field"><label>نام‌کاربری مدیر</label><input id="setupUsername" type="text"></div>
+    <div class="field"><label>رمز عبور مدیر</label><input id="setupPassword" type="password"></div>
+    <button class="btn btn-primary" id="setupSubmitBtn"><i class="fa-solid fa-check"></i> ساخت حساب مدیر</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="txModal">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3 id="txModalTitle">ثبت تراکنش</h3><button class="modal-close" data-close="txModal">&times;</button></div>
+    <div id="txMsg" class="msg-box err"></div>
+
+    <div class="seg" id="txTypeSeg"></div>
+
+    <div class="field" id="txFromWrap"><label id="txFromLabel">از کارمند</label><select id="txFromSelect"></select></div>
+    <div class="field" id="txToWrap"><label id="txToLabel">به کارمند</label><select id="txToSelect"></select></div>
+    <div class="field" id="txCategoryWrap">
+      <label>دسته‌بندی خرج</label>
+      <select id="txCategorySelect">
+        <option value="خوراک">خوراک</option>
+        <option value="تعمیرات">تعمیرات</option>
+        <option value="خرید ابزار و لوازم مصرفی">خرید ابزار و لوازم مصرفی</option>
+        <option value="تجهیزات برقی و مکانیکی">تجهیزات برقی و مکانیکی</option>
+        <option value="پست">پست</option>
+        <option value="باربری">باربری</option>
+        <option value="اسنپ و پیک">اسنپ و پیک</option>
+        <option value="سرویس‌های پرسنل">سرویس‌های پرسنل</option>
+        <option value="خرج‌کرد پرسنل">خرج‌کرد پرسنل</option>
+        <option value="اداری">اداری</option>
+        <option value="بهداشتی و تنظیف">بهداشتی و تنظیف</option>
+        <option value="تراشکاری">تراشکاری</option>
+        <option value="سایر">سایر</option>
+      </select>
+    </div>
+    <div class="field" id="txCounterpartyWrap">
+      <label>طرف‌حساب / پرداخت به (اختیاری)</label>
+      <input id="txCounterparty" list="counterpartyDatalist" placeholder="مثلاً نام همکار دیگر یا فروشنده — خالی بمونه یعنی خودم">
+      <datalist id="counterpartyDatalist"></datalist>
+    </div>
+    <div class="field"><label>مبلغ (تومان)</label><input id="txAmount" type="number" inputmode="numeric" placeholder="مثلاً 500000"></div>
+    <div class="field" id="txDescWrap"><label>توضیحات</label><textarea id="txDesc" placeholder="توضیح کوتاه…"></textarea></div>
+    <div class="field" id="txReceiptWrap">
+      <label>عکس رسید (اختیاری)</label>
+      <input id="txReceiptFile" type="file" accept="image/*" capture="environment">
+      <div id="txReceiptPreview" class="receipt-preview hidden"></div>
+    </div>
+
+    <button class="btn btn-primary" id="txSubmitBtn"><i class="fa-solid fa-check"></i> ثبت</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="empModal">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>افزودن کارمند</h3><button class="modal-close" data-close="empModal">&times;</button></div>
+    <div id="empMsg" class="msg-box err"></div>
+    <div class="field"><label>نام و نام‌خانوادگی</label><input id="newEmpName" type="text"></div>
+    <div class="field"><label>نام‌کاربری</label><input id="newEmpUsername" type="text"></div>
+    <div class="field"><label>رمز عبور اولیه</label><input id="newEmpPassword" type="password"></div>
+    <div class="field">
+      <label>نقش</label>
+      <select id="newEmpRole"><option value="employee">کارمند</option><option value="admin">مدیر</option></select>
+    </div>
+    <button class="btn btn-primary" id="empSubmitBtn"><i class="fa-solid fa-check"></i> افزودن کارمند</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="resetPassModal">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>بازنشانی رمز عبور</h3><button class="modal-close" data-close="resetPassModal">&times;</button></div>
+    <div id="resetPassMsg" class="msg-box err"></div>
+    <div class="field"><label>رمز عبور جدید</label><input id="resetNewPass" type="password"></div>
+    <button class="btn btn-primary" id="resetPassSubmitBtn"><i class="fa-solid fa-check"></i> ثبت رمز جدید</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================================================
+// CONFIG — ADMIN: after deploying Code.gs as a Web App (see SETUP.md), paste its URL here.
+// This app is fully independent from تردد‌یار: separate Google Sheet, separate Apps Script
+// project, separate login list, separate localStorage keys (all prefixed "tankhah_"), and
+// its own service worker scope (./tankhah/) — nothing here touches the attendance app.
+// =====================================================================================
+const API_URL = "https://script.google.com/macros/s/AKfycby4sA4hN20AWYXHGOaiOHrkLhupFN11iLpu6zlFN-Dmkw909IwgmXLqveWrAUAy6-4nyA/exec";
+
+// ---------- Theme ----------
+function getTheme(){ try{ return localStorage.getItem('tankhah_theme') || 'light'; }catch(e){ return 'light'; } }
+function setTheme(t){ document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem('tankhah_theme', t); }catch(e){} }
+setTheme(getTheme());
+document.getElementById('themeToggleBtn').addEventListener('click', function(){
+  setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+});
+
+// ---------- Toast ----------
+var _toastTimer;
+function toast(msg, isErr){
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isErr ? ' err' : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function(){ el.className = 'toast'; }, 3200);
+}
+
+// ---------- Progress ----------
+var _activeCalls = 0;
+function showProgress(){ document.getElementById('globalProgressBar').style.display = 'block'; }
+function hideProgress(){ document.getElementById('globalProgressBar').style.display = 'none'; }
+
+// ---------- Hash ----------
+async function sha256(str){
+  var enc = new TextEncoder().encode(str);
+  var buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+async function passwordHashFor(username, password){
+  return await sha256(String(username).toLowerCase() + ':' + password);
+}
+
+// ---------- Number formatting ----------
+function fmtNum(n){
+  n = Math.round(Number(n) || 0);
+  return n.toLocaleString('en-US');
+}
+
+// ---------- API ----------
+async function parseJsonResponse(res){
+  var text = await res.text();
+  try{ return JSON.parse(text); }
+  catch(e){ return { ok:false, error:'پاسخ سرور قابل‌خواندن نبود — دوباره امتحان کنید.' }; }
+}
+async function apiGet(action, params){
+  _activeCalls++; showProgress();
+  try{
+    var qs = new URLSearchParams(Object.assign({action:action, token: session ? session.token : ''}, params||{})).toString();
+    var res = await fetch(API_URL + '?' + qs, {method:'GET'});
+    return await parseJsonResponse(res);
+  }catch(e){
+    return { ok:false, error:'خطای شبکه — اتصال اینترنت را بررسی کنید.', networkError:true };
+  }finally{
+    _activeCalls = Math.max(0,_activeCalls-1); if(_activeCalls===0) hideProgress();
+  }
+}
+async function apiPost(action, payload){
+  _activeCalls++; showProgress();
+  try{
+    var res = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(Object.assign({action:action, token: session ? session.token : ''}, payload||{}))
+    });
+    return await parseJsonResponse(res);
+  }catch(e){
+    return { ok:false, error:'خطای شبکه — اتصال اینترنت را بررسی کنید.', networkError:true };
+  }finally{
+    _activeCalls = Math.max(0,_activeCalls-1); if(_activeCalls===0) hideProgress();
+  }
+}
+function handleAuthError(res){
+  if(res && res.authError){ session = null; try{ localStorage.removeItem('tankhah_session'); }catch(e){} showLogin(); return true; }
+  return false;
+}
+
+// ---------- Session ----------
+var session = null; // {token, expiresAt, employee:{id,name,username,role}}
+function loadSession(){
+  try{
+    var raw = localStorage.getItem('tankhah_session');
+    if(!raw) return null;
+    var s = JSON.parse(raw);
+    if(!s || !s.token || !s.expiresAt || Date.now() > s.expiresAt) return null;
+    return s;
+  }catch(e){ return null; }
+}
+function saveSession(s){
+  session = s;
+  try{ localStorage.setItem('tankhah_session', JSON.stringify(s)); }catch(e){}
+}
+function clearSession(){
+  session = null;
+  try{ localStorage.removeItem('tankhah_session'); }catch(e){}
+}
+
+// ---------- Modals ----------
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('[data-close]').forEach(function(btn){
+  btn.addEventListener('click', function(){ closeModal(btn.getAttribute('data-close')); });
+});
+document.querySelectorAll('.modal-overlay').forEach(function(ov){
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.classList.remove('show'); });
+});
+function setMsg(id, text, isErr){
+  var el = document.getElementById(id);
+  el.textContent = text || '';
+  el.className = 'msg-box ' + (isErr === false ? 'ok' : 'err') + (text ? ' show' : '');
+}
+
+// ---------- Login ----------
+if(API_URL.indexOf('PASTE_YOUR') === 0){
+  document.getElementById('apiUrlWarning').textContent = 'آدرس بک‌اند هنوز تنظیم نشده — فایل SETUP.md را ببینید.';
+}
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('loginPassword').addEventListener('keydown', function(e){ if(e.key === 'Enter') doLogin(); });
+
+async function doLogin(){
+  var username = document.getElementById('loginUsername').value.trim();
+  var password = document.getElementById('loginPassword').value;
+  setMsg('loginMsg', '');
+  if(!username || !password){ setMsg('loginMsg', 'نام‌کاربری و رمز عبور را وارد کنید'); return; }
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  try{
+    var hash = await passwordHashFor(username, password);
+    var res = await apiPost('login', { username: username, passwordHash: hash });
+    if(!res.ok){ setMsg('loginMsg', res.error || 'ورود ناموفق بود'); return; }
+    saveSession({ token: res.token, expiresAt: res.expiresAt, employee: res.employee });
+    document.getElementById('loginPassword').value = '';
+    await enterApp();
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('logoutBtn').addEventListener('click', function(){
+  clearSession();
+  showLogin();
+});
+
+function showLogin(){
+  document.getElementById('appView').classList.add('hidden');
+  document.getElementById('loginView').classList.remove('hidden');
+}
+
+// ---------- Setup (first admin) ----------
+document.getElementById('openSetupBtn').addEventListener('click', function(){ setMsg('setupMsg',''); openModal('setupModal'); });
+document.getElementById('setupSubmitBtn').addEventListener('click', async function(){
+  var setupKey = document.getElementById('setupKey').value.trim();
+  var name = document.getElementById('setupName').value.trim();
+  var username = document.getElementById('setupUsername').value.trim();
+  var password = document.getElementById('setupPassword').value;
+  if(!setupKey || !name || !username || !password){ setMsg('setupMsg', 'همه فیلدها لازم است'); return; }
+  var hash = await passwordHashFor(username, password);
+  var res = await apiPost('setupAdmin', { setupKey: setupKey, name: name, username: username, passwordHash: hash });
+  if(!res.ok){ setMsg('setupMsg', res.error || 'خطا در راه‌اندازی'); return; }
+  setMsg('setupMsg', 'حساب مدیر ساخته شد — اکنون وارد شوید', false);
+  setTimeout(function(){ closeModal('setupModal'); document.getElementById('loginUsername').value = username; }, 1200);
+});
+
+// ---------- Tabs / navigation ----------
+var EMP_TABS = [
+  { id:'emp-dashboard', icon:'fa-house', label:'خانه' },
+  { id:'emp-history', icon:'fa-list', label:'تاریخچه' },
+  { id:'emp-settings', icon:'fa-gear', label:'تنظیمات' }
+];
+var ADMIN_TABS = [
+  { id:'admin-dashboard', icon:'fa-house', label:'خانه' },
+  { id:'admin-tx', icon:'fa-list', label:'تراکنش‌ها' },
+  { id:'admin-emp', icon:'fa-users', label:'کارمندها' },
+  { id:'admin-settings', icon:'fa-gear', label:'تنظیمات' }
+];
+function buildTabbar(){
+  var tabs = session.employee.role === 'admin' ? ADMIN_TABS : EMP_TABS;
+  var bar = document.getElementById('tabbar');
+  bar.innerHTML = '';
+  tabs.forEach(function(t, i){
+    var b = document.createElement('button');
+    b.className = 'tab-btn' + (i===0 ? ' active' : '');
+    b.innerHTML = '<i class="fa-solid ' + t.icon + '"></i><span>' + t.label + '</span>';
+    b.addEventListener('click', function(){ switchView(t.id); });
+    b.dataset.viewId = t.id;
+    bar.appendChild(b);
+  });
+}
+function switchView(id){
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+  var target = document.getElementById('view-' + id);
+  if(target) target.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.viewId === id); });
+  if(id === 'emp-dashboard') loadEmpDashboard();
+  if(id === 'emp-history') loadEmpHistory();
+  if(id === 'admin-dashboard') loadAdminDashboard();
+  if(id === 'admin-tx') loadAdminTx();
+  if(id === 'admin-emp') loadAdminEmployees();
+}
+
+// ---------- Enter app ----------
+async function enterApp(){
+  document.getElementById('loginView').classList.add('hidden');
+  document.getElementById('appView').classList.remove('hidden');
+  var emp = session.employee;
+  document.getElementById('avatarInitial').textContent = (emp.name || '؟').trim().charAt(0);
+  document.getElementById('headerName').textContent = emp.name;
+  document.getElementById('headerRole').textContent = emp.role === 'admin' ? 'مدیر تنخواه' : 'کارمند';
+  buildTabbar();
+  if(emp.role !== 'admin') await loadEmployeeDirectory();
+  switchView(emp.role === 'admin' ? 'admin-dashboard' : 'emp-dashboard');
+}
+
+// Employees can't call getEmployees (admin-only), so they use this lighter directory
+// endpoint (names only, no usernames/roles/balances) just to pick a transfer recipient.
+async function loadEmployeeDirectory(){
+  var res = await apiGet('getEmployeeDirectory', {});
+  if(handleAuthError(res)) return;
+  if(res.ok) employeesCache = res.employees || [];
+}
+
+// ---------- Transaction rendering helpers ----------
+var TX_TYPE_LABEL = { receipt:'دریافتی', payment:'پرداختی', transfer:'انتقال', expense:'خرج' };
+var TX_TYPE_ICON = { receipt:'fa-arrow-down', payment:'fa-arrow-up', transfer:'fa-right-left', expense:'fa-receipt' };
+
+function receiptStatusBadgeHtml(t, clickable){
+  if(!t.receiptStatus) return '';
+  var isReceived = t.receiptStatus === 'received';
+  var cls = isReceived ? 'receipt-received' : 'receipt-pending';
+  var label = isReceived ? 'رسید شده' : 'رسید نشده';
+  var tag = clickable ? 'button' : 'span';
+  var attr = clickable ? (' data-toggle-receipt-id="' + t.id + '" data-current-status="' + t.receiptStatus + '"') : '';
+  return '<' + tag + ' class="badge ' + cls + '"' + attr + '>' + label + '</' + tag + '>';
+}
+function receiptLinkHtml(t){
+  if(!t.receiptImageUrl) return '';
+  return '<a class="receipt-link" href="' + esc(t.receiptImageUrl) + '" target="_blank" rel="noopener" title="مشاهده عکس رسید"><i class="fa-solid fa-image"></i></a>';
+}
+function txRow(t, forEmployeeId){
+  var isIncoming = t.toId === forEmployeeId;
+  var sign = isIncoming ? '+' : '-';
+  var cls = isIncoming ? 'pos' : 'neg';
+  var sub = '';
+  if(t.type === 'receipt') sub = 'از صندوق شرکت';
+  else if(t.type === 'payment') sub = 'به صندوق شرکت';
+  else if(t.type === 'transfer') sub = isIncoming ? ('از ' + t.fromName) : ('به ' + t.toName);
+  else if(t.type === 'expense') sub = (t.category || '') + (t.description ? ' — ' + t.description : '');
+  var dt = new Date(t.dateTime);
+  var dtStr = isNaN(dt.getTime()) ? '' : dt.toLocaleString('fa-IR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+  var voucherTag = t.voucherNo ? ('<span class="voucher-tag">#' + t.voucherNo + '</span> ') : '';
+  return '<div class="tx-item' + (t.voided ? ' tx-void' : '') + '">' +
+    '<div class="tx-icon ' + t.type + '"><i class="fa-solid ' + TX_TYPE_ICON[t.type] + '"></i></div>' +
+    '<div class="tx-mid"><div class="tx-title">' + voucherTag + TX_TYPE_LABEL[t.type] + '</div><div class="tx-sub">' + esc(sub) + (dtStr ? ' · ' + dtStr : '') + '</div>' +
+      (t.receiptStatus ? '<div style="margin-top:4px;">' + receiptStatusBadgeHtml(t, false) + '</div>' : '') +
+    '</div>' +
+    receiptLinkHtml(t) +
+    '<div class="tx-amt ' + cls + '">' + sign + fmtNum(t.amount) + '</div>' +
+  '</div>';
+}
+function txRowAdmin(t){
+  var dt = new Date(t.dateTime);
+  var dtStr = isNaN(dt.getTime()) ? '' : dt.toLocaleString('fa-IR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+  var sub = (t.type === 'expense') ? ((t.category||'') + (t.description ? ' — ' + t.description : '')) :
+            (t.type === 'receipt') ? ('صندوق ← ' + t.toName) :
+            (t.type === 'payment') ? (t.fromName + ' ← صندوق') :
+            (t.fromName + ' ← ' + t.toName);
+  if(t.counterparty) sub += ' · طرف‌حساب: ' + t.counterparty;
+  var voucherTag = t.voucherNo ? ('<span class="voucher-tag">#' + t.voucherNo + '</span> ') : '';
+  return '<div class="tx-item' + (t.voided ? ' tx-void' : '') + '">' +
+    '<div class="tx-icon ' + t.type + '"><i class="fa-solid ' + TX_TYPE_ICON[t.type] + '"></i></div>' +
+    '<div class="tx-mid"><div class="tx-title">' + voucherTag + TX_TYPE_LABEL[t.type] + '</div><div class="tx-sub">' + esc(sub) + (dtStr ? ' · ' + dtStr : '') + '</div>' +
+      (t.receiptStatus ? '<div style="margin-top:4px;">' + receiptStatusBadgeHtml(t, !t.voided) + '</div>' : '') +
+    '</div>' +
+    receiptLinkHtml(t) +
+    '<div class="tx-amt">' + fmtNum(t.amount) + '</div>' +
+    (t.voided ? '' : '<button class="tx-void-btn" data-void-id="' + t.id + '" title="ابطال"><i class="fa-solid fa-ban"></i></button>') +
+  '</div>';
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+// ---------- Employee: Dashboard ----------
+async function loadEmpDashboard(){
+  var res = await apiGet('getSummary', {});
+  if(handleAuthError(res)) return;
+  if(res.ok) document.getElementById('empBalanceAmt').innerHTML = fmtNum(res.myBalance) + ' <small>تومان</small>';
+
+  var txRes = await apiGet('getTransactions', { employeeId: session.employee.id });
+  if(handleAuthError(txRes)) return;
+  var box = document.getElementById('empRecentTx');
+  if(!txRes.ok){ box.innerHTML = '<div class="empty-note">خطا در بارگذاری</div>'; return; }
+  var list = (txRes.transactions || []).slice(0, 6);
+  box.innerHTML = list.length ? list.map(function(t){ return txRow(t, session.employee.id); }).join('') : '<div class="empty-note">هنوز تراکنشی ثبت نشده</div>';
+}
+
+async function loadEmpHistory(){
+  var type = document.getElementById('empHistTypeFilter').value;
+  var res = await apiGet('getTransactions', { employeeId: session.employee.id, type: type || undefined });
+  if(handleAuthError(res)) return;
+  var box = document.getElementById('empHistList');
+  if(!res.ok){ box.innerHTML = '<div class="empty-note">خطا در بارگذاری</div>'; return; }
+  var list = res.transactions || [];
+  box.innerHTML = list.length ? list.map(function(t){ return txRow(t, session.employee.id); }).join('') : '<div class="empty-note">تراکنشی یافت نشد</div>';
+}
+document.getElementById('empHistTypeFilter').addEventListener('change', loadEmpHistory);
+
+document.getElementById('chgPassBtn').addEventListener('click', function(){ doChangePassword('chgOldPass','chgNewPass'); });
+document.getElementById('chgPassBtnA').addEventListener('click', function(){ doChangePassword('chgOldPassA','chgNewPassA'); });
+async function doChangePassword(oldId, newId){
+  var oldPass = document.getElementById(oldId).value;
+  var newPass = document.getElementById(newId).value;
+  if(!oldPass || !newPass){ toast('رمز فعلی و رمز جدید را وارد کنید', true); return; }
+  if(newPass.length < 4){ toast('رمز جدید باید حداقل ۴ کاراکتر باشد', true); return; }
+  var oldHash = await passwordHashFor(session.employee.username, oldPass);
+  var newHash = await passwordHashFor(session.employee.username, newPass);
+  var res = await apiPost('changeMyPassword', { oldPasswordHash: oldHash, newPasswordHash: newHash });
+  if(handleAuthError(res)) return;
+  if(!res.ok){ toast(res.error || 'خطا', true); return; }
+  toast('رمز عبور تغییر کرد');
+  document.getElementById(oldId).value = ''; document.getElementById(newId).value = '';
+}
+
+// ---------- Employee: quick actions ----------
+document.getElementById('empAddExpenseBtn').addEventListener('click', function(){ openTxModal('expense'); });
+document.getElementById('empTransferBtn').addEventListener('click', function(){ openTxModal('transfer'); });
+
+// ---------- Admin: Dashboard ----------
+var employeesCache = [];
+async function loadAdminDashboard(){
+  var sumRes = await apiGet('getSummary', {});
+  if(handleAuthError(sumRes)) return;
+  if(sumRes.ok){
+    document.getElementById('stTotalHeld').textContent = fmtNum(sumRes.totalHeld);
+    document.getElementById('stEmpCount').textContent = fmtNum(sumRes.employeeCount);
+    document.getElementById('stTotalReceipts').textContent = fmtNum(sumRes.totalReceipts);
+    document.getElementById('stTotalExpenses').textContent = fmtNum(sumRes.totalExpenses);
+  }
+  var empRes = await apiGet('getEmployees', {});
+  if(handleAuthError(empRes)) return;
+  var box = document.getElementById('adminEmpBalances');
+  if(!empRes.ok){ box.innerHTML = '<div class="empty-note">خطا در بارگذاری</div>'; return; }
+  employeesCache = empRes.employees || [];
+  var active = employeesCache.filter(function(e){ return e.active; });
+  box.innerHTML = active.length ? active.map(function(e){
+    return '<div class="emp-row"><div class="info"><div class="n">' + esc(e.name) + (e.role==='admin' ? ' <span class="badge admin">مدیر</span>' : '') + '</div><div class="u">@' + esc(e.username) + '</div></div><div class="bal">' + fmtNum(e.balance) + '</div></div>';
+  }).join('') : '<div class="empty-note">کارمندی ثبت نشده</div>';
+}
+
+// ---------- Admin: Transactions list ----------
+async function loadAdminTx(){
+  populateEmpFilterSelect();
+  var type = document.getElementById('admTxTypeFilter').value;
+  var employeeId = document.getElementById('admTxEmpFilter').value;
+  var res = await apiGet('getTransactions', { type: type || undefined, employeeId: employeeId || undefined, includeVoided: true });
+  if(handleAuthError(res)) return;
+  var box = document.getElementById('admTxList');
+  if(!res.ok){ box.innerHTML = '<div class="empty-note">خطا در بارگذاری</div>'; return; }
+  var list = res.transactions || [];
+  box.innerHTML = list.length ? list.map(txRowAdmin).join('') : '<div class="empty-note">تراکنشی یافت نشد</div>';
+  box.querySelectorAll('[data-void-id]').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      if(!confirm('این تراکنش باطل شود؟ (برای اصلاح اشتباه — در تاریخچه با خط‌خورده باقی می‌ماند)')) return;
+      var r = await apiPost('voidTransaction', { id: btn.getAttribute('data-void-id') });
+      if(handleAuthError(r)) return;
+      if(!r.ok){ toast(r.error || 'خطا', true); return; }
+      toast('تراکنش باطل شد');
+      loadAdminTx();
+    });
+  });
+  box.querySelectorAll('[data-toggle-receipt-id]').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      var next = btn.getAttribute('data-current-status') === 'received' ? 'pending' : 'received';
+      var r = await apiPost('setReceiptStatus', { id: btn.getAttribute('data-toggle-receipt-id'), status: next });
+      if(handleAuthError(r)) return;
+      if(!r.ok){ toast(r.error || 'خطا', true); return; }
+      loadAdminTx();
+    });
+  });
+}
+function populateEmpFilterSelect(){
+  var sel = document.getElementById('admTxEmpFilter');
+  if(sel.dataset.filled === '1') return;
+  employeesCache.forEach(function(e){
+    var o = document.createElement('option'); o.value = e.id; o.textContent = e.name; sel.appendChild(o);
+  });
+  sel.dataset.filled = '1';
+}
+document.getElementById('admTxTypeFilter').addEventListener('change', loadAdminTx);
+document.getElementById('admTxEmpFilter').addEventListener('change', loadAdminTx);
+
+// ---------- Admin: Employees management ----------
+async function loadAdminEmployees(){
+  var res = await apiGet('getEmployees', {});
+  if(handleAuthError(res)) return;
+  var box = document.getElementById('admEmpList');
+  if(!res.ok){ box.innerHTML = '<div class="empty-note">خطا در بارگذاری</div>'; return; }
+  employeesCache = res.employees || [];
+  box.innerHTML = employeesCache.length ? employeesCache.map(function(e){
+    return '<div class="emp-row">' +
+      '<div class="info"><div class="n">' + esc(e.name) +
+        (e.role==='admin' ? ' <span class="badge admin">مدیر</span>' : '') +
+        (!e.active ? ' <span class="badge inactive">غیرفعال</span>' : '') +
+      '</div><div class="u">@' + esc(e.username) + ' · موجودی: ' + fmtNum(e.balance) + '</div></div>' +
+      '<button class="btn btn-sm btn-outline" data-reset-id="' + e.id + '">رمز جدید</button>' +
+      '<button class="btn btn-sm ' + (e.active ? 'btn-danger' : 'btn-outline') + '" data-toggle-id="' + e.id + '" data-active="' + e.active + '">' + (e.active ? 'غیرفعال' : 'فعال') + '</button>' +
+    '</div>';
+  }).join('') : '<div class="empty-note">کارمندی ثبت نشده</div>';
+
+  box.querySelectorAll('[data-toggle-id]').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      var active = btn.getAttribute('data-active') === 'true';
+      var r = await apiPost('setEmployeeActive', { id: btn.getAttribute('data-toggle-id'), active: !active });
+      if(handleAuthError(r)) return;
+      if(!r.ok){ toast(r.error || 'خطا', true); return; }
+      toast('وضعیت به‌روزرسانی شد');
+      loadAdminEmployees();
+    });
+  });
+  box.querySelectorAll('[data-reset-id]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      resetPassTargetId = btn.getAttribute('data-reset-id');
+      setMsg('resetPassMsg', '');
+      document.getElementById('resetNewPass').value = '';
+      openModal('resetPassModal');
+    });
+  });
+}
+var resetPassTargetId = null;
+document.getElementById('resetPassSubmitBtn').addEventListener('click', async function(){
+  var newPass = document.getElementById('resetNewPass').value;
+  if(!newPass || newPass.length < 4){ setMsg('resetPassMsg', 'رمز جدید باید حداقل ۴ کاراکتر باشد'); return; }
+  var targetEmp = employeesCache.find(function(e){ return e.id === resetPassTargetId; });
+  var hash = await passwordHashFor(targetEmp ? targetEmp.username : '', newPass);
+  var r = await apiPost('resetPassword', { id: resetPassTargetId, newPasswordHash: hash });
+  if(handleAuthError(r)) return;
+  if(!r.ok){ setMsg('resetPassMsg', r.error || 'خطا'); return; }
+  toast('رمز عبور بازنشانی شد');
+  closeModal('resetPassModal');
+});
+
+// ---------- Add employee ----------
+document.getElementById('adminAddEmpBtn').addEventListener('click', openEmpModal);
+document.getElementById('adminAddEmpBtn2').addEventListener('click', openEmpModal);
+function openEmpModal(){
+  setMsg('empMsg','');
+  document.getElementById('newEmpName').value = '';
+  document.getElementById('newEmpUsername').value = '';
+  document.getElementById('newEmpPassword').value = '';
+  document.getElementById('newEmpRole').value = 'employee';
+  openModal('empModal');
+}
+document.getElementById('empSubmitBtn').addEventListener('click', async function(){
+  var name = document.getElementById('newEmpName').value.trim();
+  var username = document.getElementById('newEmpUsername').value.trim();
+  var password = document.getElementById('newEmpPassword').value;
+  var role = document.getElementById('newEmpRole').value;
+  if(!name || !username || !password){ setMsg('empMsg', 'همه فیلدها لازم است'); return; }
+  if(password.length < 4){ setMsg('empMsg', 'رمز عبور باید حداقل ۴ کاراکتر باشد'); return; }
+  var hash = await passwordHashFor(username, password);
+  var res = await apiPost('addEmployee', { name: name, username: username, passwordHash: hash, role: role });
+  if(handleAuthError(res)) return;
+  if(!res.ok){ setMsg('empMsg', res.error || 'خطا'); return; }
+  toast('کارمند اضافه شد');
+  closeModal('empModal');
+  loadAdminEmployees();
+});
+
+// ---------- Add transaction modal ----------
+var TX_TYPES_ADMIN = [
+  { id:'receipt', label:'دریافتی' },
+  { id:'payment', label:'پرداختی' },
+  { id:'transfer', label:'انتقال' },
+  { id:'expense', label:'خرج' }
+];
+var TX_TYPES_EMP = [
+  { id:'expense', label:'خرج' },
+  { id:'transfer', label:'انتقال' }
+];
+var currentTxType = 'expense';
+
+document.getElementById('adminAddTxBtn').addEventListener('click', function(){ openTxModal('receipt'); });
+
+async function openTxModal(defaultType){
+  setMsg('txMsg','');
+  document.getElementById('txAmount').value = '';
+  document.getElementById('txDesc').value = '';
+  document.getElementById('txCounterparty').value = '';
+  document.getElementById('txReceiptFile').value = '';
+  pendingReceiptBase64 = null;
+  var preview = document.getElementById('txReceiptPreview');
+  preview.innerHTML = ''; preview.classList.add('hidden');
+  var isAdmin = session.employee.role === 'admin';
+  var types = isAdmin ? TX_TYPES_ADMIN : TX_TYPES_EMP;
+  var seg = document.getElementById('txTypeSeg');
+  seg.innerHTML = types.map(function(t){ return '<button data-type="' + t.id + '">' + t.label + '</button>'; }).join('');
+  seg.querySelectorAll('button').forEach(function(b){
+    b.addEventListener('click', function(){ setTxType(b.getAttribute('data-type')); });
+  });
+
+  // A fast tap right after login can beat the background fetch that fills employeesCache
+  // (loadAdminDashboard / loadEmployeeDirectory) — make sure it's populated before we build
+  // the dropdowns, otherwise they render empty.
+  if(employeesCache.length === 0){
+    if(isAdmin){
+      var res = await apiGet('getEmployees', {});
+      if(!handleAuthError(res) && res.ok) employeesCache = res.employees || [];
+    } else {
+      await loadEmployeeDirectory();
+    }
+  }
+  fillEmployeeSelect('txFromSelect');
+  fillEmployeeSelect('txToSelect');
+  fillCounterpartyDatalist();
+
+  setTxType(defaultType || 'expense');
+  openModal('txModal');
+}
+function fillCounterpartyDatalist(){
+  var dl = document.getElementById('counterpartyDatalist');
+  dl.innerHTML = '';
+  employeesCache.forEach(function(e){
+    var o = document.createElement('option'); o.value = e.name; dl.appendChild(o);
+  });
+}
+
+// ---------- Receipt photo: resize client-side before upload ----------
+var pendingReceiptBase64 = null;
+document.getElementById('txReceiptFile').addEventListener('change', async function(e){
+  var file = e.target.files && e.target.files[0];
+  var preview = document.getElementById('txReceiptPreview');
+  if(!file){ pendingReceiptBase64 = null; preview.innerHTML=''; preview.classList.add('hidden'); return; }
+  try{
+    pendingReceiptBase64 = await resizeImageToBase64(file, 1280, 0.72);
+    preview.innerHTML = '<img src="data:image/jpeg;base64,' + pendingReceiptBase64 + '">';
+    preview.classList.remove('hidden');
+  }catch(err){
+    pendingReceiptBase64 = null;
+    toast('پردازش عکس ناموفق بود', true);
+  }
+});
+function resizeImageToBase64(file, maxDim, quality){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; }
+        else if(h >= w && h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1]);
+      };
+      img.onerror = function(){ reject(new Error('invalid image')); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function(){ reject(new Error('file read failed')); };
+    reader.readAsDataURL(file);
+  });
+}
+function fillEmployeeSelect(selId){
+  var sel = document.getElementById(selId);
+  sel.innerHTML = '';
+  employeesCache.filter(function(e){ return e.active; }).forEach(function(e){
+    var o = document.createElement('option'); o.value = e.id; o.textContent = e.name; sel.appendChild(o);
+  });
+}
+function setTxType(type){
+  currentTxType = type;
+  document.querySelectorAll('#txTypeSeg button').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-type') === type); });
+  var isAdmin = session.employee.role === 'admin';
+  document.getElementById('txModalTitle').textContent = 'ثبت ' + TX_TYPE_LABEL[type];
+
+  var showFrom = (type === 'payment') || (type === 'transfer' && isAdmin) || (type === 'expense' && isAdmin);
+  var showTo = (type === 'receipt') || (type === 'transfer');
+  var showCategory = (type === 'expense');
+  var showDesc = (type === 'expense') || true;
+  var showCounterparty = (type === 'expense') || (type === 'payment');
+  var showReceipt = (type === 'expense');
+
+  document.getElementById('txFromWrap').classList.toggle('hidden', !showFrom);
+  document.getElementById('txToWrap').classList.toggle('hidden', !showTo);
+  document.getElementById('txCategoryWrap').classList.toggle('hidden', !showCategory);
+  document.getElementById('txDescWrap').classList.toggle('hidden', !showDesc);
+  document.getElementById('txCounterpartyWrap').classList.toggle('hidden', !showCounterparty);
+  document.getElementById('txReceiptWrap').classList.toggle('hidden', !showReceipt);
+
+  document.getElementById('txFromLabel').textContent = (type === 'payment') ? 'کارمند پرداخت‌کننده' : 'از کارمند';
+  document.getElementById('txToLabel').textContent = (type === 'receipt') ? 'کارمند گیرنده' : 'به کارمند';
+}
+
+document.getElementById('txSubmitBtn').addEventListener('click', async function(){
+  var amount = Number(document.getElementById('txAmount').value);
+  if(!amount || amount <= 0){ setMsg('txMsg', 'مبلغ را به‌درستی وارد کنید'); return; }
+  var isAdmin = session.employee.role === 'admin';
+  var payload = { type: currentTxType, amount: amount, description: document.getElementById('txDesc').value.trim() };
+
+  if(currentTxType === 'receipt'){ payload.toId = document.getElementById('txToSelect').value; if(!payload.toId){ setMsg('txMsg','کارمند گیرنده را انتخاب کنید'); return; } }
+  if(currentTxType === 'payment'){ payload.fromId = document.getElementById('txFromSelect').value; if(!payload.fromId){ setMsg('txMsg','کارمند پرداخت‌کننده را انتخاب کنید'); return; } }
+  if(currentTxType === 'transfer'){
+    payload.toId = document.getElementById('txToSelect').value;
+    if(isAdmin) payload.fromId = document.getElementById('txFromSelect').value;
+    if(!payload.toId){ setMsg('txMsg','کارمند مقصد را انتخاب کنید'); return; }
+    if(isAdmin && !payload.fromId){ setMsg('txMsg','کارمند مبدا را انتخاب کنید'); return; }
+    if(!isAdmin && payload.toId === session.employee.id){ setMsg('txMsg','مبدا و مقصد نمی‌توانند یکی باشند'); return; }
+  }
+  if(currentTxType === 'expense'){
+    payload.category = document.getElementById('txCategorySelect').value;
+    if(isAdmin) payload.fromId = document.getElementById('txFromSelect').value;
+    if(!payload.description){ setMsg('txMsg','توضیحات خرج را وارد کنید'); return; }
+    if(pendingReceiptBase64){ payload.receiptImageBase64 = pendingReceiptBase64; payload.receiptImageMime = 'image/jpeg'; }
+  }
+  if(currentTxType === 'expense' || currentTxType === 'payment'){
+    var cp = document.getElementById('txCounterparty').value.trim();
+    if(cp) payload.counterparty = cp;
+  }
+
+  var submitBtn = document.getElementById('txSubmitBtn');
+  submitBtn.disabled = true;
+  var res;
+  try{ res = await apiPost('addTransaction', payload); }
+  finally{ submitBtn.disabled = false; }
+  if(handleAuthError(res)) return;
+  if(!res.ok){ setMsg('txMsg', res.error || 'خطا در ثبت'); return; }
+  toast(res.warning || 'تراکنش ثبت شد' + (res.voucherNo ? (' — سند #' + res.voucherNo) : ''), !!res.warning);
+  closeModal('txModal');
+  if(isAdmin){ loadAdminDashboard(); if(document.getElementById('view-admin-tx').classList.contains('active')) loadAdminTx(); }
+  else { loadEmpDashboard(); if(document.getElementById('view-emp-history').classList.contains('active')) loadEmpHistory(); }
+});
+
+// ---------- Boot ----------
+(async function boot(){
+  session = loadSession();
+  if(session){
+    await enterApp();
+  } else {
+    showLogin();
+  }
+})();
+
+// ---------- Service worker ----------
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('./service-worker.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
