@@ -75,6 +75,8 @@ function route(action, p) {
       return withAuth(p, false, function (me) { return addTransaction(me, p); });
     case 'voidTransaction':
       return withAuth(p, true, function (me) { return voidTransaction(p); });
+    case 'setReceiptStatus':
+      return withAuth(p, true, function (me) { return setReceiptStatus(p); });
     case 'getTransactions':
       return withAuth(p, false, function (me) { return getTransactionsList(me, p); });
     case 'getBalance':
@@ -274,7 +276,19 @@ function resetPassword(p) {
 // ---------- Transactions ----------
 
 function transactionsSheet_() {
-  return getOrCreateSheet_('Transactions', ['ID', 'DateTime', 'Type', 'FromID', 'FromName', 'ToID', 'ToName', 'Amount', 'Category', 'Description', 'CreatedByUsername', 'Voided', 'CreatedAt']);
+  return getOrCreateSheet_('Transactions', ['ID', 'DateTime', 'Type', 'FromID', 'FromName', 'ToID', 'ToName', 'Amount', 'Category', 'Description', 'CreatedByUsername', 'Voided', 'CreatedAt', 'VoucherNo', 'Counterparty', 'ReceiptStatus', 'ReceiptImageUrl']);
+}
+
+// A single running voucher number across every transaction type, mirroring "شماره سند" in
+// the user's existing spreadsheet — lets them cite one short number instead of a UUID.
+function nextVoucherNo_(sh) {
+  var data = sh.getDataRange().getValues();
+  var max = 0;
+  for (var i = 1; i < data.length; i++) {
+    var v = Number(data[i][13]);
+    if (!isNaN(v) && v > max) max = v;
+  }
+  return max + 1;
 }
 
 var VALID_TYPES = ['receipt', 'payment', 'transfer', 'expense'];
@@ -324,17 +338,73 @@ function addTransaction(me, p) {
 
   if (type === 'expense' && !p.description) return { ok: false, error: 'توضیحات خرج لازم است' };
 
+  // "طرف‌حساب" — who the money was effectively paid to/for. Usually the same person as
+  // fromName/toName, but real usage sometimes differs (e.g. one person's tankhah covers an
+  // expense attributed to a colleague or to the company) — mirrors the source spreadsheet.
+  var counterparty = (p.counterparty && String(p.counterparty).trim()) || fromName || toName || '';
+  var receiptStatus = (type === 'expense') ? 'pending' : '';
+  var receiptImageUrl = '';
+  var warning = '';
+  if (type === 'expense' && p.receiptImageBase64) {
+    try {
+      receiptImageUrl = uploadReceiptImage_(p.receiptImageBase64, p.receiptImageMime || 'image/jpeg');
+    } catch (err) {
+      warning = 'تراکنش ثبت شد ولی آپلود عکس رسید ناموفق بود: ' + String(err && err.message ? err.message : err);
+    }
+  }
+
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
     var sh = transactionsSheet_();
     var id = Utilities.getUuid();
     var now = new Date();
-    sh.appendRow([id, now.toISOString(), type, fromId || '', fromName || '', toId || '', toName || '', amount, p.category || '', p.description || '', me.username, false, now.toISOString()]);
-    return { ok: true, id: id };
+    var voucherNo = nextVoucherNo_(sh);
+    sh.appendRow([id, now.toISOString(), type, fromId || '', fromName || '', toId || '', toName || '', amount, p.category || '', p.description || '', me.username, false, now.toISOString(), voucherNo, counterparty, receiptStatus, receiptImageUrl]);
+    var result = { ok: true, id: id, voucherNo: voucherNo };
+    if (warning) result.warning = warning;
+    return result;
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------- Receipt photo storage (Google Drive) ----------
+
+function getOrCreateReceiptsFolder_() {
+  var props = PropertiesService.getScriptProperties();
+  var folderId = props.getProperty('RECEIPTS_FOLDER_ID');
+  if (folderId) {
+    try { return DriveApp.getFolderById(folderId); } catch (e) { /* fall through and recreate */ }
+  }
+  var folder = DriveApp.createFolder('تنخواه‌یار - رسیدها');
+  props.setProperty('RECEIPTS_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+// Stores the photo and returns a directly embeddable URL. Sharing is set to "anyone with the
+// link" because the frontend renders it in a plain <img>/<a> with no Google auth of its own —
+// acceptable for this internal tool, but worth knowing: the link isn't password-protected.
+function uploadReceiptImage_(base64Data, mimeType) {
+  var folder = getOrCreateReceiptsFolder_();
+  var bytes = Utilities.base64Decode(base64Data);
+  var blob = Utilities.newBlob(bytes, mimeType, 'receipt-' + Date.now() + '.jpg');
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return 'https://drive.google.com/uc?export=view&id=' + file.getId();
+}
+
+function setReceiptStatus(p) {
+  if (!p.id || (p.status !== 'received' && p.status !== 'pending')) return { ok: false, error: 'اطلاعات نامعتبر' };
+  var sh = transactionsSheet_();
+  var data = sh.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === p.id) {
+      sh.getRange(i + 1, 16).setValue(p.status);
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'تراکنش یافت نشد' };
 }
 
 function voidTransaction(p) {
@@ -363,7 +433,8 @@ function allTransactions_(includeVoided) {
       id: row[0], dateTime: row[1], type: row[2],
       fromId: row[3], fromName: row[4], toId: row[5], toName: row[6],
       amount: Number(row[7]), category: row[8], description: row[9],
-      createdBy: row[10], voided: voided, createdAt: row[12]
+      createdBy: row[10], voided: voided, createdAt: row[12],
+      voucherNo: row[13] || null, counterparty: row[14] || '', receiptStatus: row[15] || '', receiptImageUrl: row[16] || ''
     });
   }
   return out;

@@ -222,6 +222,15 @@
   .badge.inactive{ background:#fdeaea; color:var(--err); }
   html[data-theme="dark"] .badge.admin{ background:#3a2c10; }
   html[data-theme="dark"] .badge.inactive{ background:#3a1616; }
+  .badge.receipt-pending{ background:#fdeaea; color:var(--err); cursor:pointer; border:none; }
+  .badge.receipt-received{ background:#e7f7ef; color:var(--ok); cursor:pointer; border:none; }
+  html[data-theme="dark"] .badge.receipt-pending{ background:#3a1616; }
+  html[data-theme="dark"] .badge.receipt-received{ background:#0f2e1c; }
+  .voucher-tag{ font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .receipt-link{ font-size:15px; color:var(--gold-dark); flex:none; }
+  html[data-theme="dark"] .receipt-link{ color:var(--gold); }
+  .receipt-preview{ margin-top:8px; max-width:140px; border-radius:10px; overflow:hidden; box-shadow:var(--sh-sm); }
+  .receipt-preview img{ display:block; width:100%; }
 
   /* ---- Modal ---- */
   .modal-overlay{
@@ -432,16 +441,33 @@
     <div class="field" id="txCategoryWrap">
       <label>دسته‌بندی خرج</label>
       <select id="txCategorySelect">
-        <option value="حمل و نقل">حمل و نقل</option>
-        <option value="خوراک و پذیرایی">خوراک و پذیرایی</option>
-        <option value="اداری و لوازم">اداری و لوازم</option>
+        <option value="خوراک">خوراک</option>
         <option value="تعمیرات">تعمیرات</option>
-        <option value="ارتباطات">ارتباطات</option>
+        <option value="خرید ابزار و لوازم مصرفی">خرید ابزار و لوازم مصرفی</option>
+        <option value="تجهیزات برقی و مکانیکی">تجهیزات برقی و مکانیکی</option>
+        <option value="پست">پست</option>
+        <option value="باربری">باربری</option>
+        <option value="اسنپ و پیک">اسنپ و پیک</option>
+        <option value="سرویس‌های پرسنل">سرویس‌های پرسنل</option>
+        <option value="خرج‌کرد پرسنل">خرج‌کرد پرسنل</option>
+        <option value="اداری">اداری</option>
+        <option value="بهداشتی و تنظیف">بهداشتی و تنظیف</option>
+        <option value="تراشکاری">تراشکاری</option>
         <option value="سایر">سایر</option>
       </select>
     </div>
+    <div class="field" id="txCounterpartyWrap">
+      <label>طرف‌حساب / پرداخت به (اختیاری)</label>
+      <input id="txCounterparty" list="counterpartyDatalist" placeholder="مثلاً نام همکار دیگر یا فروشنده — خالی بمونه یعنی خودم">
+      <datalist id="counterpartyDatalist"></datalist>
+    </div>
     <div class="field"><label>مبلغ (تومان)</label><input id="txAmount" type="number" inputmode="numeric" placeholder="مثلاً 500000"></div>
     <div class="field" id="txDescWrap"><label>توضیحات</label><textarea id="txDesc" placeholder="توضیح کوتاه…"></textarea></div>
+    <div class="field" id="txReceiptWrap">
+      <label>عکس رسید (اختیاری)</label>
+      <input id="txReceiptFile" type="file" accept="image/*" capture="environment">
+      <div id="txReceiptPreview" class="receipt-preview hidden"></div>
+    </div>
 
     <button class="btn btn-primary" id="txSubmitBtn"><i class="fa-solid fa-check"></i> ثبت</button>
   </div>
@@ -707,6 +733,19 @@ async function loadEmployeeDirectory(){
 var TX_TYPE_LABEL = { receipt:'دریافتی', payment:'پرداختی', transfer:'انتقال', expense:'خرج' };
 var TX_TYPE_ICON = { receipt:'fa-arrow-down', payment:'fa-arrow-up', transfer:'fa-right-left', expense:'fa-receipt' };
 
+function receiptStatusBadgeHtml(t, clickable){
+  if(!t.receiptStatus) return '';
+  var isReceived = t.receiptStatus === 'received';
+  var cls = isReceived ? 'receipt-received' : 'receipt-pending';
+  var label = isReceived ? 'رسید شده' : 'رسید نشده';
+  var tag = clickable ? 'button' : 'span';
+  var attr = clickable ? (' data-toggle-receipt-id="' + t.id + '" data-current-status="' + t.receiptStatus + '"') : '';
+  return '<' + tag + ' class="badge ' + cls + '"' + attr + '>' + label + '</' + tag + '>';
+}
+function receiptLinkHtml(t){
+  if(!t.receiptImageUrl) return '';
+  return '<a class="receipt-link" href="' + esc(t.receiptImageUrl) + '" target="_blank" rel="noopener" title="مشاهده عکس رسید"><i class="fa-solid fa-image"></i></a>';
+}
 function txRow(t, forEmployeeId){
   var isIncoming = t.toId === forEmployeeId;
   var sign = isIncoming ? '+' : '-';
@@ -718,9 +757,13 @@ function txRow(t, forEmployeeId){
   else if(t.type === 'expense') sub = (t.category || '') + (t.description ? ' — ' + t.description : '');
   var dt = new Date(t.dateTime);
   var dtStr = isNaN(dt.getTime()) ? '' : dt.toLocaleString('fa-IR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+  var voucherTag = t.voucherNo ? ('<span class="voucher-tag">#' + t.voucherNo + '</span> ') : '';
   return '<div class="tx-item' + (t.voided ? ' tx-void' : '') + '">' +
     '<div class="tx-icon ' + t.type + '"><i class="fa-solid ' + TX_TYPE_ICON[t.type] + '"></i></div>' +
-    '<div class="tx-mid"><div class="tx-title">' + TX_TYPE_LABEL[t.type] + '</div><div class="tx-sub">' + esc(sub) + (dtStr ? ' · ' + dtStr : '') + '</div></div>' +
+    '<div class="tx-mid"><div class="tx-title">' + voucherTag + TX_TYPE_LABEL[t.type] + '</div><div class="tx-sub">' + esc(sub) + (dtStr ? ' · ' + dtStr : '') + '</div>' +
+      (t.receiptStatus ? '<div style="margin-top:4px;">' + receiptStatusBadgeHtml(t, false) + '</div>' : '') +
+    '</div>' +
+    receiptLinkHtml(t) +
     '<div class="tx-amt ' + cls + '">' + sign + fmtNum(t.amount) + '</div>' +
   '</div>';
 }
@@ -731,9 +774,14 @@ function txRowAdmin(t){
             (t.type === 'receipt') ? ('صندوق ← ' + t.toName) :
             (t.type === 'payment') ? (t.fromName + ' ← صندوق') :
             (t.fromName + ' ← ' + t.toName);
+  if(t.counterparty) sub += ' · طرف‌حساب: ' + t.counterparty;
+  var voucherTag = t.voucherNo ? ('<span class="voucher-tag">#' + t.voucherNo + '</span> ') : '';
   return '<div class="tx-item' + (t.voided ? ' tx-void' : '') + '">' +
     '<div class="tx-icon ' + t.type + '"><i class="fa-solid ' + TX_TYPE_ICON[t.type] + '"></i></div>' +
-    '<div class="tx-mid"><div class="tx-title">' + TX_TYPE_LABEL[t.type] + '</div><div class="tx-sub">' + esc(sub) + (dtStr ? ' · ' + dtStr : '') + '</div></div>' +
+    '<div class="tx-mid"><div class="tx-title">' + voucherTag + TX_TYPE_LABEL[t.type] + '</div><div class="tx-sub">' + esc(sub) + (dtStr ? ' · ' + dtStr : '') + '</div>' +
+      (t.receiptStatus ? '<div style="margin-top:4px;">' + receiptStatusBadgeHtml(t, !t.voided) + '</div>' : '') +
+    '</div>' +
+    receiptLinkHtml(t) +
     '<div class="tx-amt">' + fmtNum(t.amount) + '</div>' +
     (t.voided ? '' : '<button class="tx-void-btn" data-void-id="' + t.id + '" title="ابطال"><i class="fa-solid fa-ban"></i></button>') +
   '</div>';
@@ -825,6 +873,15 @@ async function loadAdminTx(){
       if(handleAuthError(r)) return;
       if(!r.ok){ toast(r.error || 'خطا', true); return; }
       toast('تراکنش باطل شد');
+      loadAdminTx();
+    });
+  });
+  box.querySelectorAll('[data-toggle-receipt-id]').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      var next = btn.getAttribute('data-current-status') === 'received' ? 'pending' : 'received';
+      var r = await apiPost('setReceiptStatus', { id: btn.getAttribute('data-toggle-receipt-id'), status: next });
+      if(handleAuthError(r)) return;
+      if(!r.ok){ toast(r.error || 'خطا', true); return; }
       loadAdminTx();
     });
   });
@@ -936,6 +993,11 @@ async function openTxModal(defaultType){
   setMsg('txMsg','');
   document.getElementById('txAmount').value = '';
   document.getElementById('txDesc').value = '';
+  document.getElementById('txCounterparty').value = '';
+  document.getElementById('txReceiptFile').value = '';
+  pendingReceiptBase64 = null;
+  var preview = document.getElementById('txReceiptPreview');
+  preview.innerHTML = ''; preview.classList.add('hidden');
   var isAdmin = session.employee.role === 'admin';
   var types = isAdmin ? TX_TYPES_ADMIN : TX_TYPES_EMP;
   var seg = document.getElementById('txTypeSeg');
@@ -957,9 +1019,54 @@ async function openTxModal(defaultType){
   }
   fillEmployeeSelect('txFromSelect');
   fillEmployeeSelect('txToSelect');
+  fillCounterpartyDatalist();
 
   setTxType(defaultType || 'expense');
   openModal('txModal');
+}
+function fillCounterpartyDatalist(){
+  var dl = document.getElementById('counterpartyDatalist');
+  dl.innerHTML = '';
+  employeesCache.forEach(function(e){
+    var o = document.createElement('option'); o.value = e.name; dl.appendChild(o);
+  });
+}
+
+// ---------- Receipt photo: resize client-side before upload ----------
+var pendingReceiptBase64 = null;
+document.getElementById('txReceiptFile').addEventListener('change', async function(e){
+  var file = e.target.files && e.target.files[0];
+  var preview = document.getElementById('txReceiptPreview');
+  if(!file){ pendingReceiptBase64 = null; preview.innerHTML=''; preview.classList.add('hidden'); return; }
+  try{
+    pendingReceiptBase64 = await resizeImageToBase64(file, 1280, 0.72);
+    preview.innerHTML = '<img src="data:image/jpeg;base64,' + pendingReceiptBase64 + '">';
+    preview.classList.remove('hidden');
+  }catch(err){
+    pendingReceiptBase64 = null;
+    toast('پردازش عکس ناموفق بود', true);
+  }
+});
+function resizeImageToBase64(file, maxDim, quality){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; }
+        else if(h >= w && h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1]);
+      };
+      img.onerror = function(){ reject(new Error('invalid image')); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function(){ reject(new Error('file read failed')); };
+    reader.readAsDataURL(file);
+  });
 }
 function fillEmployeeSelect(selId){
   var sel = document.getElementById(selId);
@@ -978,11 +1085,15 @@ function setTxType(type){
   var showTo = (type === 'receipt') || (type === 'transfer');
   var showCategory = (type === 'expense');
   var showDesc = (type === 'expense') || true;
+  var showCounterparty = (type === 'expense') || (type === 'payment');
+  var showReceipt = (type === 'expense');
 
   document.getElementById('txFromWrap').classList.toggle('hidden', !showFrom);
   document.getElementById('txToWrap').classList.toggle('hidden', !showTo);
   document.getElementById('txCategoryWrap').classList.toggle('hidden', !showCategory);
   document.getElementById('txDescWrap').classList.toggle('hidden', !showDesc);
+  document.getElementById('txCounterpartyWrap').classList.toggle('hidden', !showCounterparty);
+  document.getElementById('txReceiptWrap').classList.toggle('hidden', !showReceipt);
 
   document.getElementById('txFromLabel').textContent = (type === 'payment') ? 'کارمند پرداخت‌کننده' : 'از کارمند';
   document.getElementById('txToLabel').textContent = (type === 'receipt') ? 'کارمند گیرنده' : 'به کارمند';
@@ -1007,12 +1118,21 @@ document.getElementById('txSubmitBtn').addEventListener('click', async function(
     payload.category = document.getElementById('txCategorySelect').value;
     if(isAdmin) payload.fromId = document.getElementById('txFromSelect').value;
     if(!payload.description){ setMsg('txMsg','توضیحات خرج را وارد کنید'); return; }
+    if(pendingReceiptBase64){ payload.receiptImageBase64 = pendingReceiptBase64; payload.receiptImageMime = 'image/jpeg'; }
+  }
+  if(currentTxType === 'expense' || currentTxType === 'payment'){
+    var cp = document.getElementById('txCounterparty').value.trim();
+    if(cp) payload.counterparty = cp;
   }
 
-  var res = await apiPost('addTransaction', payload);
+  var submitBtn = document.getElementById('txSubmitBtn');
+  submitBtn.disabled = true;
+  var res;
+  try{ res = await apiPost('addTransaction', payload); }
+  finally{ submitBtn.disabled = false; }
   if(handleAuthError(res)) return;
   if(!res.ok){ setMsg('txMsg', res.error || 'خطا در ثبت'); return; }
-  toast('تراکنش ثبت شد');
+  toast(res.warning || 'تراکنش ثبت شد' + (res.voucherNo ? (' — سند #' + res.voucherNo) : ''), !!res.warning);
   closeModal('txModal');
   if(isAdmin){ loadAdminDashboard(); if(document.getElementById('view-admin-tx').classList.contains('active')) loadAdminTx(); }
   else { loadEmpDashboard(); if(document.getElementById('view-emp-history').classList.contains('active')) loadEmpHistory(); }
