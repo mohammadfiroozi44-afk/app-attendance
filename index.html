@@ -1424,6 +1424,12 @@
         <div class="hint" style="margin-top:-8px;">
           اگه تیک بخوره، جمعه‌ها و تعطیلاتِ رسمی برایِ این شیفت اعمال می‌شن (اون روزها موظفی صفره). اگه تیک نخوره، این شیفت از هیچ‌کدوم تبعیت نمی‌کنه — یعنی جمعه و روزِ تعطیل هم مثلِ یه روزِ عادیِ همین شیفت حساب می‌شن، و اگه پرسنل تردد ثبت نکنه، غیبت براش ثبت می‌شه.
         </div>
+        <label class="chk-item" style="width:100%; box-sizing:border-box;">
+          <input type="checkbox" id="shiftFormCountHolidaysAsLeave" checked> تعطیلاتِ داخلِ بازه‌یِ مرخصی، مرخصی حساب بشه
+        </label>
+        <div class="hint" style="margin-top:-8px;">
+          اگه تیک بخوره (پیش‌فرض)، جمعه/تعطیلیِ داخلِ یه مرخصیِ چندروزه هم جزوِ همون مرخصی ثبت می‌شه. اگه تیک نخوره، همون روزِ تعطیل به‌جایِ مرخصی، «Off» (تعطیلِ معمولی) ثبت می‌شه و از مرخصیِ فرد کم نمی‌شه — برایِ مرخصیِ ساعتی هم همین قانون اعمال می‌شه.
+        </div>
 
         <!-- استراحت — بیرون از shiftSimpleTopFieldsWrap، چون قبلاً داخلِ تنظیماتِ پیشرفته‌یِ
              «شیفتِ ساده» بود و برایِ «شیفتِ سفارشی» کلاً مخفی می‌شد؛ یعنی روی شیفتِ سفارشی
@@ -1662,6 +1668,10 @@
           </div>
         </div>
         <div class="hint" style="margin-top:-8px;">پایانِ شب‌کاری همیشه در روزِ بعد از شروعش در نظر گرفته می‌شه (مثلاً ۲۲:۰۰ تا ۰۶:۰۰ یعنی از شبِ امروز تا صبحِ فردا).</div>
+        <label class="chk-item">
+          <input type="checkbox" id="normalCountHolidaysAsLeave" checked> تعطیلاتِ داخلِ بازه‌یِ مرخصی، مرخصی حساب بشه
+        </label>
+        <div class="hint" style="margin-top:-8px;">این برایِ پرسنلی‌یه که شیفتِ اختصاصی ندارن (شیفتِ عادی). اگه تیک بخوره (پیش‌فرض)، جمعه/تعطیلیِ داخلِ یه مرخصیِ چندروزه هم جزوِ همون مرخصی ثبت می‌شه. اگه تیک نخوره، همون روزِ تعطیل به‌جایِ مرخصی، «Off» ثبت می‌شه و از مرخصیِ فرد کم نمی‌شه — برایِ مرخصیِ ساعتی هم همین قانون اعمال می‌شه.</div>
         <button type="button" class="btn btn-primary" onclick="saveNormalShiftSettings()">✅ ثبتِ تنظیماتِ شیفتِ عادی</button>
       </div>
     </div>
@@ -1909,6 +1919,35 @@
       </div>
     </div>
     </div><!-- /admSec-report -->
+
+    <div class="sheet-overlay" id="statusEditOverlay" onclick="closeStatusMarkerEdit()"></div>
+    <div class="bottom-sheet-modal" id="statusEditSheet">
+      <div class="sheet-close-btn"><button type="button" class="icon-btn" title="بستن" onclick="closeStatusMarkerEdit()">✕</button></div>
+      <div class="sheet-handle"></div>
+      <div class="eyebrow" id="statusEditTitle">ویرایشِ وضعیت</div>
+      <div class="hint" id="statusEditRangeHint" style="margin-top:-8px;"></div>
+      <label>وضعیتِ روز</label>
+      <select id="statusEditType" onchange="onStatusEditTypeChange()">
+        <option value="مرخصی">مرخصی</option>
+        <option value="ماموریت">ماموریت</option>
+      </select>
+      <div id="statusEditLeaveWrap">
+        <label>نوعِ مرخصی</label>
+        <select id="statusEditKind" onchange="onStatusEditTypeChange()">
+          <option value="daily">روزانه (به اندازه‌یِ موظفیِ همان روز)</option>
+          <option value="hourly">ساعتی</option>
+        </select>
+        <div id="statusEditHoursWrap">
+          <label>مدتِ مرخصیِ ساعتی (ساعت:دقیقه)</label>
+          <input type="text" id="statusEditHours" class="field-mono" placeholder="مثلاً 2:30">
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button type="button" class="btn btn-primary" onclick="saveStatusMarkerEdit()">💾 ذخیره</button>
+        <button type="button" class="btn btn-ghost" onclick="closeStatusMarkerEdit()">انصراف</button>
+      </div>
+      <div class="hint" id="statusEditMsg" style="margin-top:8px;"></div>
+    </div>
 
     <div class="admin-section" id="admSec-performance" style="display:none;">
     <div class="card">
@@ -5781,6 +5820,7 @@ async function loadNormalShiftSettings(){
   document.getElementById('normalBreakEnabled').checked = String(s.breakEnabled||'yes').toLowerCase() !== 'no';
   document.getElementById('normalNightStart').value = s.nightStart || '22:00';
   document.getElementById('normalNightEnd').value = s.nightEnd || '06:00';
+  document.getElementById('normalCountHolidaysAsLeave').checked = String(s.countHolidaysAsLeave||'yes').toLowerCase() !== 'no';
 }
 async function saveNormalShiftSettings(){
   var reqTime = document.getElementById('normalRequiredTime').value;
@@ -5791,7 +5831,8 @@ async function saveNormalShiftSettings(){
   var nightStart = document.getElementById('normalNightStart').value;
   var nightEnd = document.getElementById('normalNightEnd').value;
   if(!nightStart || !nightEnd){ showAdminNotice('شروع و پایانِ شب‌کاری را وارد کن.'); return; }
-  var res = await apiCall(function(){ return apiPost('saveNormalShiftSettings', {pin:adminPin, requiredMinutes:reqMin, breakMinutes:breakMin, breakEnabled:breakEnabled, nightStart:nightStart, nightEnd:nightEnd}); });
+  var countHolidaysAsLeave = document.getElementById('normalCountHolidaysAsLeave').checked;
+  var res = await apiCall(function(){ return apiPost('saveNormalShiftSettings', {pin:adminPin, requiredMinutes:reqMin, breakMinutes:breakMin, breakEnabled:breakEnabled, nightStart:nightStart, nightEnd:nightEnd, countHolidaysAsLeave:countHolidaysAsLeave}); });
   if(!res.ok){ showAdminNotice('ثبتِ تنظیمات ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   alert('تنظیماتِ شیفتِ عادی ذخیره شد.');
@@ -6344,6 +6385,7 @@ function startEditShift(id){
   document.getElementById('shiftFormWindowStart').value = s.attendanceWindowStart || '';
   document.getElementById('shiftFormWindowEnd').value = s.attendanceWindowEnd || '';
   document.getElementById('shiftFormFollowHolidays').checked = String(s.followOfficialHolidays||'').toLowerCase() !== 'no';
+  document.getElementById('shiftFormCountHolidaysAsLeave').checked = String(s.countHolidaysAsLeave||'').toLowerCase() !== 'no';
   document.getElementById('shiftFormBreakEnabled').checked = String(s.breakEnabled||'').toLowerCase() !== 'no';
   document.getElementById('shiftFormBreakMinutes').value = s.breakMinutes || '';
   onShiftFormBreakToggle();
@@ -6381,6 +6423,7 @@ function cancelShiftEdit(){
   document.getElementById('shiftFormWindowStart').value = '';
   document.getElementById('shiftFormWindowEnd').value = '';
   document.getElementById('shiftFormFollowHolidays').checked = true;
+  document.getElementById('shiftFormCountHolidaysAsLeave').checked = true;
   document.getElementById('shiftFormBreakEnabled').checked = true;
   document.getElementById('shiftFormBreakMinutes').value = '';
   onShiftFormBreakToggle();
@@ -6414,6 +6457,7 @@ function saveShift(){
     attendanceWindowStart: isCustom ? '' : document.getElementById('shiftFormWindowStart').value,
     attendanceWindowEnd: isCustom ? '' : document.getElementById('shiftFormWindowEnd').value,
     followOfficialHolidays: document.getElementById('shiftFormFollowHolidays').checked,
+    countHolidaysAsLeave: document.getElementById('shiftFormCountHolidaysAsLeave').checked,
     // استراحت برایِ هر دو نوعِ شیفت (ساده و سفارشی) از همین تیک خونده می‌شه. قبلاً برایِ شیفتِ
     // سفارشی به‌اجبار true ثبت می‌شد و مدتش خالی می‌موند، یعنی هرچقدر هم تیک رو برمی‌داشتی
     // سرور «روشن» ذخیره می‌کرد و مدتش رو از پیش‌فرضِ شیفتِ عادی (۶۰ دقیقه) برمی‌داشت.
@@ -8189,31 +8233,34 @@ async function loadStatusReport(status){
       return;
     }
     var labelMap = {absence:'غیبت', leave:'مرخصی', mission:'ماموریت', holiday:'تعطیل / آف'};
-    results.sort(function(a,b){ return (a.jalaliDate||'').localeCompare(b.jalaliDate||''); });
-    _statusReportRows = results;
+    results.sort(function(a,b){ return parseInt(a.jalaliDate,10) - parseInt(b.jalaliDate,10); });
+    var groups = groupConsecutiveStatusRows(results);
+    _statusReportGroups = groups;
     var statusLabelsSR = labelMap;
-    box.innerHTML = renderDataTable(results, [
-      {title:'نام و نام خانوادگی', cell:function(r){ return esc(r.fullName||r.username); }, wrap:true},
-      {title:'کد پرسنلی', cell:function(r){ return esc(r.employeeCode||''); }},
-      {title:'تاریخ', cell:function(r){ return ltrCell(r.jalaliDate); }},
-      {title:'وضعیت', cell:function(r){ return esc(statusLabelsSR[r.status] || r.status); }},
-      {title:'جزئیات', cell:function(r){
-        if(r.status === 'leave' && r.leaveHours){
-          return (String(r.leaveKind||'').toLowerCase() === 'hourly' ? 'ساعتی' : 'روزانه') + ' · ' + ltrCell(r.leaveHours);
+    box.innerHTML = renderDataTable(groups, [
+      {title:'نام و نام خانوادگی', cell:function(g){ return esc(g.fullName||g.username); }, wrap:true},
+      {title:'کد پرسنلی', cell:function(g){ return esc(g.employeeCode||''); }},
+      {title:'تاریخ', cell:function(g){ return g.startDate === g.endDate ? ltrCell(g.startDate) : (ltrCell(g.startDate) + ' تا ' + ltrCell(g.endDate)); }},
+      {title:'وضعیت', cell:function(g){ return esc(statusLabelsSR[g.status] || g.status); }},
+      {title:'جزئیات', cell:function(g){
+        if(g.status === 'leave' && g.leaveKind){
+          if(String(g.leaveKind).toLowerCase() === 'hourly') return 'ساعتی · ' + ltrCell(g.leaveHoursSingle||'');
+          var totalMin = g.rows.reduce(function(s,r){ return s + timeToMinutesClient(r.leaveHours||'0:00'); }, 0);
+          return 'روزانه · ' + g.rows.length + ' روز · مجموع ' + ltrCell(minutesToHM(totalMin));
         }
-        return '';
+        return g.rows.length > 1 ? (g.rows.length + ' روز') : '';
       }, wrap:true},
-      {title:'عملیات', cell:function(r, idx){
+      {title:'عملیات', cell:function(g, idx){
         // ویرایش فقط برایِ مرخصی و ماموریت؛ حذف برایِ هر چهار وضعیت — البته فقط وقتی این
-        // ردیف واقعاً رکوردِ ثبت‌شده‌ای داشته باشه (نه غیبتی که صرفاً از نبودِ تردد نتیجه شده).
+        // گروه واقعاً رکوردِ ثبت‌شده‌ای داشته باشه (نه غیبتی که صرفاً از نبودِ تردد نتیجه شده).
         var btns = '';
-        if((r.status === 'leave' || r.status === 'mission') && r.markerId){
+        if((g.status === 'leave' || g.status === 'mission') && g.markerIds.length){
           btns += '<button type="button" class="icon-btn" title="ویرایش" onclick="openStatusMarkerEdit('+idx+')">✏️</button>';
         }
-        if(r.markerId){
+        if(g.markerIds.length){
           btns += '<button type="button" class="icon-btn" title="حذف" onclick="deleteStatusMarker('+idx+')">🗑️</button>';
         }
-        return btns ? ('<div style="display:flex; gap:6px;" id="statusRow-'+idx+'">' + btns + '</div>') : '';
+        return btns ? ('<div style="display:flex; gap:6px;">' + btns + '</div>') : '';
       }}
     ], 'موردی یافت نشد');
   } catch(err){
@@ -8221,84 +8268,109 @@ async function loadStatusReport(status){
     box.innerHTML = '<div class="empty">خطا در نمایش گزارش: ' + esc((err && err.message) || 'نامشخص') + '</div>';
   }
 }
-var _statusReportRows = [];
-// فرمِ ویرایشِ یک ردیفِ وضعیت، همون‌جا زیرِ خودِ ردیف باز می‌شه — نه صفحه‌یِ جدا، نه مودال.
+var _statusReportGroups = [];
+// چون این گزارش همیشه محدود به یک ماهِ مشخصه، «پشتِ‌سرهم» بودن یعنی همون پرسنل + همون
+// وضعیت (+ همون نوعِ مرخصی، و برایِ ساعتی همون مقدارِ ساعت) با شماره‌روزهایِ متوالی —
+// نیازی به محاسبه‌یِ تقویمیِ کامل نیست، همین‌قدر کافیه.
+function groupConsecutiveStatusRows(rows){
+  var byEmp = {};
+  rows.forEach(function(r){ (byEmp[r.username] = byEmp[r.username] || []).push(r); });
+  var groups = [];
+  Object.keys(byEmp).forEach(function(u){
+    var list = byEmp[u].slice().sort(function(a,b){ return parseInt(a.jalaliDate,10) - parseInt(b.jalaliDate,10); });
+    var cur = null;
+    list.forEach(function(r){
+      var dayNum = parseInt(r.jalaliDate, 10);
+      var leaveKindR = r.leaveKind || '';
+      var sameSeries = cur && cur.status === r.status && cur.leaveKind === leaveKindR &&
+        (leaveKindR === 'hourly' ? cur.leaveHoursSingle === r.leaveHours : true) &&
+        dayNum === cur.lastDayNum + 1;
+      if(sameSeries){
+        cur.rows.push(r);
+        cur.lastDayNum = dayNum;
+        cur.endDate = r.jalaliDate;
+        if(r.markerId) cur.markerIds.push(r.markerId);
+      } else {
+        cur = {
+          username: r.username, fullName: r.fullName, employeeCode: r.employeeCode,
+          status: r.status, leaveKind: leaveKindR, leaveHoursSingle: r.leaveHours,
+          startDate: r.jalaliDate, endDate: r.jalaliDate, lastDayNum: dayNum,
+          rows: [r], markerIds: r.markerId ? [r.markerId] : []
+        };
+        groups.push(cur);
+      }
+    });
+  });
+  return groups;
+}
+var _statusEditGroupIdx = null;
 function openStatusMarkerEdit(idx){
-  var r = _statusReportRows[idx];
-  if(!r || !r.markerId) return;
-  // فرمِ ویرایش زیرِ خودِ جدول باز می‌شه، نه داخلِ سلولِ جدول — وگرنه تویِ یک ستونِ باریک
-  // له می‌شد و ستون‌هایِ جدول رو هم به‌هم می‌ریخت.
-  var host = document.getElementById('statusReportList');
-  if(!host) return;
-  var existing = document.getElementById('statusEditBox-'+idx);
-  if(existing){ existing.parentNode.removeChild(existing); return; }
-  var isHourly = String(r.leaveKind||'').toLowerCase() === 'hourly';
-  var box = document.createElement('div');
-  box.id = 'statusEditBox-'+idx;
-  box.className = 'card';
-  box.style.margin = '8px 0 12px';
-  box.innerHTML =
-    '<label>وضعیتِ روز</label>' +
-    '<select id="statusEditType-'+idx+'" onchange="onStatusEditTypeChange('+idx+')">' +
-      '<option value="مرخصی"'+(r.status==='leave'?' selected':'')+'>مرخصی</option>' +
-      '<option value="ماموریت"'+(r.status==='mission'?' selected':'')+'>ماموریت</option>' +
-    '</select>' +
-    '<div id="statusEditLeaveWrap-'+idx+'">' +
-      '<label>نوعِ مرخصی</label>' +
-      '<select id="statusEditKind-'+idx+'" onchange="onStatusEditTypeChange('+idx+')">' +
-        '<option value="daily"'+(!isHourly?' selected':'')+'>روزانه (به اندازه‌یِ موظفیِ همان روز)</option>' +
-        '<option value="hourly"'+(isHourly?' selected':'')+'>ساعتی</option>' +
-      '</select>' +
-      '<div id="statusEditHoursWrap-'+idx+'">' +
-        '<label>مدتِ مرخصیِ ساعتی (ساعت:دقیقه)</label>' +
-        '<input type="text" id="statusEditHours-'+idx+'" class="field-mono" placeholder="مثلاً 2:30" value="'+(isHourly?esc(r.leaveHours||''):'')+'">' +
-      '</div>' +
-    '</div>' +
-    '<div style="display:flex; gap:8px; margin-top:10px;">' +
-      '<button type="button" class="btn btn-primary" onclick="saveStatusMarkerEdit('+idx+')">💾 ذخیره</button>' +
-      '<button type="button" class="btn btn-ghost" onclick="openStatusMarkerEdit('+idx+')">انصراف</button>' +
-    '</div>' +
-    '<div class="hint" id="statusEditMsg-'+idx+'" style="margin-top:8px;"></div>';
-  host.appendChild(box);
-  onStatusEditTypeChange(idx);
+  var g = _statusReportGroups[idx];
+  if(!g || !g.markerIds.length) return;
+  _statusEditGroupIdx = idx;
+  var isHourly = String(g.leaveKind||'').toLowerCase() === 'hourly';
+  document.getElementById('statusEditTitle').textContent = 'ویرایشِ وضعیت — ' + (g.fullName||g.username);
+  document.getElementById('statusEditRangeHint').textContent = g.rows.length > 1
+    ? ('این تغییر رویِ هر ' + g.rows.length + ' روزِ بازه‌یِ ' + g.startDate + ' تا ' + g.endDate + ' اعمال می‌شه.')
+    : ('برایِ روزِ ' + g.startDate + '.');
+  document.getElementById('statusEditType').value = (g.status === 'mission') ? 'ماموریت' : 'مرخصی';
+  document.getElementById('statusEditKind').value = isHourly ? 'hourly' : 'daily';
+  document.getElementById('statusEditHours').value = isHourly ? (g.leaveHoursSingle||'') : '';
+  document.getElementById('statusEditMsg').textContent = '';
+  onStatusEditTypeChange();
+  document.getElementById('statusEditOverlay').classList.add('open');
+  document.getElementById('statusEditSheet').classList.add('open');
 }
-function onStatusEditTypeChange(idx){
-  var type = document.getElementById('statusEditType-'+idx).value;
-  var kindSel = document.getElementById('statusEditKind-'+idx);
-  document.getElementById('statusEditLeaveWrap-'+idx).style.display = (type === 'مرخصی') ? 'block' : 'none';
-  document.getElementById('statusEditHoursWrap-'+idx).style.display = (type === 'مرخصی' && kindSel.value === 'hourly') ? 'block' : 'none';
+function closeStatusMarkerEdit(){
+  document.getElementById('statusEditOverlay').classList.remove('open');
+  document.getElementById('statusEditSheet').classList.remove('open');
+  _statusEditGroupIdx = null;
 }
-async function saveStatusMarkerEdit(idx){
-  var r = _statusReportRows[idx];
-  var msg = document.getElementById('statusEditMsg-'+idx);
-  var type = document.getElementById('statusEditType-'+idx).value;
-  var kind = document.getElementById('statusEditKind-'+idx).value;
-  var hours = (document.getElementById('statusEditHours-'+idx).value||'').trim();
+function onStatusEditTypeChange(){
+  var type = document.getElementById('statusEditType').value;
+  var kindSel = document.getElementById('statusEditKind');
+  document.getElementById('statusEditLeaveWrap').style.display = (type === 'مرخصی') ? 'block' : 'none';
+  document.getElementById('statusEditHoursWrap').style.display = (type === 'مرخصی' && kindSel.value === 'hourly') ? 'block' : 'none';
+}
+async function saveStatusMarkerEdit(){
+  var g = _statusReportGroups[_statusEditGroupIdx];
+  if(!g) return;
+  var msg = document.getElementById('statusEditMsg');
+  var type = document.getElementById('statusEditType').value;
+  var kind = document.getElementById('statusEditKind').value;
+  var hours = (document.getElementById('statusEditHours').value||'').trim();
   if(type === 'مرخصی' && kind === 'hourly' && !/^\d{1,2}:\d{2}$/.test(hours)){
     msg.textContent = '⛔ مدتِ مرخصیِ ساعتی را به شکلِ ساعت:دقیقه بنویس، مثلاً 2:30';
     return;
   }
-  msg.textContent = 'در حال ذخیره...';
-  var res = await apiCall(function(){ return apiPost('updateDayStatusMarker', {
-    pin: adminPin, id: r.markerId, status: type,
-    leaveKind: (type === 'مرخصی' ? kind : ''), leaveHours: (type === 'مرخصی' && kind === 'hourly' ? hours : '')
-  }); });
-  if(!res.ok){
-    msg.textContent = '⛔ ذخیره ناموفق بود: ' + (res.error === 'not_found' ? 'این ردیف پیدا نشد — گزارش را دوباره بارگذاری کن.' : (res.error||''));
-    return;
+  msg.textContent = 'در حال ذخیره... (0 از ' + g.markerIds.length + ')';
+  for(var i=0; i<g.markerIds.length; i++){
+    var res = await apiCall(function(){ return apiPost('updateDayStatusMarker', {
+      pin: adminPin, id: g.markerIds[i], status: type,
+      leaveKind: (type === 'مرخصی' ? kind : ''), leaveHours: (type === 'مرخصی' && kind === 'hourly' ? hours : '')
+    }); });
+    if(!res.ok){
+      msg.textContent = '⛔ ذخیره‌یِ روزِ ' + g.rows[i].jalaliDate + ' ناموفق بود: ' + (res.error === 'not_found' ? 'این ردیف پیدا نشد — گزارش را دوباره بارگذاری کن.' : (res.error||''));
+      return;
+    }
+    msg.textContent = 'در حال ذخیره... (' + (i+1) + ' از ' + g.markerIds.length + ')';
   }
+  closeStatusMarkerEdit();
   await loadStatusReport(document.getElementById('logStatusFilter').value);
 }
 async function deleteStatusMarker(idx){
-  var r = _statusReportRows[idx];
-  if(!r || !r.markerId) return;
-  if(!confirm('وضعیتِ این روز برایِ ' + r.fullName + ' (' + r.jalaliDate + ') حذف بشه؟ بعدش این روز دوباره بر اساسِ ترددِ ثبت‌شده محاسبه می‌شه.')) return;
-  var res = await apiCall(function(){ return apiPost('deleteDayStatusMarker', {pin: adminPin, id: r.markerId}); });
-  if(!res.ok){
-    var m = (res.error === 'not_found') ? 'این ردیف پیدا نشد — احتمالاً قبلاً حذف شده.' : (res.error||'');
-    showAdminNotice('حذف ناموفق بود: ' + m);
-    alert('حذف ناموفق بود: ' + m);
-    return;
+  var g = _statusReportGroups[idx];
+  if(!g || !g.markerIds.length) return;
+  var rangeTxt = g.startDate === g.endDate ? g.startDate : (g.startDate + ' تا ' + g.endDate);
+  if(!confirm('وضعیتِ ' + rangeTxt + ' برایِ ' + (g.fullName||g.username) + ' (' + g.markerIds.length + ' روز) حذف بشه؟ بعدش دوباره بر اساسِ ترددِ ثبت‌شده محاسبه می‌شه.')) return;
+  for(var i=0; i<g.markerIds.length; i++){
+    var res = await apiCall(function(){ return apiPost('deleteDayStatusMarker', {pin: adminPin, id: g.markerIds[i]}); });
+    if(!res.ok){
+      var m = (res.error === 'not_found') ? 'یکی از روزها قبلاً حذف شده — گزارش را دوباره بارگذاری کن.' : (res.error||'');
+      showAdminNotice('حذف ناموفق بود: ' + m);
+      alert('حذف ناموفق بود: ' + m);
+      return;
+    }
   }
   await loadStatusReport(document.getElementById('logStatusFilter').value);
 }
