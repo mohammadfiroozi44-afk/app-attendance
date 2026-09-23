@@ -2192,10 +2192,10 @@
     <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon dicon-orange"><i class="fa-solid fa-location-dot"></i></span> پروژه‌ها</div>
     <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon dicon-purple"><i class="fa-solid fa-calendar-week"></i></span> شیفت</div>
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها<span class="menu-badge" id="badge-admMenu-requests"></span></div>
-    <div class="drawer-item" id="admMenu-services" onclick="showAdminSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها</div>
+    <div class="drawer-item" id="admMenu-services" onclick="showAdminSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها<span class="menu-badge" id="badge-admMenu-services"></span></div>
     <div class="drawer-item" id="admMenu-messages" onclick="showAdminSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها<span class="menu-badge" id="badge-admMenu-messages"></span></div>
     <div class="drawer-nav-group-title">گزارش‌ها</div>
-    <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon dicon-red"><i class="fa-solid fa-triangle-exclamation"></i></span> تردد ناقص</div>
+    <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon dicon-red"><i class="fa-solid fa-triangle-exclamation"></i></span> تردد ناقص<span class="menu-badge" id="badge-admMenu-offline"></span></div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon dicon-navy"><i class="fa-solid fa-chart-column"></i></span> گزارش</div>
     <div class="drawer-item" id="admMenu-performance" onclick="showAdminSection('performance')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکردها</div>
     <div class="drawer-nav-group-title">سیستم</div>
@@ -2209,7 +2209,7 @@
     <div class="drawer-header"><i class="fa-solid fa-helmet-safety"></i> پنل کارمند</div>
     <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon dicon-green"><i class="fa-solid fa-location-dot"></i></span> ثبت تردد</div>
     <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها<span class="menu-badge" id="badge-empMenu-request"></span></div>
-    <div class="drawer-item" id="empMenu-services" onclick="showEmpSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها</div>
+    <div class="drawer-item" id="empMenu-services" onclick="showEmpSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها<span class="menu-badge" id="badge-empMenu-services"></span></div>
     <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon dicon-blue"><i class="fa-solid fa-list"></i></span> سوابق من</div>
     <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکرد من</div>
     <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon dicon-orange"><i class="fa-solid fa-calendar-day"></i></span> عملکرد روزانه</div>
@@ -3426,7 +3426,10 @@ async function refreshAdminMenuBadges(){
   var results = await Promise.all([
     apiCall(function(){ return apiPost('getRequests', {pin:adminPin}, true); }),
     apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}, true); }),
-    apiCall(function(){ return apiPost('getReceivedMessagesAdmin', {pin:adminPin}, true); })
+    apiCall(function(){ return apiPost('getReceivedMessagesAdmin', {pin:adminPin}, true); }),
+    apiCall(function(){ return apiPost('getPendingOfflineLogs', {pin:adminPin}, true); }),
+    apiCall(function(){ return apiPost('getOpenSessions', {pin:adminPin}, true); }),
+    apiCall(function(){ return apiPost('getServiceTripsAdmin', {pin:adminPin}, true); })
   ]);
   var pendingCount = 0;
   if(results[0].ok) pendingCount += (results[0].requests||[]).filter(function(r){ return r.status==='pending'; }).length;
@@ -3436,6 +3439,16 @@ async function refreshAdminMenuBadges(){
     var viewedMs = adminMsgViewedMs();
     var unseen = (results[2].messages||[]).filter(function(m){ return new Date(m.createdAt).getTime() > viewedMs; }).length;
     renderMenuBadge('admMenu-messages', unseen);
+  }
+  // تردد ناقص هم مثلِ درخواست‌ها یه شمارنده‌یِ زنده‌ست — همین‌که مدیر تاییدشون/ردشون کنه یا
+  // خروجِ فراموش‌شده رو ثبت کنه، خودشون از این شمارش می‌افتن بیرون.
+  var offlineCount = 0;
+  if(results[3].ok) offlineCount += (results[3].pending||[]).length;
+  if(results[4].ok) offlineCount += (results[4].openSessions||[]).length;
+  renderMenuBadge('admMenu-offline', offlineCount);
+  if(results[5].ok){
+    var pendingServiceCount = (results[5].trips||[]).filter(function(t){ return t.status==='pending'; }).length;
+    renderMenuBadge('admMenu-services', pendingServiceCount);
   }
 }
 function adminMsgViewedMs(){
@@ -3451,7 +3464,8 @@ async function refreshEmpMenuBadges(){
   var results = await Promise.all([
     apiCall(function(){ return apiPost('getMyRequests', {username: loggedInEmployee.username}, true); }),
     apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}, true); }),
-    apiCall(function(){ return apiPost('getMyMessages', {username: loggedInEmployee.username}, true); })
+    apiCall(function(){ return apiPost('getMyMessages', {username: loggedInEmployee.username}, true); }),
+    apiCall(function(){ return apiPost('getMyServiceTrips', {username: loggedInEmployee.username}, true); })
   ]);
   var seenIds = empReqSeenIds();
   var decided = [];
@@ -3463,6 +3477,11 @@ async function refreshEmpMenuBadges(){
     var unseen = (results[2].messages||[]).filter(function(m){ return new Date(m.createdAt).getTime() > viewedMs; }).length;
     renderMenuBadge('empMenu-messages', unseen);
   }
+  if(results[3].ok){
+    var svcSeenIds = empSvcSeenIds();
+    var decidedSvc = (results[3].trips||[]).filter(function(t){ return t.status!=='pending'; });
+    renderMenuBadge('empMenu-services', decidedSvc.filter(function(t){ return !svcSeenIds[t.id]; }).length);
+  }
 }
 function empReqSeenIds(){
   try{ return JSON.parse(localStorage.getItem('reqSeenIds_' + loggedInEmployee.username) || '{}'); }
@@ -3473,6 +3492,16 @@ function markEmpRequestsSeen(decidedItems){
   decidedItems.forEach(function(r){ seenIds[r.id] = true; });
   localStorage.setItem('reqSeenIds_' + loggedInEmployee.username, JSON.stringify(seenIds));
   renderMenuBadge('empMenu-request', 0);
+}
+function empSvcSeenIds(){
+  try{ return JSON.parse(localStorage.getItem('svcSeenIds_' + loggedInEmployee.username) || '{}'); }
+  catch(e){ return {}; }
+}
+function markEmpServiceTripsSeen(decidedItems){
+  var seenIds = empSvcSeenIds();
+  decidedItems.forEach(function(t){ seenIds[t.id] = true; });
+  localStorage.setItem('svcSeenIds_' + loggedInEmployee.username, JSON.stringify(seenIds));
+  renderMenuBadge('empMenu-services', 0);
 }
 function empMsgViewedMs(){
   var iso = localStorage.getItem('empMsgViewedIso_' + loggedInEmployee.username) || '';
@@ -6124,6 +6153,7 @@ async function loadMyServiceTrips(){
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافتِ سرویس‌ها ناموفق بود</div>'; return; }
   window._myServiceTrips = res.trips || [];
   renderMyServiceTrips();
+  markEmpServiceTripsSeen(window._myServiceTrips.filter(function(t){ return t.status!=='pending'; }));
 }
 function renderMyServiceTrips(){
   var box = document.getElementById('myServiceTripsList');
