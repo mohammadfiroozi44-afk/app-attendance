@@ -526,6 +526,12 @@
     border-color:var(--orange-dark); box-shadow:0 6px 16px -6px #e6522a60;
   }
   .drawer-item.active .dicon{ background:#ffffff30; color:#fff; }
+  .menu-badge{
+    display:none; background:#e02424; color:#fff; font-size:11px; font-weight:800;
+    min-width:20px; height:20px; line-height:20px; text-align:center; border-radius:999px;
+    padding:0 6px; margin-inline-start:auto; box-shadow:0 2px 6px -2px #e0242460; font-family:var(--mono);
+  }
+  .drawer-item.active .menu-badge{ background:#fff; color:var(--orange-dark); }
   .tab-btn{
     flex:1; padding:11px 8px; border-radius:var(--r-sm); border:1px solid #ffffff33;
     background:#ffffff14; color:var(--on-dark); font-family:var(--sans); font-weight:600;
@@ -2185,9 +2191,9 @@
     <div class="drawer-item" id="admMenu-employees" onclick="showAdminSection('employees')"><span class="dicon dicon-blue"><i class="fa-solid fa-users"></i></span> پرسنل</div>
     <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon dicon-orange"><i class="fa-solid fa-location-dot"></i></span> پروژه‌ها</div>
     <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon dicon-purple"><i class="fa-solid fa-calendar-week"></i></span> شیفت</div>
-    <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها</div>
+    <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها<span class="menu-badge" id="badge-admMenu-requests"></span></div>
     <div class="drawer-item" id="admMenu-services" onclick="showAdminSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها</div>
-    <div class="drawer-item" id="admMenu-messages" onclick="showAdminSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها</div>
+    <div class="drawer-item" id="admMenu-messages" onclick="showAdminSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها<span class="menu-badge" id="badge-admMenu-messages"></span></div>
     <div class="drawer-nav-group-title">گزارش‌ها</div>
     <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon dicon-red"><i class="fa-solid fa-triangle-exclamation"></i></span> تردد ناقص</div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon dicon-navy"><i class="fa-solid fa-chart-column"></i></span> گزارش</div>
@@ -2202,13 +2208,13 @@
   <div class="side-drawer" id="empDrawer">
     <div class="drawer-header"><i class="fa-solid fa-helmet-safety"></i> پنل کارمند</div>
     <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon dicon-green"><i class="fa-solid fa-location-dot"></i></span> ثبت تردد</div>
-    <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها</div>
+    <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها<span class="menu-badge" id="badge-empMenu-request"></span></div>
     <div class="drawer-item" id="empMenu-services" onclick="showEmpSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها</div>
     <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon dicon-blue"><i class="fa-solid fa-list"></i></span> سوابق من</div>
     <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکرد من</div>
     <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon dicon-orange"><i class="fa-solid fa-calendar-day"></i></span> عملکرد روزانه</div>
     <div class="drawer-item" id="empMenu-myshift" onclick="showEmpSection('myshift')"><span class="dicon dicon-purple"><i class="fa-solid fa-calendar-week"></i></span> شیفت‌هایِ من</div>
-    <div class="drawer-item" id="empMenu-messages" onclick="showEmpSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها</div>
+    <div class="drawer-item" id="empMenu-messages" onclick="showEmpSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها<span class="menu-badge" id="badge-empMenu-messages"></span></div>
     <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon dicon-blue"><i class="fa-solid fa-arrows-rotate"></i></span> بروزرسانی</div>
     <div class="drawer-item" onclick="employeeLogout()"><span class="dicon dicon-red"><i class="fa-solid fa-right-from-bracket"></i></span> خروج از حساب</div>
   </div>
@@ -3397,8 +3403,84 @@ function toggleDrawer(which){
   var isOpen = drawer.classList.contains('open');
   document.getElementById('admDrawer').classList.remove('open');
   document.getElementById('empDrawer').classList.remove('open');
-  if(!isOpen){ drawer.classList.add('open'); overlay.classList.add('open'); }
+  if(!isOpen){
+    drawer.classList.add('open'); overlay.classList.add('open');
+    if(which === 'admin') refreshAdminMenuBadges(); else refreshEmpMenuBadges();
+  }
   else{ overlay.classList.remove('open'); }
+}
+// ---------- نشانه‌یِ سرخِ تعدادِ دیده‌نشده‌ها رویِ «پیام‌ها»/«درخواست‌ها» تویِ نوارِ کناری —
+// دقیقاً مثلِ نشانه‌یِ اس‌ام‌اسِ گوشی: هر بار نوار باز می‌شه، دوباره محاسبه می‌شه. برایِ درخواست‌ها
+// (که تصمیم‌گیریِ مدیر یه رویدادِ برگشت‌ناپذیره) تعدادِ «در انتظار» به‌خودیِ‌خود شمارنده‌ست؛ برایِ
+// پیام‌ها و برایِ درخواست‌هایِ تصمیم‌گیری‌شده‌یِ کارمند، چون رویدادِ زمانی/تصمیم مشخصی نداریم که
+// «دیده شدن» رو نشون بده، یه شناسه‌یِ محلی (لوکال‌استوریج) نگه می‌داریم و همون لحظه که کاربر
+// واقعاً وارد اون قسمت می‌شه، به‌عنوانِ «دیده‌شده» علامت می‌خوره.
+function renderMenuBadge(id, count){
+  var el = document.getElementById('badge-'+id);
+  if(!el) return;
+  if(count > 0){ el.textContent = count > 99 ? '99+' : String(count); el.style.display = 'inline-block'; }
+  else { el.style.display = 'none'; }
+}
+async function refreshAdminMenuBadges(){
+  if(!adminPin) return;
+  var results = await Promise.all([
+    apiCall(function(){ return apiPost('getRequests', {pin:adminPin}, true); }),
+    apiCall(function(){ return apiPost('getLeaveRequests', {pin:adminPin}, true); }),
+    apiCall(function(){ return apiPost('getReceivedMessagesAdmin', {pin:adminPin}, true); })
+  ]);
+  var pendingCount = 0;
+  if(results[0].ok) pendingCount += (results[0].requests||[]).filter(function(r){ return r.status==='pending'; }).length;
+  if(results[1].ok) pendingCount += (results[1].leaves||[]).filter(function(r){ return r.status==='pending'; }).length;
+  renderMenuBadge('admMenu-requests', pendingCount);
+  if(results[2].ok){
+    var viewedMs = adminMsgViewedMs();
+    var unseen = (results[2].messages||[]).filter(function(m){ return new Date(m.createdAt).getTime() > viewedMs; }).length;
+    renderMenuBadge('admMenu-messages', unseen);
+  }
+}
+function adminMsgViewedMs(){
+  var iso = localStorage.getItem('adminMsgViewedIso') || '';
+  return iso ? new Date(iso).getTime() : 0;
+}
+function markAdminMessagesSeen(){
+  localStorage.setItem('adminMsgViewedIso', new Date().toISOString());
+  renderMenuBadge('admMenu-messages', 0);
+}
+async function refreshEmpMenuBadges(){
+  if(!loggedInEmployee) return;
+  var results = await Promise.all([
+    apiCall(function(){ return apiPost('getMyRequests', {username: loggedInEmployee.username}, true); }),
+    apiCall(function(){ return apiPost('getMyLeaveRequests', {username: loggedInEmployee.username}, true); }),
+    apiCall(function(){ return apiPost('getMyMessages', {username: loggedInEmployee.username}, true); })
+  ]);
+  var seenIds = empReqSeenIds();
+  var decided = [];
+  if(results[0].ok) decided = decided.concat((results[0].requests||[]).filter(function(r){ return r.status!=='pending'; }));
+  if(results[1].ok) decided = decided.concat((results[1].leaves||[]).filter(function(r){ return r.status!=='pending'; }));
+  renderMenuBadge('empMenu-request', decided.filter(function(r){ return !seenIds[r.id]; }).length);
+  if(results[2].ok){
+    var viewedMs = empMsgViewedMs();
+    var unseen = (results[2].messages||[]).filter(function(m){ return new Date(m.createdAt).getTime() > viewedMs; }).length;
+    renderMenuBadge('empMenu-messages', unseen);
+  }
+}
+function empReqSeenIds(){
+  try{ return JSON.parse(localStorage.getItem('reqSeenIds_' + loggedInEmployee.username) || '{}'); }
+  catch(e){ return {}; }
+}
+function markEmpRequestsSeen(decidedItems){
+  var seenIds = empReqSeenIds();
+  decidedItems.forEach(function(r){ seenIds[r.id] = true; });
+  localStorage.setItem('reqSeenIds_' + loggedInEmployee.username, JSON.stringify(seenIds));
+  renderMenuBadge('empMenu-request', 0);
+}
+function empMsgViewedMs(){
+  var iso = localStorage.getItem('empMsgViewedIso_' + loggedInEmployee.username) || '';
+  return iso ? new Date(iso).getTime() : 0;
+}
+function markEmpMessagesSeen(){
+  localStorage.setItem('empMsgViewedIso_' + loggedInEmployee.username, new Date().toISOString());
+  renderMenuBadge('empMenu-messages', 0);
 }
 function closeDrawer(){
   document.getElementById('admDrawer').classList.remove('open');
@@ -3469,6 +3551,10 @@ async function loadUnifiedRequests(scope){
   combined.sort(function(a,b){ return b.sortKey - a.sortKey; });
   window._empUnifiedRequests = combined;
   renderUnifiedRequests('emp');
+  var decidedNow = [];
+  if(reqRes.ok) decidedNow = decidedNow.concat((reqRes.requests||[]).filter(function(r){ return r.status!=='pending'; }));
+  if(leaveRes.ok) decidedNow = decidedNow.concat((leaveRes.leaves||[]).filter(function(r){ return r.status!=='pending'; }));
+  markEmpRequestsSeen(decidedNow);
 }
 function renderUnifiedRequests(scope){
   var state = reqState[scope];
@@ -5216,6 +5302,7 @@ async function loadReceivedMessagesAdmin(){
   receivedMessagesAdminCache = res.messages || [];
   populateMonthYearFilter('admRecvMsgFilterMonth','admRecvMsgFilterYear', true);
   renderReceivedMessagesAdmin();
+  markAdminMessagesSeen();
 }
 function renderReceivedMessagesAdmin(){
   var box = document.getElementById('receivedMessagesAdminList');
@@ -9109,6 +9196,7 @@ async function loadMyMessages(){
   myMessagesCache = res.messages || [];
   populateMonthYearFilter('myMsgFilterMonth','myMsgFilterYear', true);
   renderMyMessagesList();
+  markEmpMessagesSeen();
 }
 function renderMyMessagesList(){
   var box = document.getElementById('myMessagesList');
