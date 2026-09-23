@@ -7659,29 +7659,35 @@ async function loadDashboard(){
   var presentCount = Object.keys(presentNowUsers).length;
   var hadAttendanceCount = Object.keys(hadAttendanceTodayUsers).length;
 
-  var leaves = leavesRes.ok ? (leavesRes.leaves||[]).filter(function(l){ return l.status==='approved' && (l.requestType==='leave' || l.requestType==='mission' || !l.requestType); }) : [];
+  // «کیا امروز مرخصی/ماموریتن» از وضعیتِ فعلی/مشتق‌شده (DayStatusMarkers، همون چیزی که
+  // گزارش هم ازش می‌خونه) میاد، نه مستقیم از خودِ درخواست — یه درخواستِ تاییدشده ممکنه
+  // بعداً از گزارش کنسل/اصلاح شده باشه بدونِ اینکه خودِ درخواست (که سابقه‌یِ «چی درخواست
+  // شده» است) پاک بشه، و داشبورد باید وضعیتِ *واقعیِ* امروز رو نشون بده.
+  var todayMarkers = ddRes.ok ? (ddRes.todayMarkers||[]) : [];
+  var allLeaveReqsForDetail = leavesRes.ok ? (leavesRes.leaves||[]) : [];
   var todayKey = jalaliDateSortKeyClient(todayStr);
-  var onLeaveUsers = {};
-  leaves.forEach(function(l){
-    if(l.leaveType === 'hourly'){ if(l.startDate === todayStr) onLeaveUsers[l.username] = true; return; }
-    var sKey = jalaliDateSortKeyClient(l.startDate), eKey = jalaliDateSortKeyClient(l.endDate);
-    if(todayKey >= sKey && todayKey <= eKey) onLeaveUsers[l.username] = true;
-  });
-  // مرخصی و ماموریت جدا از هم نگه داشته می‌شن تا هر کدوم پنلِ خودش رو داشته باشه —
-  // شمارشِ بالایِ صفحه مثلِ قبل جمعِ هر دوئه.
   var onLeaveDetail = {}, onMissionDetail = {};
-  leaves.forEach(function(l){
-    var covers;
-    if(l.leaveType === 'hourly'){
-      covers = (l.startDate === todayStr);
-    } else {
+  todayMarkers.forEach(function(m){
+    var bucket = (m.status === 'ماموریت') ? onMissionDetail : onLeaveDetail;
+    if(bucket[m.username]) return;
+    // برایِ نمایشِ بازه/دسته‌یِ کامل، اگه یه درخواستِ تاییدشده‌یِ متناظر هنوز موجوده ازش
+    // استفاده می‌شه؛ وگرنه با همون اطلاعاتِ خودِ مارکر (فقط امروز) نشون داده می‌شه — ولی
+    // تصمیمِ «امروز مرخصیه یا نه» همیشه از رویِ همین مارکره، نه رویِ درخواست.
+    var matchingReq = allLeaveReqsForDetail.filter(function(l){
+      if(l.username !== m.username || l.status !== 'approved') return false;
+      if((l.requestType === 'mission') !== (m.status === 'ماموریت')) return false;
+      if(l.leaveType === 'hourly') return l.startDate === todayStr;
       var sK = jalaliDateSortKeyClient(l.startDate), eK = jalaliDateSortKeyClient(l.endDate);
-      covers = (todayKey >= sK && todayKey <= eK);
-    }
-    if(!covers) return;
-    var bucket = (l.requestType === 'mission') ? onMissionDetail : onLeaveDetail;
-    if(!bucket[l.username]) bucket[l.username] = l;
+      return todayKey >= sK && todayKey <= eK;
+    })[0];
+    bucket[m.username] = matchingReq || {
+      employee: m.employee, username: m.username, employeeCode: m.employeeCode,
+      leaveType: m.leaveKind, startDate: todayStr, endDate: todayStr, leaveCategory: ''
+    };
   });
+  var onLeaveUsers = {};
+  Object.keys(onLeaveDetail).forEach(function(u){ onLeaveUsers[u] = true; });
+  Object.keys(onMissionDetail).forEach(function(u){ onLeaveUsers[u] = true; });
   var leaveCount = Object.keys(onLeaveUsers).length;
   var absentCount = isTodayHoliday ? 0 : Math.max(0, emps.length - hadAttendanceCount - leaveCount);
 
@@ -8389,32 +8395,14 @@ async function deleteStatusMarker(idx){
   var g = _statusReportGroups[idx];
   if(!g || !g.markerIds.length) return;
   var rangeTxt = g.startDate === g.endDate ? g.startDate : (g.startDate + ' تا ' + g.endDate);
-  var isLeaveLike = (g.status === 'leave' || g.status === 'mission');
-  var confirmMsg = isLeaveLike
-    ? ('این مرخصی/ماموریتِ ' + rangeTxt + ' برایِ ' + (g.fullName||g.username) + ' کاملاً کنسل بشه؟ هم از این گزارش، هم از «مرخصی‌هایِ امروزِ» داشبورد حذف می‌شه.')
-    : ('وضعیتِ ' + rangeTxt + ' برایِ ' + (g.fullName||g.username) + ' (' + g.markerIds.length + ' روز) حذف بشه؟ بعدش دوباره بر اساسِ ترددِ ثبت‌شده محاسبه می‌شه.');
-  if(!confirm(confirmMsg)) return;
-  if(isLeaveLike){
-    // این حذف باید هم رکوردهایِ روزِ گزارش (DayStatusMarkers) رو پاک کنه، هم خودِ درخواستِ
-    // اصلیِ مرخصی (LeaveRequests) رو — وگرنه داشبوردِ «مرخصی‌هایِ امروز» که مستقیم از
-    // LeaveRequests می‌خونه، همچنان این فرد رو مرخصی نشون می‌ده حتی بعدِ حذفِ گزارش.
-    var res = await apiCall(function(){ return apiPost('deleteLeaveRangeAndRequest', {
-      pin: adminPin, username: g.username, startDate: g.startDate, endDate: g.endDate
-    }); });
+  if(!confirm('وضعیتِ ' + rangeTxt + ' برایِ ' + (g.fullName||g.username) + ' (' + g.markerIds.length + ' روز) حذف بشه؟ بعدش دوباره بر اساسِ ترددِ ثبت‌شده محاسبه می‌شه. خودِ درخواست (اگه از طریقِ درخواستِ کارمند تاییدشده) دست‌نخورده می‌مونه — برایِ حذفِ کاملِ درخواست از تبِ «درخواست‌ها» اقدام کن.')) return;
+  for(var i=0; i<g.markerIds.length; i++){
+    var res = await apiCall(function(){ return apiPost('deleteDayStatusMarker', {pin: adminPin, id: g.markerIds[i]}); });
     if(!res.ok){
-      showAdminNotice('حذف ناموفق بود: ' + (res.error||''));
-      alert('حذف ناموفق بود: ' + (res.error||''));
+      var m = (res.error === 'not_found') ? 'یکی از روزها قبلاً حذف شده — گزارش را دوباره بارگذاری کن.' : (res.error||'');
+      showAdminNotice('حذف ناموفق بود: ' + m);
+      alert('حذف ناموفق بود: ' + m);
       return;
-    }
-  } else {
-    for(var i=0; i<g.markerIds.length; i++){
-      var res2 = await apiCall(function(){ return apiPost('deleteDayStatusMarker', {pin: adminPin, id: g.markerIds[i]}); });
-      if(!res2.ok){
-        var m = (res2.error === 'not_found') ? 'یکی از روزها قبلاً حذف شده — گزارش را دوباره بارگذاری کن.' : (res2.error||'');
-        showAdminNotice('حذف ناموفق بود: ' + m);
-        alert('حذف ناموفق بود: ' + m);
-        return;
-      }
     }
   }
   await loadStatusReport(document.getElementById('logStatusFilter').value);
