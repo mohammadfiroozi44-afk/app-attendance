@@ -1845,6 +1845,21 @@
     </div>
     </div><!-- /admSec-services -->
 
+    <div class="sheet-overlay" id="serviceAmountOverlay" onclick="closeServiceAmountModal()"></div>
+    <div class="bottom-sheet-modal" id="serviceAmountSheet">
+      <div class="sheet-close-btn"><button type="button" class="icon-btn" title="بستن" onclick="closeServiceAmountModal()">✕</button></div>
+      <div class="sheet-handle"></div>
+      <div class="eyebrow">ثبتِ مبلغِ پرداختی</div>
+      <div class="hint" id="serviceAmountHint" style="margin-top:-8px;"></div>
+      <label>مبلغ (ریال)</label>
+      <input type="text" inputmode="numeric" id="serviceAmountInput" class="field-mono" style="width:100%; box-sizing:border-box; font-size:26px; font-weight:800; text-align:center; letter-spacing:1px;" placeholder="0" oninput="formatServiceAmountInput(this)">
+      <div class="btn-row" style="margin-top:10px;">
+        <button type="button" class="btn btn-primary" onclick="confirmServiceAmount()">✅ تایید و ثبتِ پرداخت</button>
+        <button type="button" class="btn btn-ghost" onclick="closeServiceAmountModal()">انصراف</button>
+      </div>
+      <div class="hint" id="serviceAmountMsg" style="margin-top:8px;"></div>
+    </div>
+
     <div class="admin-section" id="admSec-messages" style="display:none;">
     <div class="card">
       <div class="btn-row" style="margin-bottom:10px;">
@@ -5854,6 +5869,11 @@ async function saveLeaveRequestEdit(id){
 
 // ---------- سرویس‌ها (وسیله‌یِ شخصی — مدیریت) ----------
 function serviceVehicleLabel(v){ return v === 'motor' ? '🏍 موتور' : '🚗 سواری'; }
+// عددهایِ مبلغ باید سه‌رقم‌سه‌رقم جدا و چپ‌به‌راست باشن (مثلِ بقیه‌یِ اعداد و ساعت‌هایِ اپ).
+function formatRial(n){
+  var num = Number(n||0);
+  return '<bdi dir="ltr" style="unicode-bidi:isolate;">' + num.toLocaleString('en-US') + ' ریال</bdi>';
+}
 async function loadAdminServiceTrips(){
   var box = document.getElementById('serviceAdminList');
   box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
@@ -5890,7 +5910,7 @@ function renderServiceTripsAdmin(){
           '<button type="button" class="btn btn-out btn-small" onclick="decideServiceTripBtn(\''+r.id+'\',false)">❌ رد</button>'+
         '</div>'
       : '<div class="btn-row" style="margin-top:6px; align-items:center;">'+
-          (r.status === 'approved' ? '<label class="chk-item"><input type="checkbox" '+(r.paid==='yes'?'checked':'')+' onchange="toggleServiceTripPaidBtn(\''+r.id+'\', this.checked)"> پرداخت شد</label>' : '')+
+          (r.status === 'approved' ? '<label class="chk-item"><input type="checkbox" '+(r.paid==='yes'?'checked':'')+' onchange="onServiceTripPaidToggle(this, \''+r.id+'\')"> پرداخت شد</label>' : '')+
           '<button type="button" class="btn btn-out btn-small" onclick="deleteServiceTripBtn(\''+r.id+'\')">🗑 حذف</button>'+
         '</div>';
     return '<div class="req-item">'+
@@ -5900,6 +5920,7 @@ function renderServiceTripsAdmin(){
       '</div>'+
       '<div style="margin:4px 0;">'+titleLine+'</div>'+
       '<div class="meta">تاریخِ سرویس: '+esc(r.serviceDate)+' — ثبت: '+esc(r.createdAt)+' '+esc(r.createdTime)+'</div>'+
+      (r.amount ? '<div style="margin-top:4px; font-weight:800; font-size:15px;">💰 ' + formatRial(r.amount) + '</div>' : '')+
       actions+
     '</div>';
   }).join('');
@@ -5917,10 +5938,52 @@ async function deleteServiceTripBtn(id){
   clearAdminNotice();
   await loadAdminServiceTrips();
 }
-async function toggleServiceTripPaidBtn(id, checked){
-  var res = await apiCall(function(){ return apiPost('setServiceTripPaid', {pin:adminPin, id:id, paid:checked}); });
+// تیک‌زدنِ «پرداخت شد» مستقیماً چیزی رو ثبت نمی‌کنه — اول چک‌باکس رو به حالتِ قبل برمی‌گردونه و
+// کادرِ مبلغ رو باز می‌کنه؛ فقط با تاییدِ نهاییِ همون کادره که واقعاً ثبت می‌شه. برداشتنِ تیک
+// (کارمندی که قبلاً پرداخت‌شده بود) نیازی به مبلغ نداره و مستقیم ثبت می‌شه.
+function onServiceTripPaidToggle(checkbox, id){
+  if(checkbox.checked){
+    checkbox.checked = false;
+    openServiceAmountModal(id);
+  } else {
+    uncheckServiceTripPaidBtn(id);
+  }
+}
+async function uncheckServiceTripPaidBtn(id){
+  var res = await apiCall(function(){ return apiPost('setServiceTripPaid', {pin:adminPin, id:id, paid:false}); });
   if(!res.ok){ showAdminNotice('ثبتِ وضعیتِ پرداخت ناموفق بود: ' + (res.error||'')); }
   else clearAdminNotice();
+  await loadAdminServiceTrips();
+}
+var _serviceAmountTargetId = null;
+function formatServiceAmountInput(el){
+  var digits = el.value.replace(/[^0-9]/g,'');
+  el.value = digits ? Number(digits).toLocaleString('en-US') : '';
+}
+function openServiceAmountModal(id){
+  _serviceAmountTargetId = id;
+  var r = (window._allServiceTrips||[]).filter(function(x){ return x.id===id; })[0];
+  document.getElementById('serviceAmountHint').innerHTML = r ? (esc(r.employee) + ' — ' + esc(r.fromLocation) + ' ← ' + esc(r.toLocation)) : '';
+  var input = document.getElementById('serviceAmountInput');
+  input.value = (r && r.amount) ? Number(r.amount).toLocaleString('en-US') : '';
+  document.getElementById('serviceAmountMsg').textContent = '';
+  document.getElementById('serviceAmountOverlay').classList.add('open');
+  document.getElementById('serviceAmountSheet').classList.add('open');
+  setTimeout(function(){ input.focus(); }, 250);
+}
+function closeServiceAmountModal(){
+  _serviceAmountTargetId = null;
+  document.getElementById('serviceAmountOverlay').classList.remove('open');
+  document.getElementById('serviceAmountSheet').classList.remove('open');
+}
+async function confirmServiceAmount(){
+  var raw = document.getElementById('serviceAmountInput').value.replace(/[^0-9]/g,'');
+  var msgBox = document.getElementById('serviceAmountMsg');
+  if(!raw || Number(raw) <= 0){ msgBox.textContent = 'مبلغ را وارد کن'; return; }
+  var res = await apiCall(function(){ return apiPost('setServiceTripPaid', {pin:adminPin, id:_serviceAmountTargetId, paid:true, amount:raw}); });
+  if(!res.ok){ msgBox.textContent = 'ثبت ناموفق بود: ' + (res.error||''); return; }
+  closeServiceAmountModal();
+  clearAdminNotice();
   await loadAdminServiceTrips();
 }
 
@@ -5994,6 +6057,7 @@ function renderMyServiceTrips(){
         '<span class="req-status '+r.status+'">'+statusFa[r.status]+(r.status==='approved' ? (r.paid==='yes' ? ' · پرداخت‌شده' : ' · پرداخت‌نشده') : '')+'</span>'+
       '</div>'+
       '<div style="margin:4px 0;">'+titleLine+'</div>'+
+      (r.amount ? '<div style="margin-top:4px; font-weight:800; font-size:15px;">💰 ' + formatRial(r.amount) + '</div>' : '')+
       actions+
     '</div>';
   }).join('');
