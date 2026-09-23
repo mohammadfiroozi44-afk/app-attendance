@@ -8389,14 +8389,32 @@ async function deleteStatusMarker(idx){
   var g = _statusReportGroups[idx];
   if(!g || !g.markerIds.length) return;
   var rangeTxt = g.startDate === g.endDate ? g.startDate : (g.startDate + ' تا ' + g.endDate);
-  if(!confirm('وضعیتِ ' + rangeTxt + ' برایِ ' + (g.fullName||g.username) + ' (' + g.markerIds.length + ' روز) حذف بشه؟ بعدش دوباره بر اساسِ ترددِ ثبت‌شده محاسبه می‌شه.')) return;
-  for(var i=0; i<g.markerIds.length; i++){
-    var res = await apiCall(function(){ return apiPost('deleteDayStatusMarker', {pin: adminPin, id: g.markerIds[i]}); });
+  var isLeaveLike = (g.status === 'leave' || g.status === 'mission');
+  var confirmMsg = isLeaveLike
+    ? ('این مرخصی/ماموریتِ ' + rangeTxt + ' برایِ ' + (g.fullName||g.username) + ' کاملاً کنسل بشه؟ هم از این گزارش، هم از «مرخصی‌هایِ امروزِ» داشبورد حذف می‌شه.')
+    : ('وضعیتِ ' + rangeTxt + ' برایِ ' + (g.fullName||g.username) + ' (' + g.markerIds.length + ' روز) حذف بشه؟ بعدش دوباره بر اساسِ ترددِ ثبت‌شده محاسبه می‌شه.');
+  if(!confirm(confirmMsg)) return;
+  if(isLeaveLike){
+    // این حذف باید هم رکوردهایِ روزِ گزارش (DayStatusMarkers) رو پاک کنه، هم خودِ درخواستِ
+    // اصلیِ مرخصی (LeaveRequests) رو — وگرنه داشبوردِ «مرخصی‌هایِ امروز» که مستقیم از
+    // LeaveRequests می‌خونه، همچنان این فرد رو مرخصی نشون می‌ده حتی بعدِ حذفِ گزارش.
+    var res = await apiCall(function(){ return apiPost('deleteLeaveRangeAndRequest', {
+      pin: adminPin, username: g.username, startDate: g.startDate, endDate: g.endDate
+    }); });
     if(!res.ok){
-      var m = (res.error === 'not_found') ? 'یکی از روزها قبلاً حذف شده — گزارش را دوباره بارگذاری کن.' : (res.error||'');
-      showAdminNotice('حذف ناموفق بود: ' + m);
-      alert('حذف ناموفق بود: ' + m);
+      showAdminNotice('حذف ناموفق بود: ' + (res.error||''));
+      alert('حذف ناموفق بود: ' + (res.error||''));
       return;
+    }
+  } else {
+    for(var i=0; i<g.markerIds.length; i++){
+      var res2 = await apiCall(function(){ return apiPost('deleteDayStatusMarker', {pin: adminPin, id: g.markerIds[i]}); });
+      if(!res2.ok){
+        var m = (res2.error === 'not_found') ? 'یکی از روزها قبلاً حذف شده — گزارش را دوباره بارگذاری کن.' : (res2.error||'');
+        showAdminNotice('حذف ناموفق بود: ' + m);
+        alert('حذف ناموفق بود: ' + m);
+        return;
+      }
     }
   }
   await loadStatusReport(document.getElementById('logStatusFilter').value);
