@@ -995,6 +995,31 @@
     </div>
     </div><!-- /empSec-perf -->
 
+    <div class="emp-section" id="empSec-services" style="display:none;">
+    <div class="card">
+      <div class="eyebrow" id="serviceFormTitle">ثبتِ سرویسِ جدید</div>
+      <div class="hint" style="margin-top:-6px;">برایِ روزی که با وسیله‌یِ شخصی‌ات مسیرِ کاری رو رفتی، برایِ بازپرداختِ هزینه ثبت کن.</div>
+      <label>تاریخِ سرویس</label>
+      <div class="date-row"><select id="serviceDay"></select><select id="serviceMonth"></select><select id="serviceYear"></select></div>
+      <label>نوعِ وسیله</label>
+      <select id="serviceVehicleType"><option value="motor">🏍 موتور</option><option value="car">🚗 سواری</option></select>
+      <label>از کجا</label>
+      <input type="text" id="serviceFrom" placeholder="مثلاً: دفتر مرکزی">
+      <label>تا کجا</label>
+      <input type="text" id="serviceTo" placeholder="مثلاً: کارگاهِ فلان">
+      <label class="chk-item" style="margin-bottom:14px;"><input type="checkbox" id="serviceRoundTrip"> رفت و برگشت</label>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="serviceSubmitBtn" onclick="submitServiceTripBtn()">📨 ثبتِ سرویس</button>
+        <button type="button" class="btn btn-ghost" id="serviceCancelEditBtn" style="display:none;" onclick="cancelServiceEdit()">لغوِ ویرایش</button>
+      </div>
+      <div class="hint" id="serviceMsg" style="margin-top:8px;"></div>
+      <div class="divider"></div>
+      <div class="eyebrow" style="font-size:13px;">سرویس‌هایِ من</div>
+      <button type="button" class="btn btn-ghost btn-small" onclick="loadMyServiceTrips()" title="بروزرسانی">🔄 بروزرسانی</button>
+      <div id="myServiceTripsList" style="margin-top:10px;"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    </div><!-- /empSec-services -->
+
     <div class="emp-section" id="empSec-leave" style="display:none;"></div>
     <div style="display:none;">
       <select id="reqType"><option value="in">ورود</option><option value="out">خروج</option></select>
@@ -1759,8 +1784,8 @@
       <button type="button" class="btn btn-ghost" onclick="backfillLogSourceBtn()">🏷️ پرکردن ستون دستی/اتومات برای داده‌های قدیمی</button>
       <div class="hint" style="margin-top:10px;">این گزینه مأموریت‌های تأییدشده‌ای که ساعت ورود و خروج آن‌ها هنوز به گزارش اضافه نشده را یافته و اضافه می‌کند؛ اجرای دوباره باعث ثبت تکراری نمی‌شود.</div>
       <button type="button" class="btn btn-ghost" onclick="backfillMissionLogsBtn()">🚗 اضافه‌کردن ساعتِ ماموریت‌های قدیمی به گزارش</button>
-      <div class="hint" style="margin-top:10px;">وقتی اسمِ یک پرسنل رو ویرایش می‌کنی، ثبت‌های قدیمیِ اون تو Logs، درخواست‌ها، مرخصی‌ها و... همچنان اسمِ قبلی رو نشون می‌دن. این گزینه اسمِ همه‌ی این ثبت‌های قدیمی رو (بر اساسِ شناسه‌ی کاربری، نه اسم) با اسمِ فعلیِ هر پرسنل به‌روز می‌کنه.</div>
-      <button type="button" class="btn btn-ghost" onclick="syncEmployeeNamesBtn()">🏷️ به‌روزرسانیِ نامِ پرسنل در همه‌ی شیت‌ها</button>
+      <div class="hint" style="margin-top:10px;">از این به بعد، ویرایشِ اسم/کدِ پرسنلیِ یک پرسنل خودکار همه‌جا (Logs، درخواست‌ها، مرخصی‌ها و...) به‌روز می‌شه. این دکمه فقط برایِ ثبت‌هایِ قدیمی‌تر از این قابلیته — یکجا اسم و کدِ پرسنلیِ همه‌ی ثبت‌ها رو (بر اساسِ شناسه‌ی کاربری) با مقدارِ فعلیِ هر پرسنل هماهنگ می‌کنه.</div>
+      <button type="button" class="btn btn-ghost" onclick="syncEmployeeNamesBtn()">🏷️ به‌روزرسانیِ نام/کدِ پرسنل در همه‌ی شیت‌ها</button>
       <div class="hint" style="margin-top:10px;">این گزینه یک فیلتر (فلش‌های بالای ستون‌ها) به تمام شیت‌های اصلی گوگل‌شیت اضافه می‌کند. شیت Logs بر اساس تاریخ و ساعت واقعی مرتب می‌شود؛ سایر شیت‌ها فقط فیلتر دریافت می‌کنند و مرتب‌سازی آن‌ها از طریق فلش فیلتر امکان‌پذیر است.</div>
       <button type="button" class="btn btn-ghost" onclick="setupSheetFiltersBtn()">📊 اضافه‌کردن فیلتر به همه‌ی شیت‌ها</button>
       <div class="hint" style="margin-top:10px;">این گزینه برای پرسنلی که دیروز تردد یا مرخصی/مأموریتی ثبت نکرده‌اند، وضعیت روز را ثبت می‌کند. تصمیم بر اساس موظفیِ واقعیِ همان روز برای همان فرد گرفته می‌شود: اگر موظفی صفر باشد (شیفتی که از تعطیلات رسمی تبعیت می‌کند و دیروز جمعه یا تعطیل بوده، یا روزِ بدون شیفت) وضعیت «آف» ثبت می‌شود، و اگر موظفی داشته باشد (مثلاً شیفتی که تیک تعطیلات ندارد و جمعه هم برایش روز کاری است) «غیبت». این کار به‌صورت خودکار و روزانه هم قابل انجام است — برای فعال‌سازی زمان‌بندی خودکار، به راهنمای فنی مراجعه کنید.</div>
@@ -1799,6 +1824,26 @@
       <div id="reqAdminList" style="margin-top:14px;"><div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
     </div>
     </div><!-- /admSec-requests -->
+
+    <div class="admin-section" id="admSec-services" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">سرویس‌ها</div>
+      <div class="hint" style="margin-top:-6px;">سرویس‌هایِ ثبت‌شده با وسیله‌یِ شخصی برایِ بازپرداختِ هزینه.</div>
+      <select id="serviceFilterStatus" onchange="renderServiceTripsAdmin()">
+        <option value="pending">در انتظار</option>
+        <option value="approved">تاییدشده</option>
+        <option value="rejected">ردشده</option>
+        <option value="all">همه</option>
+      </select>
+      <input type="text" id="serviceFilterCode" placeholder="فیلتر با نام یا کد پرسنلی" oninput="renderServiceTripsAdmin()">
+      <div class="date-row">
+        <select id="serviceFilterMonth" onchange="renderServiceTripsAdmin()"><option value="">همه ماه‌ها</option></select>
+        <select id="serviceFilterYear" onchange="renderServiceTripsAdmin()"><option value="">همه سال‌ها</option></select>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="loadAdminServiceTrips()">🔄 بارگذاری</button>
+      <div id="serviceAdminList" style="margin-top:14px;"><div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
+    </div>
+    </div><!-- /admSec-services -->
 
     <div class="admin-section" id="admSec-messages" style="display:none;">
     <div class="card">
@@ -2126,6 +2171,7 @@
     <div class="drawer-item" id="admMenu-projects" onclick="showAdminSection('projects')"><span class="dicon dicon-orange"><i class="fa-solid fa-location-dot"></i></span> پروژه‌ها</div>
     <div class="drawer-item" id="admMenu-shifts" onclick="showAdminSection('shifts')"><span class="dicon dicon-purple"><i class="fa-solid fa-calendar-week"></i></span> شیفت</div>
     <div class="drawer-item" id="admMenu-requests" onclick="showAdminSection('requests')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها</div>
+    <div class="drawer-item" id="admMenu-services" onclick="showAdminSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها</div>
     <div class="drawer-item" id="admMenu-messages" onclick="showAdminSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها</div>
     <div class="drawer-nav-group-title">گزارش‌ها</div>
     <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon dicon-red"><i class="fa-solid fa-triangle-exclamation"></i></span> تردد ناقص</div>
@@ -2142,6 +2188,7 @@
     <div class="drawer-header"><i class="fa-solid fa-helmet-safety"></i> پنل کارمند</div>
     <div class="drawer-item active" id="empMenu-checkin" onclick="showEmpSection('checkin')"><span class="dicon dicon-green"><i class="fa-solid fa-location-dot"></i></span> ثبت تردد</div>
     <div class="drawer-item" id="empMenu-request" onclick="showEmpSection('request')"><span class="dicon dicon-teal"><i class="fa-solid fa-paper-plane"></i></span> درخواست‌ها</div>
+    <div class="drawer-item" id="empMenu-services" onclick="showEmpSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها</div>
     <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon dicon-blue"><i class="fa-solid fa-list"></i></span> سوابق من</div>
     <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکرد من</div>
     <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon dicon-orange"><i class="fa-solid fa-calendar-day"></i></span> عملکرد روزانه</div>
@@ -2973,6 +3020,16 @@ async function pollAdminLogUpdates(){
         showLocalNotification(
           '📨 درخواستِ جدید — ' + r.employee,
           typeLabel + ' — ' + r.createdAt + ' ساعت ' + r.createdTime
+        );
+      });
+    }
+    // Same silent cycle also checks for new سرویس‌ها (وسیله‌یِ شخصی) submissions.
+    var svcRes = await apiCall(function(){ return apiPost('getServiceTripsSince', {pin:adminPin}, true); });
+    if(svcRes.ok){
+      (svcRes.trips||[]).forEach(function(t){
+        showLocalNotification(
+          '🚗 سرویسِ جدید — ' + t.employee,
+          t.fromLocation + ' ← ' + t.toLocation + ' — ' + t.createdAt + ' ساعت ' + t.createdTime
         );
       });
     }
@@ -4649,7 +4706,7 @@ function showEmpSection(name){
     var fallbackES = firstVisibleSection('emp');
     if(fallbackES && fallbackES !== name){ showEmpSection(fallbackES); return; }
   }
-  ['checkin','request','history','perf','daily','myshift','messages'].forEach(function(s){
+  ['checkin','request','services','history','perf','daily','myshift','messages'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -4657,6 +4714,7 @@ function showEmpSection(name){
   });
   if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
+  else if(name === 'services'){ autoWirePicker('serviceVehicleType','نوعِ وسیله'); cancelServiceEdit(); loadMyServiceTrips(); }
   else if(name === 'history'){
     populateMonthYearFilter('myHistFilterMonth','myHistFilterYear', true);
     document.getElementById('myHistoryList').innerHTML = '<div class="empty">ماه و سال موردنظر را انتخاب کرده و «بارگذاری سوابق» را بزنید.</div>';
@@ -4679,7 +4737,7 @@ function showEmpSection(name){
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
-  var active = ['dashboard','employees','projects','requests','offline','report','settings'].find(function(s){
+  var active = ['dashboard','employees','projects','requests','services','offline','report','settings'].find(function(s){
     var sec = document.getElementById('admSec-'+s);
     return sec && sec.style.display !== 'none';
   }) || 'dashboard';
@@ -4697,7 +4755,7 @@ function showAdminSection(name){
     cancelShiftEdit();
   }
   _lastAdminSection = name;
-  ['dashboard','employees','projects','shifts','requests','messages','offline','report','performance','settings'].forEach(function(s){
+  ['dashboard','employees','projects','shifts','requests','services','messages','offline','report','performance','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -4731,6 +4789,12 @@ async function refreshAdminSection(name){
     populateMonthYearFilter('reqFilterMonth','reqFilterYear', true);
     autoWirePicker('reqFilterStatus', 'وضعیت');
     document.getElementById('reqAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
+  }
+  else if(name === 'services'){
+    await ensureEmployeesFresh();
+    populateMonthYearFilter('serviceFilterMonth','serviceFilterYear', true);
+    autoWirePicker('serviceFilterStatus', 'وضعیت');
+    document.getElementById('serviceAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
   }
   else if(name === 'messages'){
     await ensureEmployeesFresh();
@@ -5786,6 +5850,175 @@ async function saveLeaveRequestEdit(id){
   delete _reqEditImageState[id];
   clearAdminNotice();
   await loadAdminRequests();
+}
+
+// ---------- سرویس‌ها (وسیله‌یِ شخصی — مدیریت) ----------
+function serviceVehicleLabel(v){ return v === 'motor' ? '🏍 موتور' : '🚗 سواری'; }
+async function loadAdminServiceTrips(){
+  var box = document.getElementById('serviceAdminList');
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  var res = await apiCall(function(){ return apiPost('getServiceTripsAdmin', {pin:adminPin}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافتِ سرویس‌ها ناموفق بود</div>'; return; }
+  window._allServiceTrips = res.trips || [];
+  renderServiceTripsAdmin();
+}
+function renderServiceTripsAdmin(){
+  var box = document.getElementById('serviceAdminList');
+  populateMonthYearFilter('serviceFilterMonth','serviceFilterYear', true);
+  var filter = document.getElementById('serviceFilterStatus').value;
+  var codeFilter = document.getElementById('serviceFilterCode').value.trim().toLowerCase();
+  var monthFilter = document.getElementById('serviceFilterMonth').value;
+  var yearFilter = document.getElementById('serviceFilterYear').value;
+  var all = window._allServiceTrips || [];
+  var list = (filter === 'all') ? all : all.filter(function(r){ return r.status === filter; });
+  if(codeFilter){
+    list = list.filter(function(r){
+      return String(r.employeeCode||'').toLowerCase().indexOf(codeFilter) !== -1 ||
+        String(r.employee||'').toLowerCase().indexOf(codeFilter) !== -1;
+    });
+  }
+  list = list.filter(function(r){ return matchesMonthYear(r.serviceDate, monthFilter, yearFilter); });
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  if(list.length===0){ box.innerHTML = '<div class="empty">سرویسی در این حالت وجود ندارد</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    var titleLine = serviceVehicleLabel(r.vehicleType) + ' · ' + esc(r.fromLocation) + ' ← ' + esc(r.toLocation) + (r.roundTrip==='yes' ? ' (رفت و برگشت)' : '');
+    // تنها قابلیتِ مدیر رویِ یک سرویسِ تصمیم‌گرفته‌شده، جدا از تیکِ پرداخت، حذفه — هیچ ویرایشی
+    // رویِ محتوایِ ثبت‌شده‌یِ کارمند از طرفِ مدیر مجاز نیست.
+    var actions = r.status === 'pending'
+      ? '<div class="btn-row" style="margin-top:6px;">'+
+          '<button type="button" class="btn btn-in btn-small" onclick="decideServiceTripBtn(\''+r.id+'\',true)">✅ تایید</button>'+
+          '<button type="button" class="btn btn-out btn-small" onclick="decideServiceTripBtn(\''+r.id+'\',false)">❌ رد</button>'+
+        '</div>'
+      : '<div class="btn-row" style="margin-top:6px; align-items:center;">'+
+          (r.status === 'approved' ? '<label class="chk-item"><input type="checkbox" '+(r.paid==='yes'?'checked':'')+' onchange="toggleServiceTripPaidBtn(\''+r.id+'\', this.checked)"> پرداخت شد</label>' : '')+
+          '<button type="button" class="btn btn-out btn-small" onclick="deleteServiceTripBtn(\''+r.id+'\')">🗑 حذف</button>'+
+        '</div>';
+    return '<div class="req-item">'+
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
+        '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b>'+
+        '<span class="req-status '+r.status+'">'+statusFa[r.status]+(r.status==='approved' && r.paid==='yes' ? ' · پرداخت‌شده' : '')+'</span>'+
+      '</div>'+
+      '<div style="margin:4px 0;">'+titleLine+'</div>'+
+      '<div class="meta">تاریخِ سرویس: '+esc(r.serviceDate)+' — ثبت: '+esc(r.createdAt)+' '+esc(r.createdTime)+'</div>'+
+      actions+
+    '</div>';
+  }).join('');
+}
+async function decideServiceTripBtn(id, approve){
+  var res = await apiCall(function(){ return apiPost('decideServiceTrip', {pin:adminPin, id:id, approve:approve}); });
+  if(!res.ok){ showAdminNotice('ثبت تصمیم ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadAdminServiceTrips();
+}
+async function deleteServiceTripBtn(id){
+  if(!confirm('این سرویس حذف بشه؟ این کار قابل بازگشت نیست.')) return;
+  var res = await apiCall(function(){ return apiPost('deleteServiceTrip', {pin:adminPin, id:id}); });
+  if(!res.ok){ showAdminNotice('حذف ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  await loadAdminServiceTrips();
+}
+async function toggleServiceTripPaidBtn(id, checked){
+  var res = await apiCall(function(){ return apiPost('setServiceTripPaid', {pin:adminPin, id:id, paid:checked}); });
+  if(!res.ok){ showAdminNotice('ثبتِ وضعیتِ پرداخت ناموفق بود: ' + (res.error||'')); }
+  else clearAdminNotice();
+  await loadAdminServiceTrips();
+}
+
+// ---------- سرویس‌ها (وسیله‌یِ شخصی — کارمند) ----------
+var _serviceEditingId = null;
+function resetServiceForm(){
+  document.getElementById('serviceVehicleType').value = 'motor';
+  syncCustomSelectDisplay('serviceVehicleType', 'serviceVehicleType_pickerBtn');
+  document.getElementById('serviceFrom').value = '';
+  document.getElementById('serviceTo').value = '';
+  document.getElementById('serviceRoundTrip').checked = false;
+  setDateSelectValue('service', serverTodayStr || jalaliString(new Date()));
+}
+function cancelServiceEdit(){
+  _serviceEditingId = null;
+  document.getElementById('serviceFormTitle').textContent = 'ثبتِ سرویسِ جدید';
+  document.getElementById('serviceSubmitBtn').textContent = '📨 ثبتِ سرویس';
+  document.getElementById('serviceCancelEditBtn').style.display = 'none';
+  document.getElementById('serviceMsg').textContent = '';
+  resetServiceForm();
+}
+async function submitServiceTripBtn(){
+  var serviceDate = readDateSelect('service');
+  var vehicleType = document.getElementById('serviceVehicleType').value;
+  var fromLoc = document.getElementById('serviceFrom').value.trim();
+  var toLoc = document.getElementById('serviceTo').value.trim();
+  var roundTrip = document.getElementById('serviceRoundTrip').checked;
+  var msgBox = document.getElementById('serviceMsg');
+  if(!fromLoc || !toLoc){ msgBox.textContent = 'مبدا و مقصد را وارد کنید'; return; }
+  var payload = {
+    username: loggedInEmployee.username, serviceDate: serviceDate,
+    vehicleType: vehicleType, fromLocation: fromLoc, toLocation: toLoc, roundTrip: roundTrip
+  };
+  var action = 'addServiceTrip';
+  if(_serviceEditingId){ action = 'updateMyServiceTrip'; payload.id = _serviceEditingId; }
+  var res = await apiCall(function(){ return apiPost(action, payload); });
+  if(!res.ok){
+    msgBox.textContent = res.error === 'already_decided'
+      ? 'این سرویس قبلاً تصمیم‌گیری شده و دیگه قابلِ ویرایش نیست.'
+      : 'ثبت ناموفق بود: ' + (res.error||'');
+    return;
+  }
+  msgBox.textContent = '';
+  cancelServiceEdit();
+  await loadMyServiceTrips();
+}
+async function loadMyServiceTrips(){
+  var box = document.getElementById('myServiceTripsList');
+  box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
+  var res = await apiCall(function(){ return apiPost('getMyServiceTrips', {username: loggedInEmployee.username}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">دریافتِ سرویس‌ها ناموفق بود</div>'; return; }
+  window._myServiceTrips = res.trips || [];
+  renderMyServiceTrips();
+}
+function renderMyServiceTrips(){
+  var box = document.getElementById('myServiceTripsList');
+  var list = window._myServiceTrips || [];
+  if(list.length===0){ box.innerHTML = '<div class="empty">هنوز سرویسی ثبت نکرده‌ای</div>'; return; }
+  var statusFa = {pending:'در انتظار تایید', approved:'تاییدشده', rejected:'ردشده'};
+  box.innerHTML = list.map(function(r){
+    var titleLine = serviceVehicleLabel(r.vehicleType) + ' · ' + esc(r.fromLocation) + ' ← ' + esc(r.toLocation) + (r.roundTrip==='yes' ? ' (رفت و برگشت)' : '');
+    var actions = r.status === 'pending'
+      ? '<div class="btn-row" style="margin-top:6px;">'+
+          '<button type="button" class="btn btn-ghost btn-small" onclick="editMyServiceTripBtn(\''+r.id+'\')">✏️ ویرایش</button>'+
+          '<button type="button" class="btn btn-out btn-small" onclick="deleteMyServiceTripBtn(\''+r.id+'\')">🗑 حذف</button>'+
+        '</div>'
+      : '';
+    return '<div class="req-item">'+
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">'+
+        '<b>'+esc(r.serviceDate)+'</b>'+
+        '<span class="req-status '+r.status+'">'+statusFa[r.status]+(r.status==='approved' ? (r.paid==='yes' ? ' · پرداخت‌شده' : ' · پرداخت‌نشده') : '')+'</span>'+
+      '</div>'+
+      '<div style="margin:4px 0;">'+titleLine+'</div>'+
+      actions+
+    '</div>';
+  }).join('');
+}
+function editMyServiceTripBtn(id){
+  var r = (window._myServiceTrips||[]).filter(function(x){ return x.id===id; })[0];
+  if(!r) return;
+  _serviceEditingId = id;
+  setDateSelectValue('service', r.serviceDate);
+  document.getElementById('serviceVehicleType').value = r.vehicleType;
+  syncCustomSelectDisplay('serviceVehicleType', 'serviceVehicleType_pickerBtn');
+  document.getElementById('serviceFrom').value = r.fromLocation;
+  document.getElementById('serviceTo').value = r.toLocation;
+  document.getElementById('serviceRoundTrip').checked = r.roundTrip === 'yes';
+  document.getElementById('serviceFormTitle').textContent = 'ویرایشِ سرویس';
+  document.getElementById('serviceSubmitBtn').textContent = '💾 ذخیره';
+  document.getElementById('serviceCancelEditBtn').style.display = '';
+  document.getElementById('serviceMsg').textContent = '';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+async function deleteMyServiceTripBtn(id){
+  if(!confirm('این سرویس حذف بشه؟')) return;
+  var res = await apiCall(function(){ return apiPost('deleteMyServiceTrip', {username: loggedInEmployee.username, id:id}); });
+  if(!res.ok){ alert('حذف ناموفق بود: ' + (res.error||'')); return; }
+  await loadMyServiceTrips();
 }
 
 // ---------- Projects ----------
@@ -7457,7 +7690,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','adminLogEnd','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd','statusEditStart','statusEditEnd'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','adminLogEnd','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd','statusEditStart','statusEditEnd','service'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
