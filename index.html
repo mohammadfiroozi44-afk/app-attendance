@@ -3727,7 +3727,7 @@ async function openAdminLogSheet(){
     var today = new Date();
     var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
     mMonthSel.value = jMonths[tj[1]-1];
-    for(var y=tj[0]+1; y>=tj[0]-3; y--){ mYearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+    for(var y=Math.max(1420, tj[0]+1); y>=tj[0]-3; y--){ mYearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
     mYearSel.value = String(tj[0]);
   }
   autoWirePicker('adminLogMonthlyMonth', 'انتخابِ ماه');
@@ -5784,7 +5784,7 @@ function renderPendingOffline(){
       var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
       var dayOpts = ''; for(var dd=1; dd<=31; dd++){ dayOpts += '<option value="'+dd+'"'+(edp && String(dd)===edp.day?' selected':'')+'>'+dd+'</option>'; }
       var monthOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(edp && m===edp.month?' selected':'')+'>'+m+'</option>'; }).join('');
-      var yearOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
+      var yearOpts = ''; for(var yy=Math.max(1420, curJY+1); yy>=curJY-3; yy--){ yearOpts += '<option value="'+yy+'"'+(edp && String(yy)===edp.year?' selected':'')+'>'+yy+'</option>'; }
       return '<div class="list-item"><div style="width:100%;">'+
         '<b>'+nameWithCode(r.username, r.employee, r.employeeCode)+'</b> · '+(r.type==='in'?'ورود':'خروج')+' · '+esc(r.project)+
         '<div class="hint" style="margin:4px 0;">ادعای گوشی: '+r.jalaliDate+' — '+r.time+'</div>'+
@@ -6264,7 +6264,7 @@ function populateShiftYearSelect(){
   if(sel.options.length) return; // already populated once — no need to rebuild every time
   var todayD = new Date();
   var tj = toJalaali(todayD.getFullYear(), todayD.getMonth()+1, todayD.getDate());
-  for(var y=tj[0]+5; y>=tj[0]-2; y--){ sel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+  for(var y=Math.max(1420, tj[0]+5); y>=tj[0]-2; y--){ sel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
   autoWirePicker('shiftFormYear', 'سالِ شیفت');
 }
 // This weekly grid is purely a PATTERN used once by "ساختِ تقویم" to generate the whole
@@ -6371,7 +6371,7 @@ function openShiftCalendar(preGeneratedDaysMap){
   if(!yearSel.options.length){
     var todayD = new Date();
     var tj = toJalaali(todayD.getFullYear(), todayD.getMonth()+1, todayD.getDate());
-    for(var y=tj[0]+5; y>=tj[0]-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+    for(var y=Math.max(1420, tj[0]+5); y>=tj[0]-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
     jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'">'+m+'</option>'; });
   }
   var startYear = parseInt(document.getElementById('shiftFormYear').value, 10) || parseInt(yearSel.options[0].value, 10);
@@ -7878,7 +7878,7 @@ function initLeaveDateSelects(){
     if(!daySel || daySel.options.length) return; // already populated
     for(var d=1; d<=31; d++){ daySel.innerHTML += '<option value="'+d+'"'+(d===tj[2]?' selected':'')+'>'+d+'</option>'; }
     jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'"'+((i+1)===tj[1]?' selected':'')+'>'+m+'</option>'; });
-    for(var y=curJY-1; y<=curJY+1; y++){ yearSel.innerHTML += '<option value="'+y+'"'+(y===curJY?' selected':'')+'>'+y+'</option>'; }
+    for(var y=curJY-1; y<=Math.max(1420, curJY+1); y++){ yearSel.innerHTML += '<option value="'+y+'"'+(y===curJY?' selected':'')+'>'+y+'</option>'; }
     autoWirePicker(prefix+'Day', 'انتخابِ روز');
     autoWirePicker(prefix+'Month', 'انتخابِ ماه');
     autoWirePicker(prefix+'Year', 'انتخابِ سال');
@@ -9358,7 +9358,7 @@ async function loadMyShiftInfo(){
   var monthSel = document.getElementById('myShiftMonth');
   if(!yearSel.options.length){
     var tj = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate());
-    for(var y=tj[0]+5; y>=tj[0]-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
+    for(var y=Math.max(1420, tj[0]+5); y>=tj[0]-2; y--){ yearSel.innerHTML += '<option value="'+y+'">'+y+'</option>'; }
     jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'">'+m+'</option>'; });
     myShiftViewYear = tj[0]; myShiftViewMonth = tj[1];
     yearSel.value = myShiftViewYear; monthSel.value = myShiftViewMonth;
@@ -9542,7 +9542,7 @@ function buildDateSelects(prefix, dateStr){
   var curJY = toJalaali(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate())[0];
   var dOpts = ''; for(var dd=1; dd<=31; dd++){ dOpts += '<option value="'+dd+'"'+(dp && String(dd)===dp.day?' selected':'')+'>'+dd+'</option>'; }
   var mOpts = jMonths.map(function(m,idx){ return '<option value="'+(idx+1)+'"'+(dp && m===dp.month?' selected':'')+'>'+m+'</option>'; }).join('');
-  var yOpts = ''; for(var yy=curJY+1; yy>=curJY-3; yy--){ yOpts += '<option value="'+yy+'"'+(dp && String(yy)===dp.year?' selected':'')+'>'+yy+'</option>'; }
+  var yOpts = ''; for(var yy=Math.max(1420, curJY+1); yy>=curJY-3; yy--){ yOpts += '<option value="'+yy+'"'+(dp && String(yy)===dp.year?' selected':'')+'>'+yy+'</option>'; }
   return '<select id="'+prefix+'Day" style="width:60px;">'+dOpts+'</select>'+
          '<select id="'+prefix+'Month" style="width:96px;">'+mOpts+'</select>'+
          '<select id="'+prefix+'Year" style="width:76px;">'+yOpts+'</select>';
