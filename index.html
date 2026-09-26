@@ -2721,8 +2721,10 @@ var _manualBusyUntil = 0;
 function markSubmissionBusy(){ _manualBusyUntil = Date.now() + 60000; }
 function clearSubmissionBusy(){ _manualBusyUntil = 0; }
 function isSubmissionBusy(){ return _activeWriteCalls > 0 || Date.now() < _manualBusyUntil; }
+var _hideProgressDebounceTimer = null;
 function beginApiTracking(action, silent){
   _activeApiCalls++;
+  clearTimeout(_hideProgressDebounceTimer); // یه درخواستِ تازه شروع شد — هر مخفی‌شدنِ برنامه‌ریزی‌شده رو لغو کن
   if(!silent) showGlobalProgress();
   // درخواستِ پس‌زمینه هیچ‌وقت باعثِ هشدارِ خروج نمی‌شه
   var isWrite = isWriteAction(action) && !silent;
@@ -2731,7 +2733,14 @@ function beginApiTracking(action, silent){
 }
 function endApiTracking(wasWrite){
   _activeApiCalls = Math.max(0, _activeApiCalls-1);
-  if(_activeApiCalls === 0) hideGlobalProgress();
+  if(_activeApiCalls === 0){
+    // بلافاصله مخفی نکن — چند تا فراخوانیِ پشتِ‌سرهم (نه هم‌زمان) که هر کدوم برایِ یه لحظه‌ی
+    // کوتاه شمارنده رو صفر می‌کنن، باعث می‌شدن دایره چندبار پشتِ‌سرهم ظاهر/محو بشه. یه فاصله‌ی
+    // کوتاه صبر می‌کنیم؛ اگه ظرفِ همین فاصله درخواستِ بعدی شروع بشه (بالا لغوش می‌کنه)، دایره
+    // اصلاً محو نمی‌شه و پیوسته می‌مونه.
+    clearTimeout(_hideProgressDebounceTimer);
+    _hideProgressDebounceTimer = setTimeout(hideGlobalProgress, 200);
+  }
   if(wasWrite) _activeWriteCalls = Math.max(0, _activeWriteCalls-1);
 }
 window._appStartupTime = Date.now();
@@ -5225,6 +5234,9 @@ function showAdminNotice(msg){
   // alert() modal (with its own "تایید" button) is now the ONLY way this shows up. The old
   // persistent red inline bar was removed entirely per request: it stayed visible on-page even
   // after the modal was dismissed, which read as a second, redundant copy of the same error.
+  // اگه دیگه لاگین نیستیم (مثلاً یه درخواستِ مونده از قبلِ خروج، درست همون لحظه که خروج زدیم،
+  // با تاخیر جواب داد) این خطا دیگه معنی‌ای نداره و نباید رویِ صفحه‌یِ ورود ظاهر بشه.
+  if(!adminPin) return;
   alert(msg);
 }
 function clearAdminNotice(){
