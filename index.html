@@ -4219,12 +4219,18 @@ async function saveSingleBulkDay(d){
     }
 
     if((absenceChk && absenceChk.checked) || (offChk && offChk.checked)){
-      if(ex.inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.inId}); });
-      if(ex.outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.outId}); });
-      var statusVal = absenceChk.checked ? 'غیبت' : 'off';
-      await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
+      var statusVal = absenceChk.checked ? 'غیبت' : 'Off';
+      var offSetRes = await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
         pin: adminPin, username: username, allDatesInMonth: [jalaliDate], entries: [{jalaliDate: jalaliDate, status: statusVal}]
       }); });
+      if(!offSetRes.ok){
+        clearSubmissionBusy();
+        if(offSetRes.error === 'off_not_holiday'){ alert('⛔ Off فقط برایِ جمعه‌ها و تعطیلاتِ رسمی قابلِ ثبته — این روز عادیه.'); }
+        else { alert('ثبت ناموفق بود: ' + (offSetRes.error||'')); }
+        return;
+      }
+      if(ex.inId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.inId}); });
+      if(ex.outId) await apiCall(function(){ return apiPost('deleteLog', {pin:adminPin, id:ex.outId}); });
       clearSubmissionBusy();
       alert(d + 'ام ذخیره شد.');
       await loadMonthDaysForBulkEntry();
@@ -4735,7 +4741,12 @@ async function submitAdminLog(){
       allDatesInMonth: [jalaliDate],
       entries: [{jalaliDate: jalaliDate, status: type === 'off' ? 'Off' : 'غیبت'}]
     }); });
-    if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + (res.error||'')); return; }
+    if(!res.ok){
+      showAdminNotice(res.error === 'off_not_holiday'
+        ? '⛔ Off فقط برایِ جمعه‌ها و تعطیلاتِ رسمی قابلِ ثبته — این روز عادیه.'
+        : 'ثبت ناموفق بود: ' + (res.error||''));
+      return;
+    }
     clearAdminNotice(); closeAdminLogSheet(); alert('ثبت شد.'); refreshCurrentAdminSection();
     return;
   }
