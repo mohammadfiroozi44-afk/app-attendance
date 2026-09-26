@@ -1964,6 +1964,7 @@
         <option value="leave">مرخصی</option>
         <option value="mission">ماموریت</option>
         <option value="holiday">تعطیل / آف</option>
+        <option value="allSpecial">همه (مرخصی + غیبت + ماموریت + تعطیل/آف)</option>
       </select>
       <button type="button" class="btn btn-primary" onclick="onReportFilterChange()">🔄 بارگذاری گزارش</button>
 
@@ -3867,8 +3868,10 @@ async function loadMonthDaysForBulkEntry(){
       };
       var hasData = inE || outE;
       var hasSecondShiftData = in2E || out2E;
-      var persistedStatus = dayStatusMap[dateStr] || null; // 'غیبت' | 'off' | null, from a previous save
-      var isOffChecked = persistedStatus ? (persistedStatus === 'off') : (isHol && !hasData);
+      var persistedStatus = dayStatusMap[dateStr] || null; // 'غیبت' | 'Off' | null, from a previous save
+      // چه با فرمِ تکی ذخیره شده باشه (که همیشه 'Off' با حرفِ بزرگ می‌فرسته) چه با ثبتِ ماهانه —
+      // حرفِ بزرگ/کوچیک نباید تیک‌خوردن رو خراب کنه.
+      var isOffChecked = persistedStatus ? (String(persistedStatus).toLowerCase() === 'off') : (isHol && !hasData);
       var isAbsenceChecked = persistedStatus === 'غیبت';
       var autoOff = isOffChecked; // kept for the disabled-inputs logic below
       var hasLeave = !!matchingLeave;
@@ -4533,7 +4536,7 @@ async function submitMonthlyBulkLog(){
       var sAbsenceChk = document.getElementById('bulkDay'+sd+'Absence');
       var sOffChk = document.getElementById('bulkDay'+sd+'Off');
       if(sAbsenceChk && sAbsenceChk.checked) statusEntries.push({jalaliDate: sDateStr, status:'غیبت'});
-      else if(sOffChk && sOffChk.checked) statusEntries.push({jalaliDate: sDateStr, status:'off'});
+      else if(sOffChk && sOffChk.checked) statusEntries.push({jalaliDate: sDateStr, status:'Off'});
     }
     var originalStatus = window._bulkOriginalDayStatus || {};
     var newStatusMap = {};
@@ -4648,9 +4651,18 @@ async function submitMonthlyBulkLog(){
     }
 
     if(statusChanged){
-      await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
+      var sres = await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
         pin: adminPin, username: username, allDatesInMonth: allDatesInMonth, entries: statusEntries
       }); });
+      if(!sres.ok){
+        statusEl.textContent = '⛔ ' + (sres.error === 'off_not_holiday'
+          ? 'Off فقط برایِ جمعه‌ها و تعطیلاتِ رسمی قابلِ ثبته — یکی از روزهایی که Off زدی (' + (sres.date||'') + ') روزِ عادیه.'
+          : 'ذخیره‌یِ وضعیتِ غیبت/Off ناموفق بود: ' + (sres.error||''));
+        statusEl.style.display = 'block';
+        clearSubmissionBusy();
+        hideBulkProgress();
+        return;
+      }
       stepProgress('ذخیره‌ی وضعیت غیبت/Off...');
     }
 
@@ -8687,13 +8699,18 @@ async function loadStatusReport(status){
   box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
   try{
     var monthIdx = jMonths.indexOf(month) + 1;
-    var res = await apiCall(function(){ return apiPost('getAttendanceStatusReport', {pin:adminPin, year:year, month:monthIdx, status:status}); });
+    // «همه» یعنی مرخصی+غیبت+ماموریت+تعطیل/آف با هم — نه ترددِ عادی هم. سرور با status:'all'
+    // خودِ روزهایِ عادی رو هم برمی‌گردونه (چون همون سنتینلِ همیشگیِ «بدونِ فیلتر»ه)، پس همینجا
+    // فیلترشون می‌کنیم بیرون.
+    var isAllSpecial = (status === 'allSpecial');
+    var res = await apiCall(function(){ return apiPost('getAttendanceStatusReport', {pin:adminPin, year:year, month:monthIdx, status: isAllSpecial ? 'all' : status}); });
     if(myReqId !== _statusReportReqId) return; // a newer request has already started/finished — discard this stale response
     if(!res.ok){
       box.innerHTML = '<div class="empty">دریافت گزارش ناموفق بود: ' + esc(res.error||'') + '</div>';
       return;
     }
     var results = res.results || [];
+    if(isAllSpecial) results = results.filter(function(r){ return r.status !== 'normal'; });
     if(day) results = results.filter(function(r){ return r.jalaliDate && r.jalaliDate.split(' ')[0] === day; });
     var codeFilter = (document.getElementById('logFilterCode').value||'').trim();
     if(codeFilter){
