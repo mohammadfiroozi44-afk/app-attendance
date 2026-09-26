@@ -2960,6 +2960,8 @@ function updateFpQuickLoginVisibility(){
   btn.style.display = (cached && deviceHasFingerprint) ? 'block' : 'none';
 }
 function employeeLogout(){
+  // همون دلیلِ adminLogout — بدونِ این، نوارِ کناری بازمی‌موند رویِ صفحه‌یِ ورود.
+  closeDrawer();
   loggedInEmployee = null;
   localStorage.removeItem('loggedInEmployee');
   clearEmployeeViewState();
@@ -5002,6 +5004,10 @@ async function refreshAdminSection(name){
   }
 }
 function adminLogout(){
+  // «خروج از مدیریت» خودش یه آیتمِ داخلِ همون نوارِ کناریه — بدونِ این، نوار بازمی‌موند رویِ
+  // صفحه‌یِ ورودی که پشتش ظاهر می‌شه، و زدنِ هر آیکونی توش (با اینکه دیگه adminPin نداریم)
+  // درخواست‌هایِ شکست‌خورده و رفتارِ عجیب می‌ساخت.
+  closeDrawer();
   adminPin = null;
   adminUsername = null;
   sessionStorage.removeItem('adminPin');
