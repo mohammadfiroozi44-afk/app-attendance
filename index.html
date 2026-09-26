@@ -5751,6 +5751,9 @@ function renderOpenSessions(){
     }).join('');
     list.forEach(function(r){
       wireCustomTimePicker('openCloseTime'+r.id, 'openCloseTime'+r.id+'Btn', 'ساعت خروج');
+      autoWirePicker('openClose'+r.id+'Day', 'روز');
+      autoWirePicker('openClose'+r.id+'Month', 'ماه');
+      autoWirePicker('openClose'+r.id+'Year', 'سال');
     });
   } catch(err){
     box.innerHTML = '<div class="empty">⛔ خطا در نمایش: '+esc(err && err.message ? err.message : String(err))+'</div>';
@@ -5821,6 +5824,9 @@ function renderPendingOffline(){
   }).join('');
   if(editingOfflineId){
     wireCustomTimePicker('offEditTime-'+editingOfflineId, 'offEditTimeBtn-'+editingOfflineId, 'ساعت');
+    autoWirePicker('offEditDay-'+editingOfflineId, 'روز');
+    autoWirePicker('offEditMonth-'+editingOfflineId, 'ماه');
+    autoWirePicker('offEditYear-'+editingOfflineId, 'سال');
   }
 }
 async function decideOfflineLog(id, approve){
