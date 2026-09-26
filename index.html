@@ -8064,7 +8064,15 @@ async function loadDashboard(){
   if(holRes.ok) (holRes.holidays||[]).forEach(function(h){ holidaySet[h.jalaliDate] = true; });
   var isTodayHoliday = holidaySet[todayStr] || isFridayJalali(tj[0], tj[1], tj[2]);
 
-  var logs = logsRes.ok ? (logsRes.logs||[]) : [];
+  var nowMsDash = new Date().getTime();
+  // مدیر گاهی از قبل (مثلاً برایِ کلِ یک ماه) تایمِ ورود/خروج ثبت می‌کنه که تاریخ/ساعتش هنوز
+  // نرسیده — اون ردیف تویِ Logs واقعاً وجود داره، ولی تا وقتی ساعتِ واقعیِ سیستم بهش نرسه،
+  // داشبورد نباید طوری رفتار کنه که انگار اتفاق افتاده (مثلاً نشون بده کارمند خروج زده، درحالی
+  // که هنوز اون ساعت نشده). پس هر جایی که داشبورد وضعیتِ *الانِ* یه کارمند رو حساب می‌کنه، فقط
+  // ردیف‌هایی که ساعتِ ثبت‌شده‌شون واقعاً گذشته رو می‌بینه؛ ردیف‌هایِ آینده خودشون به‌محضِ
+  // رسیدنِ ساعت (با هر بارگذاریِ بعدیِ داشبورد) خودکار وارد محاسبه می‌شن، بدون نیاز به هیچ
+  // اصلاحِ دستی.
+  var logs = (logsRes.ok ? (logsRes.logs||[]) : []).filter(function(e){ return new Date(e.isoTimestamp).getTime() <= nowMsDash; });
   var todayLogsAllUsers = logs.filter(function(e){ return e.jalaliDate === todayStr; })
     .sort(function(a,b){ return isoCompare(a.isoTimestamp, b.isoTimestamp); });
   var hadAttendanceTodayUsers = {}; // checked in at least once today (may have already left)
@@ -8072,7 +8080,6 @@ async function loadDashboard(){
   var byUserLogs = {};
   logs.forEach(function(e){ (byUserLogs[e.username] = byUserLogs[e.username] || []).push(e); });
   var PRESENCE_HOURS_LIMIT = 17; // an open check-in older than this is treated as forgotten/overdue, not "still present"
-  var nowMsDash = new Date().getTime();
   var presentNowUsers = {}; // currently checked in — latest log entry overall is ورود, with no خروج after it yet
   // Checking only users who show up in TODAY's own logs was the bug: a night-shift employee
   // (e.g. a guard) who checked in yesterday evening and hasn't checked out yet never appears
