@@ -364,21 +364,21 @@
     align-items:center; justify-content:center; pointer-events:none;
   }
   #globalProgressBar .spinner-badge{
-    position:relative; width:112px; height:112px; border-radius:50%;
+    width:76px; height:76px; border-radius:50%;
     background:var(--paper); box-shadow:var(--sh-lg);
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    display:flex; align-items:center; justify-content:center;
   }
   #globalProgressBar .spinner-ring{
-    position:absolute; inset:-6px; border-radius:50%;
-    border:5px solid transparent; border-top-color:var(--cyan); border-right-color:var(--cyan);
-    animation: spinnerRotate .9s linear infinite;
+    width:46px; height:46px; border-radius:50%;
+    background: conic-gradient(from 0deg, transparent 0deg, var(--cyan) 60deg, var(--orange) 230deg, var(--orange-dark) 300deg, transparent 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+    animation: spinnerRotate .85s linear infinite;
   }
   @keyframes spinnerRotate{
     0%{ transform:rotate(0deg); }
     100%{ transform:rotate(360deg); }
   }
-  #globalProgressBar .spinner-icon{ font-size:28px; line-height:1; }
-  #globalProgressBar .spinner-label{ font-size:12px; font-weight:800; color:var(--navy); }
 
   .tabs{display:flex; gap:8px; margin-bottom:14px;}
 
@@ -773,8 +773,6 @@
 <div id="globalProgressBar">
   <div class="spinner-badge">
     <div class="spinner-ring"></div>
-    <div class="spinner-icon">🕐</div>
-    <div class="spinner-label">ترددیار</div>
   </div>
 </div>
 
