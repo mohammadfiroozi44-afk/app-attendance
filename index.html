@@ -7838,16 +7838,47 @@ function renderQueuedInMyLogs(){ loadMyLogs(); }
 async function loadMyHistory(){
   if(!loggedInEmployee) return;
   var box = document.getElementById('myHistoryList');
-  var res = await apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); });
+  var results = await Promise.all([
+    apiCall(function(){ return apiPost('getMyLogs', {username: loggedInEmployee.username}); }),
+    apiCall(function(){ return apiPost('getMyDayStatuses', {username: loggedInEmployee.username}); })
+  ]);
+  var res = results[0], statusRes = results[1];
   if(!res.ok){ box.innerHTML = '<div class="empty">دریافت سوابق ناموفق بود</div>'; return; }
   populateMonthYearFilter('myHistFilterMonth','myHistFilterYear', true);
   var monthFilter = document.getElementById('myHistFilterMonth').value;
   var yearFilter = document.getElementById('myHistFilterYear').value;
   var entries = (res.logs||[]).filter(function(e){ return matchesMonthYear(e.jalaliDate, monthFilter, yearFilter); });
-  var pairs = pairLogEntriesForDisplay(entries).slice().reverse(); // newest first for browsing history
+  var pairs = pairLogEntriesForDisplay(entries);
+
+  // روزهایی که مرخصی/غیبت/Off بودن، خودشون هیچ ثبتِ ورود/خروجی ندارن، پس تا اینجا اصلاً تویِ
+  // pairs نمی‌ان — از DayStatusMarkersِ خودِ کارمند اضافه‌شون می‌کنیم. روزِ ماموریت رو دست
+  // نمی‌زنیم چون خودش یه ثبتِ واقعی داره (پس همین‌جوری هم تویِ pairs هست)؛ فقط پایینِ همون
+  // ردیف، تویِ ستونِ توضیح، «ماموریت» رو اضافه می‌کنیم.
+  var statusMap = {};
+  if(statusRes.ok){
+    (statusRes.statuses||[]).forEach(function(s){
+      if(matchesMonthYear(s.jalaliDate, monthFilter, yearFilter)) statusMap[s.jalaliDate] = s;
+    });
+  }
+  var loggedDates = {};
+  pairs.forEach(function(p){ loggedDates[p.jalaliDate] = true; });
+  Object.keys(statusMap).forEach(function(dateStr){
+    if(loggedDates[dateStr]) return;
+    var s = statusMap[dateStr];
+    pairs.push({jalaliDate: dateStr, inE: null, outE: null, project: '', statusOnly: s.status, leaveKind: s.leaveKind, leaveHours: s.leaveHours});
+  });
+
+  // sortKeyِ اصلیِ pairLogEntriesForDisplay رویِ isoTimestamp‌ه (که ردیف‌هایِ تازه‌اضافه‌شده
+  // ندارنش) — برایِ لیستِ ترکیب‌شده یه کلیدِ عددیِ یکدست بر اساسِ تاریخ+ساعت می‌سازیم.
+  pairs.forEach(function(p){
+    var timeMin = (p.inE || p.outE) ? timeToMinutesClient((p.inE||p.outE).time) : 0;
+    p._histSortKey = jalaliDateSortKeyClient(p.jalaliDate) * 10000 + timeMin;
+  });
+  pairs.sort(function(a,b){ return b._histSortKey - a._histSortKey; }); // newest first for browsing history
+
   box.innerHTML = renderDataTable(pairs, [
     {title:'تاریخ', cell:function(p){
-      var holBadge = isHolidayEntry(p.inE||p.outE) ? ' <span style="color:#1f7a4d;" title="'+esc(holidayReasonOf(p.inE||p.outE))+'">🎌</span>' : '';
+      var holBadge = (!p.statusOnly && isHolidayEntry(p.inE||p.outE)) ? ' <span style="color:#1f7a4d;" title="'+esc(holidayReasonOf(p.inE||p.outE))+'">🎌</span>' : '';
       return ltrCell(p.jalaliDate) + holBadge;
     }},
     {title:'ورود', cell:function(p){ return p.inE ? ltrCell(p.inE.time) : '<span class="dt-muted">بدون ورود</span>'; }},
@@ -7858,14 +7889,25 @@ async function loadMyHistory(){
       if(!isFinite(mins) || mins <= 0) return '';
       return ltrCell(Math.floor(mins/60) + ':' + (mins%60 < 10 ? '0' : '') + (mins%60));
     }},
-    {title:'پروژه', cell:function(p){ return p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>'; }, wrap:true},
+    {title:'پروژه', cell:function(p){
+      if(p.statusOnly) return '<span class="dt-muted">—</span>';
+      return p.project ? esc(p.project) : '<span style="color:#a3701a;">⚠️ بدون پروژه</span>';
+    }, wrap:true},
     {title:'توضیح', cell:function(p){
+      if(p.statusOnly === 'مرخصی'){
+        return String(p.leaveKind||'').toLowerCase() === 'hourly' ? ('مرخصیِ ساعتی · ' + ltrCell(p.leaveHours||'')) : 'مرخصی';
+      }
+      if(p.statusOnly === 'غیبت') return 'غیبت';
+      if(p.statusOnly && String(p.statusOnly).toLowerCase() === 'off') return 'تعطیل (Off)';
       var notes = [];
       var inNote = p.inE ? displayNote(p.inE.note) : '';
       var outNote = p.outE ? displayNote(p.outE.note) : '';
       if(inNote) notes.push('ورود: ' + inNote);
       if(outNote) notes.push('خروج: ' + outNote);
-      return esc(notes.join(' · '));
+      var text = notes.join(' · ');
+      var dayStatus = statusMap[p.jalaliDate];
+      if(dayStatus && dayStatus.status === 'ماموریت') text = (text ? text + ' · ' : '') + 'ماموریت';
+      return esc(text);
     }, wrap:true}
   ], 'ثبتی یافت نشد');
 }
