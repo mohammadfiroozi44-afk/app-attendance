@@ -4861,6 +4861,11 @@ async function submitLeaveFromSheet(){
   }
 }
 
+// همون منطقِ ریست‌کردنِ سمتِ مدیریت، برایِ سمتِ کارمند.
+var EMP_SECTION_LEAVE_RESET = {
+  messages: ['cancelEmpMessageEdit']
+};
+var _lastEmpSection = null;
 function showEmpSection(name){
   // اگه این منو توسطِ سوپرادمین مخفی شده، به اولین منویِ قابلِ دیدن می‌ریم — تا بخشِ مخفی‌شده
   // از هیچ مسیری (دکمه‌یِ برگشت، لینکِ داخلی، حالتِ ذخیره‌شده) باز نشه.
@@ -4868,6 +4873,12 @@ function showEmpSection(name){
     var fallbackES = firstVisibleSection('emp');
     if(fallbackES && fallbackES !== name){ showEmpSection(fallbackES); return; }
   }
+  if(_lastEmpSection && name !== _lastEmpSection){
+    (EMP_SECTION_LEAVE_RESET[_lastEmpSection] || []).forEach(function(fnName){
+      if(typeof window[fnName] === 'function') window[fnName]();
+    });
+  }
+  _lastEmpSection = name;
   ['checkin','request','services','history','perf','daily','myshift','messages'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
@@ -4905,16 +4916,27 @@ function refreshCurrentAdminSection(){
   }) || 'dashboard';
   refreshAdminSection(active);
 }
+// هر بخشی که یه فرمِ ویرایش/حالتِ نیمه‌کاره داره، اینجا فهرست شده — با خروج از اون بخش (رفتن
+// به بخشِ دیگه یا خانه)، دقیقاً همون کاری که دکمه‌یِ «لغوِ ویرایش»‌ش می‌کنه صدا زده می‌شه، تا
+// دفعه‌یِ بعد که برمی‌گردیم، چیزی از کارِ ناتمومِ قبلی روش نمونده باشه.
+var ADMIN_SECTION_LEAVE_RESET = {
+  employees: ['cancelEmpEdit'],
+  projects: ['cancelProjEdit'],
+  shifts: ['cancelShiftEdit'],
+  messages: ['cancelMessageEdit'],
+  report: ['closeStatusMarkerEdit', 'cancelEditLog'],
+  offline: ['cancelOfflineEdit']
+};
 var _lastAdminSection = null;
 function showAdminSection(name){
   if(isMenuSectionHidden('admin', name)){
     var fallbackAS = firstVisibleSection('admin');
     if(fallbackAS && fallbackAS !== name){ showAdminSection(fallbackAS); return; }
   }
-  // Leaving "شیفت" without saving shouldn't leave stale, half-typed data sitting in the form
-  // for next time — reset it exactly the same way the "لغو ویرایش" button already does.
-  if(_lastAdminSection === 'shifts' && name !== 'shifts' && typeof cancelShiftEdit === 'function'){
-    cancelShiftEdit();
+  if(_lastAdminSection && name !== _lastAdminSection){
+    (ADMIN_SECTION_LEAVE_RESET[_lastAdminSection] || []).forEach(function(fnName){
+      if(typeof window[fnName] === 'function') window[fnName]();
+    });
   }
   _lastAdminSection = name;
   ['dashboard','employees','projects','shifts','requests','services','messages','offline','report','performance','settings'].forEach(function(s){
@@ -5720,6 +5742,7 @@ async function toggleEmployeeActive(id, makeActive){
 
 // ---------- Manual entry requests (admin review) ----------
 var editingOfflineId = null;
+function cancelOfflineEdit(){ editingOfflineId = null; }
 async function loadPendingOffline(){
   var box = document.getElementById('pendingOfflineList');
   var res = await apiCall(function(){ return apiPost('getPendingOfflineLogs', {pin:adminPin}); });
