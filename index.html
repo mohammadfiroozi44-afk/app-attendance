@@ -1309,6 +1309,23 @@
       </div>
       <label>کد پرسنلی (الزامی)</label>
       <input type="text" id="empFormCode" placeholder="مثلاً: 1042" class="field-mono" required>
+      <label>تاریخِ استخدام (الزامی)</label>
+      <div class="hint" style="margin-top:-6px;">مبنایِ محاسبه‌یِ مرخصیِ استحقاقیه.</div>
+      <div class="date-row"><select id="empHireDateDay"></select><select id="empHireDateMonth"></select><select id="empHireDateYear"></select></div>
+      <label>مانده‌یِ مرخصی (روز) — اختیاری</label>
+      <div class="hint" style="margin-top:-6px;">اگه تاریخِ استخدام خیلی قبل‌تر از ساختنِ این حساب تویِ اپ بوده (یعنی اپ سابقه‌یِ کاملِ این پرسنل رو نداره)، همینجا مانده‌یِ فعلیش رو دستی وارد کن — از همین لحظه به بعد ماهی ۲.۵ روز روش اضافه/کم می‌شه. اگه پرسنل تازه‌استخدامه، خالی بذار.</div>
+      <input type="number" id="empFormLeaveBalance" class="field-mono" placeholder="مثلاً: 12" step="0.5">
+      <label>انتقالِ مانده‌یِ مرخصی به سالِ بعد</label>
+      <select id="empFormCarryoverMode" onchange="onCarryoverModeChange()">
+        <option value="all">کلِ مانده منتقل بشه</option>
+        <option value="none">چیزی منتقل نشه</option>
+        <option value="capped">فقط تا سقفِ مشخص منتقل بشه</option>
+      </select>
+      <div id="empFormCarryoverCapWrap" style="display:none;">
+        <label>سقفِ روزهایِ قابلِ‌انتقال</label>
+        <input type="number" id="empFormCarryoverCap" class="field-mono" placeholder="مثلاً: 9" step="0.5">
+      </div>
+      <div class="hint" id="empFormLeaveBalanceNow" style="margin-top:-6px; display:none;"></div>
       <label class="chk-item" style="width:100%; box-sizing:border-box; margin-bottom:14px;">
         <input type="checkbox" id="empFormFreeZone"> این پرسنل محدودیت موقعیت مکانی نداشته باشد (منطقه آزاد)
       </label>
@@ -4156,7 +4173,7 @@ async function saveSingleBulkDay(d){
         var lres = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
           pin: adminPin, username: username, entries: [{date: jalaliDate, requestType:'leave', leaveType:'daily'}], leaveCategory: leaveCategory
         }); });
-        if(!lres.ok){ statusEl.textContent = '⛔ ثبت مرخصی ناموفق بود: ' + (lres.error||''); statusEl.style.display='block'; clearSubmissionBusy(); return; }
+        if(!lres.ok){ statusEl.textContent = '⛔ ثبت مرخصی ناموفق بود: ' + leaveErrorMsg(lres); statusEl.style.display='block'; clearSubmissionBusy(); return; }
       }
       clearSubmissionBusy();
       alert(d + 'ام ذخیره شد.');
@@ -4592,7 +4609,7 @@ async function submitMonthlyBulkLog(){
         pin: adminPin, username: username, entries: leaveEntriesPayload, leaveCategory: leaveCategory
       }); });
       if(!lres.ok){
-        statusEl.textContent = '⛔ ثبت مرخصی/ماموریت ناموفق بود: ' + (lres.error||'');
+        statusEl.textContent = '⛔ ثبت مرخصی/ماموریت ناموفق بود: ' + leaveErrorMsg(lres);
         statusEl.style.display = 'block';
         clearSubmissionBusy();
         hideBulkProgress();
@@ -4751,7 +4768,7 @@ async function submitAdminLog(){
       entries: [{date: jalaliDate, endDate: endDateAL, requestType: reqTypeAL, leaveType: (isHourlyAL ? 'hourly' : 'daily'), startTime: startAL, endTime: endAL, project: project}],
       leaveCategory: leaveCat, reason: reasonVal || (reqTypeAL === 'leave' ? 'ثبت مستقیم مرخصی توسط مدیر' : 'ثبت مستقیم ماموریت توسط مدیر')
     }); });
-    if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + (res.error||'')); return; }
+    if(!res.ok){ showAdminNotice('ثبت ناموفق بود: ' + leaveErrorMsg(res)); return; }
     clearAdminNotice(); closeAdminLogSheet(); alert('ثبت شد.'); refreshCurrentAdminSection();
     return;
   }
@@ -5251,6 +5268,17 @@ function friendlyLogErrorMsg(err, at){
   if(err === 'unknown_employee') return 'این پرسنل پیدا نشد.';
   return err || 'خطای شبکه';
 }
+// خطاهایِ مخصوصِ ثبتِ مرخصیِ استحقاقی — چون به عددهایِ مانده/نیاز هم احتیاج داره، جدا از
+// friendlyLogErrorMsg (که فقط err/at می‌گیره) نگه داشته شده.
+function leaveErrorMsg(res){
+  if(res.error === 'insufficient_leave_balance'){
+    return 'مانده‌یِ مرخصیِ استحقاقیِ این پرسنل کافی نیست — مانده: '+(res.balance!=null?res.balance:'؟')+' روز، نیاز: '+(res.needed!=null?res.needed:'؟')+' روز.';
+  }
+  if(res.error === 'leave_hourly_too_short'){
+    return 'مرخصیِ ساعتی حداقل باید ۲ ساعت باشه' + (res.at ? (' (' + res.at + ')') : '') + '.';
+  }
+  return res.error || 'خطای شبکه';
+}
 function showAdminNotice(msg){
   // Every error message in the admin panel goes through this one function — the styled
   // alert() modal (with its own "تایید" button) is now the ONLY way this shows up. The old
@@ -5415,8 +5443,18 @@ async function deleteMessageBtn(id){
   if(editingMessageId === id) cancelMessageEdit();
   await loadSentMessages();
 }
+var _leaveBalances = {};
+async function loadLeaveBalances(){
+  var res = await apiCall(function(){ return apiPost('getLeaveBalances', {pin:adminPin}, true); });
+  if(res.ok) _leaveBalances = res.balances || {};
+  return _leaveBalances;
+}
 async function loadEmployeesAdmin(){
-  var res = await apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); });
+  var results = await Promise.all([
+    apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); }),
+    loadLeaveBalances()
+  ]);
+  var res = results[0];
   if(!res.ok){ showAdminNotice('دریافت لیست پرسنل ناموفق بود: ' + (res.error||'')); return; }
   clearAdminNotice();
   employees = res.employees || [];
@@ -5493,9 +5531,10 @@ function renderEmpList(){
     var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
     var jobText = emp.jobTitle ? (' · '+esc(emp.jobTitle)) : '';
     var groupText = emp.jobGroup ? (' · '+esc(emp.jobGroup)) : '';
+    var balanceText = _leaveBalances[emp.username] !== undefined ? (' · مانده‌یِ مرخصی: '+esc(_leaveBalances[emp.username])+' روز') : '';
     var photoHtml = emp.photoUrl ? '<img src="'+emp.photoUrl+'" style="width:34px; height:34px; border-radius:50%; object-fit:cover; margin-inline-end:8px; vertical-align:middle;'+(isActive?'':' opacity:0.5;')+'">' : '';
     return '<div class="list-item" style="'+(isActive?'':'opacity:0.6;')+'"><div style="display:flex; align-items:center;">'+photoHtml+'<div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+activeBadge+
-      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+jobText+groupText+'</div></div></div>'+
+      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+jobText+groupText+balanceText+'</div></div></div>'+
       '<div class="actions">'+
         (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
         '<button class="icon-btn" title="'+(isActive?'غیرفعال کردن':'فعال کردن')+'" onclick="toggleEmployeeActive(\''+emp.id+'\', '+(!isActive)+')">'+(isActive?'⛔':'✅')+'</button>'+
@@ -5546,6 +5585,10 @@ function closeAdminFormModal(key){
   if(modal) modal.classList.remove('open');
   if(backdrop) backdrop.classList.remove('open');
 }
+function onCarryoverModeChange(){
+  document.getElementById('empFormCarryoverCapWrap').style.display =
+    document.getElementById('empFormCarryoverMode').value === 'capped' ? 'block' : 'none';
+}
 function startEditEmp(id){
   var emp = employees.find(function(e){ return e.id===id; });
   if(!emp) return;
@@ -5560,6 +5603,20 @@ function startEditEmp(id){
   document.getElementById('empFormJobTitle').value = emp.jobTitle || '';
   document.getElementById('empFormJobGroup').value = emp.jobGroup || '';
   document.getElementById('empFormNationalId').value = emp.nationalId || '';
+  initLeaveDateSelects();
+  if(emp.hireDate) setDateSelectValue('empHireDate', emp.hireDate);
+  document.getElementById('empFormLeaveBalance').value = (emp.leaveBalanceOverride !== undefined && emp.leaveBalanceOverride !== '') ? emp.leaveBalanceOverride : '';
+  document.getElementById('empFormCarryoverMode').value = emp.leaveCarryoverMode || 'all';
+  document.getElementById('empFormCarryoverCap').value = (emp.leaveCarryoverCap !== undefined && emp.leaveCarryoverCap !== '') ? emp.leaveCarryoverCap : '';
+  onCarryoverModeChange();
+  autoWirePicker('empFormCarryoverMode', 'قانونِ انتقال');
+  var balNowEl = document.getElementById('empFormLeaveBalanceNow');
+  if(_leaveBalances && _leaveBalances[emp.username] !== undefined){
+    balNowEl.textContent = 'مانده‌یِ فعلیِ محاسبه‌شده: ' + _leaveBalances[emp.username] + ' روز';
+    balNowEl.style.display = 'block';
+  } else {
+    balNowEl.style.display = 'none';
+  }
   pendingPhotoDataUrl = null;
   var prevImg = document.getElementById('empFormPhotoPreview');
   if(emp.photoUrl){ prevImg.src = emp.photoUrl; prevImg.style.display = 'inline-block'; }
@@ -5573,7 +5630,6 @@ function startEditEmp(id){
   document.getElementById('empFormName').scrollIntoView({behavior:'smooth', block:'center'});
   openAdminFormModal('emp');
   document.getElementById('empShiftAssignSection').style.display = 'block';
-  initLeaveDateSelects();
   populateEmpShiftSelect();
   loadEmployeeShiftAssignments(emp.username);
 }
@@ -5592,6 +5648,13 @@ function cancelEmpEdit(){
   document.getElementById('empFormPhoto').value = '';
   document.getElementById('empFormPhotoPreview').style.display = 'none';
   pendingPhotoDataUrl = null;
+  initLeaveDateSelects();
+  setDateSelectValue('empHireDate', serverTodayStr || jalaliString(new Date()));
+  document.getElementById('empFormLeaveBalance').value = '';
+  document.getElementById('empFormCarryoverMode').value = 'all';
+  document.getElementById('empFormCarryoverCap').value = '';
+  onCarryoverModeChange();
+  document.getElementById('empFormLeaveBalanceNow').style.display = 'none';
   renderEmpProjChecks(['ALL']);
   document.getElementById('empFormBtn').textContent = '➕ افزودن پرسنل';
   document.getElementById('empFormCancel').style.display='none';
@@ -5669,6 +5732,8 @@ async function saveEmployee(){
     var employeeCodeCheck = document.getElementById('empFormCode').value.trim();
     if(!fullName || !username || !password){ alert('همه فیلدها را کامل وارد کنید'); return; }
     if(!employeeCodeCheck){ alert('کد پرسنلی الزامی است'); return; }
+    var hireDate = readDateSelect('empHireDate');
+    if(!hireDate){ alert('تاریخِ استخدام الزامی است'); return; }
     var dup = employees.some(function(e){ return String(e.username).toLowerCase()===username.toLowerCase() && e.id!==editingEmpId; });
     if(dup){ alert('این نام کاربری قبلاً استفاده شده'); return; }
 
@@ -5682,15 +5747,20 @@ async function saveEmployee(){
     var jobTitle = document.getElementById('empFormJobTitle').value.trim();
     var jobGroup = document.getElementById('empFormJobGroup').value.trim();
     var nationalId = document.getElementById('empFormNationalId').value.trim();
+    var leaveBalanceOverride = document.getElementById('empFormLeaveBalance').value.trim();
+    var leaveCarryoverMode = document.getElementById('empFormCarryoverMode').value;
+    var leaveCarryoverCap = document.getElementById('empFormCarryoverCap').value.trim();
+    var leavePayload = {hireDate:hireDate, leaveBalanceOverride:leaveBalanceOverride, leaveCarryoverMode:leaveCarryoverMode, leaveCarryoverCap:leaveCarryoverCap};
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', {pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', Object.assign({pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', {pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}); });
+      res = await apiCall(function(){ return apiPost('addEmployee', Object.assign({pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
     }
     btn.disabled = false;
     if(!res.ok){
       var saveMsg = res.error === 'employee_code_required' ? 'کد پرسنلی الزامی است'
+        : res.error === 'hire_date_required' ? 'تاریخِ استخدام الزامی است'
         : res.error === 'employee_limit_reached' ? 'به سقف مجاز تعداد پرسنل این نسخه رسیدی.'
         : res.error === 'username_taken' ? 'این نام کاربری قبلاً برای یک پرسنل دیگر ثبت شده — یک نام کاربری دیگر انتخاب کنید.'
         : (res.error||'نامشخص');
@@ -7993,7 +8063,7 @@ function initLeaveDateSelects(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
   var curJY = tj[0];
-  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','adminLogEnd','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd','statusEditStart','statusEditEnd','service'].forEach(function(prefix){
+  ['leaveStart','leaveEnd','reqDate','holiday','reqDate2','leaveStart2','leaveEnd2','adminLog','adminLogEnd','empShiftStart','empShiftEnd','suLicenseStart','suLicenseEnd','statusEditStart','statusEditEnd','service','empHireDate'].forEach(function(prefix){
     var daySel = document.getElementById(prefix+'Day');
     var monthSel = document.getElementById(prefix+'Month');
     var yearSel = document.getElementById(prefix+'Year');
@@ -8439,7 +8509,9 @@ async function submitLeaveRequest(){
     if(!startTime || !endTime){ alert('ساعت شروع و پایان را وارد کنید'); return false; }
     var durMinCheck = timeToMinutesClient(endTime) - timeToMinutesClient(startTime);
     if(durMinCheck <= 0) durMinCheck += 24*60;
-    if(durMinCheck > 240){ alert('مرخصیِ ساعتی نمی‌تونه بیشتر از ۴ ساعت باشه.'); return false; }
+    // بینِ ۲ تا ۶ ساعت مجازه؛ کمتر از ۲ ساعت همینجا رد می‌شه، بیشتر از ۶ ساعت رو سرور خودش
+    // خودکار به مرخصیِ کاملِ همون روز تبدیل می‌کنه (نه رد کردن).
+    if(durMinCheck < 120){ alert('مرخصیِ ساعتی حداقل باید ۲ ساعت باشه.'); return false; }
   } else {
     endDate = readDateSelect('leaveEnd');
   }
@@ -8450,7 +8522,8 @@ async function submitLeaveRequest(){
   }); });
   if(!res.ok){
     var msg = res.error === 'device_mismatch' ? 'این حساب روی گوشی دیگری فعال است.'
-      : res.error === 'leave_too_long' ? 'مرخصیِ ساعتی نمی‌تونه بیشتر از ۴ ساعت باشه.'
+      : res.error === 'leave_hourly_too_short' ? 'مرخصیِ ساعتی حداقل باید ۲ ساعت باشه.'
+      : res.error === 'insufficient_leave_balance' ? ('مانده‌یِ مرخصیِ استحقاقیِ شما کافی نیست — مانده: '+(res.balance!=null?res.balance:'؟')+' روز، نیاز: '+(res.needed!=null?res.needed:'؟')+' روز.')
       : (res.error || 'خطای شبکه');
     alert('ارسال درخواست ناموفق بود: ' + msg);
     return false;
@@ -8624,7 +8697,11 @@ async function loadMonthlyPerformanceReport(){
   }
   box.innerHTML = '<div class="empty">در حال بارگذاری...</div>';
   var monthIdx = jMonths.indexOf(monthName) + 1;
-  var res = await apiCall(function(){ return apiPost('getMonthlyPerformanceReport', {pin:adminPin, year:year, month:monthIdx}); });
+  var results = await Promise.all([
+    apiCall(function(){ return apiPost('getMonthlyPerformanceReport', {pin:adminPin, year:year, month:monthIdx}); }),
+    loadLeaveBalances()
+  ]);
+  var res = results[0];
   if(!res.ok){
     box.innerHTML = '<div class="empty">دریافت گزارش ناموفق بود: '+esc(res.error||'')+'</div>';
     return;
@@ -8651,8 +8728,15 @@ function renderPerfReportCards(){
         '<span class="mono" style="font-weight:700;">'+formatPerfMetric(m, r[m.key])+'</span>'+
       '</div>';
     }).join('');
+    var balanceRow = _leaveBalances[r.username] !== undefined
+      ? ('<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid var(--border-soft);">'+
+          '<span style="color:var(--muted); font-size:13px;">مانده‌یِ مرخصیِ استحقاقی</span>'+
+          '<span class="mono" style="font-weight:700;">'+esc(_leaveBalances[r.username])+' روز</span>'+
+        '</div>')
+      : '';
     return '<div class="card" style="margin-bottom:12px;">'+
       '<div class="eyebrow" style="margin-bottom:6px;">'+esc(r.fullName)+(r.employeeCode?(' <span class="mono" style="font-size:12px; color:var(--muted);">(کد '+esc(r.employeeCode)+')</span>'):'')+'</div>'+
+      balanceRow+
       rows+
     '</div>';
   }).join('');
