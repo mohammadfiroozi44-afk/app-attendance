@@ -5444,15 +5444,21 @@ async function deleteMessageBtn(id){
   await loadSentMessages();
 }
 var _leaveBalances = {};
-async function loadLeaveBalances(){
+var _leaveBalancesLastFetch = 0;
+// محاسبه‌یِ مانده‌یِ مرخصیِ همه‌یِ پرسنل یه عملیاتِ نسبتاً سنگینه (سمتِ سرور ماه‌به‌ماه محاسبه
+// می‌شه) و ربطی به ماه/سالِ انتخاب‌شده تویِ گزارشِ کارکردها نداره — پس نیازی نیست هر بار که
+// کاربر ماه/سال رو عوض می‌کنه دوباره از اول محاسبه بشه؛ همین repeated فراخوانی بود که کلِ
+// گزارشِ کارکردها رو کند/بی‌پاسخ کرده بود. با force=true (مثلاً بعدِ ذخیره‌یِ پرسنل) همیشه تازه می‌گیریم.
+async function loadLeaveBalances(force){
+  if(!force && Object.keys(_leaveBalances).length && (Date.now() - _leaveBalancesLastFetch) < 20000) return _leaveBalances;
   var res = await apiCall(function(){ return apiPost('getLeaveBalances', {pin:adminPin}, true); });
-  if(res.ok) _leaveBalances = res.balances || {};
+  if(res.ok){ _leaveBalances = res.balances || {}; _leaveBalancesLastFetch = Date.now(); }
   return _leaveBalances;
 }
 async function loadEmployeesAdmin(){
   var results = await Promise.all([
     apiCall(function(){ return apiPost('getEmployees', {pin:adminPin}); }),
-    loadLeaveBalances()
+    loadLeaveBalances(true)
   ]);
   var res = results[0];
   if(!res.ok){ showAdminNotice('دریافت لیست پرسنل ناموفق بود: ' + (res.error||'')); return; }
@@ -9725,7 +9731,13 @@ async function loadMyPerf(){
     return;
   }
   var t = res.totals || {};
-  box.innerHTML = PERF_METRIC_LABELS.map(function(m){
+  var balanceRowMine = (res.leaveBalance !== undefined && res.leaveBalance !== null)
+    ? ('<div style="display:flex; justify-content:space-between; align-items:center; padding:9px 4px; border-bottom:1px solid var(--border-soft);">'+
+        '<span style="color:var(--muted); font-size:13.5px;">مانده‌یِ مرخصیِ استحقاقی</span>'+
+        '<span class="mono" style="font-weight:700; font-size:15px;">'+esc(res.leaveBalance)+' روز</span>'+
+      '</div>')
+    : '';
+  box.innerHTML = balanceRowMine + PERF_METRIC_LABELS.map(function(m){
     return '<div style="display:flex; justify-content:space-between; align-items:center; padding:9px 4px; border-bottom:1px solid var(--border-soft);">'+
       '<span style="color:var(--muted); font-size:13.5px;">'+m.label+'</span>'+
       '<span class="mono" style="font-weight:700; font-size:15px;">'+formatPerfMetric(m, t[m.key])+'</span>'+
