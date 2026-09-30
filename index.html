@@ -8984,6 +8984,8 @@ function openStatusMarkerEdit(idx){
   document.getElementById('statusEditKind').value = isHourly ? 'hourly' : 'daily';
   document.getElementById('statusEditHours').value = isHourly ? (g.leaveHoursSingle||'') : '';
   document.getElementById('statusEditMsg').textContent = '';
+  autoWirePicker('statusEditType', 'وضعیتِ روز');
+  autoWirePicker('statusEditKind', 'نوعِ مرخصی');
   onStatusEditTypeChange();
   document.getElementById('statusEditOverlay').classList.add('open');
   document.getElementById('statusEditSheet').classList.add('open');
