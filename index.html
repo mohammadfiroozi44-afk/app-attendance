@@ -8070,7 +8070,8 @@ function initLeaveDateSelects(){
     if(!daySel || daySel.options.length) return; // already populated
     for(var d=1; d<=31; d++){ daySel.innerHTML += '<option value="'+d+'"'+(d===tj[2]?' selected':'')+'>'+d+'</option>'; }
     jMonths.forEach(function(m,i){ monthSel.innerHTML += '<option value="'+(i+1)+'"'+((i+1)===tj[1]?' selected':'')+'>'+m+'</option>'; });
-    for(var y=curJY-1; y<=Math.max(1420, curJY+1); y++){ yearSel.innerHTML += '<option value="'+y+'"'+(y===curJY?' selected':'')+'>'+y+'</option>'; }
+    var minY = (prefix === 'empHireDate') ? 1390 : (curJY-1);
+    for(var y=minY; y<=Math.max(1420, curJY+1); y++){ yearSel.innerHTML += '<option value="'+y+'"'+(y===curJY?' selected':'')+'>'+y+'</option>'; }
     autoWirePicker(prefix+'Day', 'انتخابِ روز');
     autoWirePicker(prefix+'Month', 'انتخابِ ماه');
     autoWirePicker(prefix+'Year', 'انتخابِ سال');
