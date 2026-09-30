@@ -9144,6 +9144,11 @@ function renderLogTable(){
   }).join('');
   if(editingEntry){
     wireCustomTimePicker('logEditTime', 'logEditTimeBtn', 'ساعت');
+    autoWirePicker('logEditEmp', 'انتخابِ پرسنل');
+    autoWirePicker('logEditProj', 'انتخابِ پروژه');
+    autoWirePicker('logEditDay', 'روز');
+    autoWirePicker('logEditMonth', 'ماه');
+    autoWirePicker('logEditYear', 'سال');
   }
 }
 function startEditLogSingle(pairKey, side){ editingEntry = {pairKey: pairKey, side: side}; renderLogTable(); }
