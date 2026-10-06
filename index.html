@@ -4741,6 +4741,25 @@ function syncAdminLogEndDateToStart(){
     if(!endSel.value) endSel.value = startSel.value;
   });
 }
+// این روز از این پرسنل الان چی ثبت داره، و اگه با چیزِ جدیدی که مدیر می‌خواد ثبت کنه تداخل
+// داره، قبل از ثبت یه تاییدِ صریح می‌گیره — مثلاً اگه روز قبلاً مرخصی بوده و مدیر می‌خواد
+// همون روز رو غیبت/ماموریت/ترددِ عادی ثبت کنه، بدونِ اینکه خودش اول دستی مرخصی رو حذف کنه.
+// proceed=false یعنی مدیر منصرف شده؛ hadMarker=true یعنی یه مارکرِ قدیمی (غیرِ خودِ وضعیتِ
+// جدید) باید قبل از ثبتِ جدید پاک بشه.
+async function checkDayStatusConflict(username, jalaliDate, newLabel, isTimeLog){
+  var res = await apiCall(function(){ return apiPost('getDayStatusSingle', {pin:adminPin, username:username, jalaliDate:jalaliDate}); });
+  if(!res.ok) return {proceed:true, hadMarker:false};
+  var oldLabel = res.status || '';
+  if(oldLabel && oldLabel !== newLabel){
+    var ok = await showAppConfirm('برایِ این روز قبلاً «'+oldLabel+'» ثبت شده بود. اگه ادامه بدی، اون حذف می‌شه و «'+newLabel+'» جایگزینش می‌شه. ادامه می‌دی؟');
+    return {proceed: ok, hadMarker: ok};
+  }
+  if(!oldLabel && !isTimeLog && res.hasLog){
+    var ok2 = await showAppConfirm('این روز ترددِ ثبت‌شده (ورود/خروج) داره. با ثبتِ «'+newLabel+'»، هر دو همزمان می‌مونن. ادامه می‌دی؟');
+    return {proceed: ok2, hadMarker:false};
+  }
+  return {proceed:true, hadMarker:false};
+}
 async function submitAdminLog(){
   var username = document.getElementById('adminLogEmp').value;
   var project = document.getElementById('adminLogProj').value;
@@ -4763,6 +4782,11 @@ async function submitAdminLog(){
     if(!isHourlyAL && jalaliDateSortKeyClient(endDateAL) < jalaliDateSortKeyClient(jalaliDate)){
       alert('تاریخِ پایان نمی‌تواند قبل از تاریخِ شروع باشد'); return;
     }
+    var newLabelAL = (type === 'mission') ? 'ماموریت' : 'مرخصی';
+    var conflictAL = await checkDayStatusConflict(username, jalaliDate, newLabelAL, false);
+    if(!conflictAL.proceed) return;
+    // adminAddLeaveBatch خودش (از طریقِ syncLeaveDayStatus) هر مارکرِ قدیمیِ همون روز رو
+    // جایگزین می‌کنه — نیازی به پاک‌کردنِ دستیِ جداگانه نیست.
     var res = await apiCall(function(){ return apiPost('adminAddLeaveBatch', {
       pin: adminPin, username: username,
       entries: [{date: jalaliDate, endDate: endDateAL, requestType: reqTypeAL, leaveType: (isHourlyAL ? 'hourly' : 'daily'), startTime: startAL, endTime: endAL, project: project}],
@@ -4774,6 +4798,14 @@ async function submitAdminLog(){
   }
 
   if(type === 'absence' || type === 'off'){
+    var newLabelAO = (type === 'off') ? 'Off' : 'غیبت';
+    var conflictAO = await checkDayStatusConflict(username, jalaliDate, newLabelAO, false);
+    if(!conflictAO.proceed) return;
+    if(conflictAO.hadMarker){
+      // syncDayStatusForMonth عمداً مارکرهای مرخصی/ماموریت رو دست‌نخورده می‌ذاره (برایِ
+      // همگام‌سازیِ خودکارِ ماهانه لازمه) — پس اینجا، بعدِ تاییدِ خودِ مدیر، قبلش دستی پاک می‌شه.
+      await apiCall(function(){ return apiPost('clearDayMarker', {pin:adminPin, username:username, jalaliDate:jalaliDate}); });
+    }
     var res = await apiCall(function(){ return apiPost('syncDayStatusForMonth', {
       pin: adminPin, username: username,
       allDatesInMonth: [jalaliDate],
@@ -4792,6 +4824,11 @@ async function submitAdminLog(){
   // type === 'in' or 'out' — an actual attendance log entry, needs a time
   var timeVal = document.getElementById('adminLogTime').value;
   if(!timeVal){ alert('ساعت را وارد کن'); return; }
+  var conflictIO = await checkDayStatusConflict(username, jalaliDate, 'ثبتِ تردد (ورود/خروج)', true);
+  if(!conflictIO.proceed) return;
+  if(conflictIO.hadMarker){
+    await apiCall(function(){ return apiPost('clearDayMarker', {pin:adminPin, username:username, jalaliDate:jalaliDate}); });
+  }
   var timeParts = timeVal.split(':');
   var hh = timeParts[0]||'00'; if(hh.length<2) hh='0'+hh;
   var mm = timeParts[1]||'00'; if(mm.length<2) mm='0'+mm;
