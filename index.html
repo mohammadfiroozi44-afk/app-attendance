@@ -7754,17 +7754,12 @@ async function submitEntry(type){
   }
 
   var res = await apiCall(function(){ return apiPost('addLog', {entry: entry, deviceId: DEVICE_ID, project_id: chosenProject.id}); });
-  // امروز براش مرخصی ثبته — قبلِ ثبتِ ورود، باید خودش تاییدِ کنسل‌کردنِ مرخصیِ امروز رو بده.
-  // اگه تایید کرد، همون درخواست با پرچمِ confirmCancelLeave دوباره فرستاده می‌شه؛ سرور اونجا هم
-  // مرخصی رو کنسل می‌کنه و هم (فقط اگه واقعاً مجاز به ثبتِ همین ورود باشه) ورود رو ثبت می‌کنه.
-  if(!res.ok && res.error === 'leave_today'){
-    var wantsCancelLeave = confirm('برایِ شما امروز مرخصی ثبت شده. اگه بخوای همینِ الان تردد ثبت کنی، اول باید مرخصیِ امروزت لغو بشه.\n\nمرخصیِ امروز لغو بشه؟');
-    if(!wantsCancelLeave){
-      setStatus('⛔ امروز براتون مرخصی ثبته — برایِ ثبتِ تردد، اول باید مرخصیِ امروز رو لغو کنید.', 'err');
-      loadMyLogs();
-      return;
-    }
-    res = await apiCall(function(){ return apiPost('addLog', {entry: entry, deviceId: DEVICE_ID, project_id: chosenProject.id, confirmCancelLeave:true}); });
+  // امروز براش مرخصی/غیبت/ماموریت/Off از سمتِ مدیریت ثبت شده — دیگه خودش نمی‌تونه با ثبتِ
+  // ورود این رو دور بزنه؛ باید با مدیریت هماهنگ کنه.
+  if(!res.ok && res.error === 'day_locked_by_admin'){
+    setStatus('⛔ امروز «'+(res.status||'')+'» از سمتِ مدیریت برایِ شما ثبت شده — برایِ ثبتِ تردد، از مدیریت پیگیری کنید.', 'err');
+    loadMyLogs();
+    return;
   }
   if(!res.ok && res.networkError){
     var guard2 = canQueueOffline();
