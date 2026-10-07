@@ -2117,10 +2117,7 @@
       <div class="eyebrow">درجِ مقادیرِ رسمیِ قانونِ کار</div>
       <div class="hint" style="margin-top:-4px;">جدولِ گروه‌هایِ شغلی، پایه سنوات و مالیاتِ یک سال را یک‌جا طبقِ بخشنامه‌یِ همان سال پر می‌کند. بعدش هر عددی را می‌تونی از همین‌جا ویرایش کنی. اگر برایِ اون سال از قبل چیزی ثبت شده باشه، جایگزین می‌شه.</div>
       <div class="date-row">
-        <select id="prSeedYear">
-          <option value="1405">سال ۱۴۰۵</option>
-          <option value="1404">سال ۱۴۰۴</option>
-        </select>
+        <input type="text" id="prSeedYear" inputmode="numeric" maxlength="4" placeholder="سال، مثلاً ۱۴۰۵" class="field-mono" style="text-align:center;">
         <button type="button" class="btn btn-primary" style="flex:1; margin:0;" onclick="seedPayrollDefaultsBtn()">⬇️ درجِ مقادیرِ رسمی</button>
       </div>
       <div class="hint" id="prSeedMsg" style="margin-top:6px;"></div>
@@ -2464,10 +2461,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-07-offline-dedupe";
+const FRONTEND_VERSION = "v-2026-10-07-seed-year-input";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-07-offline-dedupe";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-07-seed-year-input";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -5371,7 +5368,9 @@ async function refreshAdminSection(name){
     autoWirePicker('prDecreeMonth', 'ماهِ اجرا');
     autoWirePicker('prDedStartMonth', 'ماهِ شروع');
     autoWirePicker('prDedType', 'نوعِ کسورات');
-    autoWirePicker('prSeedYear', 'سال');
+    // leaving and re-entering the section shouldn't still show the last seeding result
+    var prSeedMsgEl = document.getElementById('prSeedMsg');
+    if(prSeedMsgEl) prSeedMsgEl.textContent = '';
     showPayrollTab(_payrollTab || 'decrees');
   }
   else if(name === 'settings'){
@@ -9256,14 +9255,31 @@ function fmtRial(n){
   var v = Math.round(Number(n)||0);
   return v.toLocaleString('en-US');
 }
+// Accepts Persian/Arabic-Indic digits too, since that's what a Persian keyboard types.
+function normalizeDigits(str){
+  return String(str == null ? '' : str)
+    .replace(/[\u06F0-\u06F9]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0x06F0 + 48); })
+    .replace(/[\u0660-\u0669]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0x0660 + 48); });
+}
 async function seedPayrollDefaultsBtn(){
-  var year = document.getElementById('prSeedYear').value;
   var msg = document.getElementById('prSeedMsg');
+  var year = normalizeDigits(document.getElementById('prSeedYear').value).replace(/[^0-9]/g, '');
+  if(year.length !== 4 || Number(year) < 1380 || Number(year) > 1450){
+    msg.textContent = '⛔ سال را چهار رقمی وارد کن، مثلاً ۱۴۰۵.';
+    return;
+  }
   if(!(await showAppConfirm('مقادیرِ رسمیِ سالِ '+year+' تویِ جدول‌هایِ گروهِ شغلی، پایه سنوات و مالیات درج بشه؟ اگه برایِ همین سال از قبل چیزی ثبت شده باشه، جایگزین می‌شه.'))) return;
   msg.textContent = 'در حال درج... (جدولِ پایه سنوات بزرگه، چند ثانیه طول می‌کشه)';
   var res = await apiCall(function(){ return apiPost('seedPayrollDefaults', {pin:adminPin, year:year}); });
   if(!res.ok){
-    msg.textContent = '⛔ درج ناموفق بود: ' + (res.error === 'year_not_available' ? 'برایِ این سال مقدارِ آماده‌ای تعریف نشده.' : (res.error||''));
+    if(res.error === 'year_not_available'){
+      // The backend ships the official circular figures for the years it knows; it also tells
+      // us which those are, so the admin isn't left guessing which year to type.
+      var have = (res.available || []).join('، ');
+      msg.textContent = '⛔ برایِ سالِ '+year+' اطلاعاتی یافت نشد.' + (have ? ' سال‌هایی که مقدارِ آماده دارن: '+have+'. برایِ بقیه‌یِ سال‌ها می‌تونی مقادیر رو دستی تویِ همین جدول‌ها وارد کنی.' : '');
+    } else {
+      msg.textContent = '⛔ درج ناموفق بود: ' + (res.error||'');
+    }
     return;
   }
   msg.textContent = '✅ درج شد — '+res.wageGroups+' گروهِ شغلی، '+res.seniority+' ردیفِ پایه سنوات، '+res.taxBrackets+' پله‌یِ مالیات.';
