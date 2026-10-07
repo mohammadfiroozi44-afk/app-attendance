@@ -2123,15 +2123,15 @@
         <div style="flex:1;"><label style="font-size:12px;">سالِ اجرا</label><input type="number" id="prDecreeYear" class="field-mono" placeholder="مثلاً 1405"></div>
         <div style="flex:1;"><label style="font-size:12px;">ماهِ اجرا</label><select id="prDecreeMonth"></select></div>
       </div>
-      <label>حق مسکن (ریال)</label><input type="number" id="prDecreeHousing" class="field-mono" placeholder="0">
-      <label>بن کالای اساسی (ریال)</label><input type="number" id="prDecreeFood" class="field-mono" placeholder="0">
+      <label>حق مسکن (ریال)</label><input type="text" inputmode="numeric" id="prDecreeHousing" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
+      <label>بن کالای اساسی (ریال)</label><input type="text" inputmode="numeric" id="prDecreeFood" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
       <label>ضریبِ اضافه‌کاری</label><input type="number" step="0.00001" id="prDecreeOvertime" class="field-mono" placeholder="مثلاً 2.46092">
       <label>ضریبِ شب‌کاری</label><input type="number" step="0.00001" id="prDecreeNight" class="field-mono" placeholder="مثلاً 0.04778">
       <label>ضریبِ نوبت‌کاری</label><input type="number" step="0.00001" id="prDecreeShift" class="field-mono" placeholder="0">
       <label>ضریبِ تعطیل‌کاری</label><input type="number" step="0.00001" id="prDecreeHoliday" class="field-mono" placeholder="مثلاً 1.4">
-      <label>حق تاهل (ریال)</label><input type="number" id="prDecreeMarriage" class="field-mono" placeholder="0">
-      <label>مبلغِ روزانه‌یِ ماموریت (ریال)</label><input type="number" id="prDecreeMission" class="field-mono" placeholder="0">
-      <label>پاداش (ریال)</label><input type="number" id="prDecreeBonus" class="field-mono" placeholder="0">
+      <label>حق تاهل (ریال)</label><input type="text" inputmode="numeric" id="prDecreeMarriage" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
+      <label>مبلغِ روزانه‌یِ ماموریت (ریال)</label><input type="text" inputmode="numeric" id="prDecreeMission" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
+      <label>پاداش (ریال)</label><input type="text" inputmode="numeric" id="prDecreeBonus" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="prDecreeSaveBtn" onclick="savePayrollDecree()">💾 ثبتِ حکم</button>
         <button type="button" class="btn btn-ghost" id="prDecreeCancelBtn" style="display:none;" onclick="cancelPayrollDecreeEdit()">لغوِ ویرایش</button>
@@ -2147,7 +2147,7 @@
         <div style="flex:1;"><label style="font-size:12px;">سال</label><input type="number" id="prGroupYear" class="field-mono" placeholder="1405"></div>
         <div style="flex:1;"><label style="font-size:12px;">گروه</label><input type="number" id="prGroupNum" class="field-mono" placeholder="1 تا 20"></div>
       </div>
-      <label>پایه حقوقِ روزانه (ریال)</label><input type="number" id="prGroupDaily" class="field-mono" placeholder="0">
+      <label>پایه حقوقِ روزانه (ریال)</label><input type="text" inputmode="numeric" id="prGroupDaily" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="prGroupSaveBtn" onclick="savePayrollWageGroup()">💾 ثبت</button>
         <button type="button" class="btn btn-ghost" id="prGroupCancelBtn" style="display:none;" onclick="cancelPayrollWageGroupEdit()">لغوِ ویرایش</button>
@@ -2165,7 +2165,7 @@
         <div style="flex:1;"><label style="font-size:12px;">گروه</label><input type="number" id="prSenGroup" class="field-mono" placeholder="1 تا 20"></div>
         <div style="flex:1;"><label style="font-size:12px;">سالِ سابقه</label><input type="number" id="prSenYears" class="field-mono" placeholder="0"></div>
       </div>
-      <label>مبلغِ روزانه (ریال)</label><input type="number" id="prSenAmount" class="field-mono" placeholder="0">
+      <label>مبلغِ روزانه (ریال)</label><input type="text" inputmode="numeric" id="prSenAmount" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="prSenSaveBtn" onclick="savePayrollSeniority()">💾 ثبت</button>
         <button type="button" class="btn btn-ghost" id="prSenCancelBtn" style="display:none;" onclick="cancelPayrollSeniorityEdit()">لغوِ ویرایش</button>
@@ -2182,8 +2182,8 @@
         <div style="flex:1;"><label style="font-size:12px;">سال</label><input type="number" id="prTaxYear" class="field-mono" placeholder="1405"></div>
         <div style="flex:1;"><label style="font-size:12px;">درصد</label><input type="number" step="0.01" id="prTaxPercent" class="field-mono" placeholder="مثلاً 0.1"></div>
       </div>
-      <label>از (ریالِ ماهانه)</label><input type="number" id="prTaxFrom" class="field-mono" placeholder="0">
-      <label>تا (ریالِ ماهانه) — خالی یعنی بی‌سقف</label><input type="number" id="prTaxTo" class="field-mono" placeholder="">
+      <label>از (ریالِ ماهانه)</label><input type="text" inputmode="numeric" id="prTaxFrom" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
+      <label>تا (ریالِ ماهانه) — خالی یعنی بی‌سقف</label><input type="text" inputmode="numeric" id="prTaxTo" class="field-mono" oninput="formatAmountInput(this)" placeholder="">
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="prTaxSaveBtn" onclick="savePayrollTaxBracket()">💾 ثبت</button>
         <button type="button" class="btn btn-ghost" id="prTaxCancelBtn" style="display:none;" onclick="cancelPayrollTaxEdit()">لغوِ ویرایش</button>
@@ -2230,7 +2230,7 @@
         <option value="جریمه / کسر انضباطی">جریمه / کسر انضباطی</option>
         <option value="سایر کسورات">سایر کسورات</option>
       </select>
-      <label>مبلغِ کل (ریال)</label><input type="number" id="prDedTotal" class="field-mono" placeholder="0">
+      <label>مبلغِ کل (ریال)</label><input type="text" inputmode="numeric" id="prDedTotal" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
       <label>تعدادِ اقساط</label><input type="number" id="prDedCount" class="field-mono" placeholder="مثلاً 12">
       <div class="date-row">
         <div style="flex:1;"><label style="font-size:12px;">سالِ شروع</label><input type="number" id="prDedStartYear" class="field-mono" placeholder="1405"></div>
@@ -6487,10 +6487,25 @@ async function uncheckServiceTripPaidBtn(id){
   await loadAdminServiceTrips();
 }
 var _serviceAmountTargetId = null;
-function formatServiceAmountInput(el){
-  var digits = el.value.replace(/[^0-9]/g,'');
+// هر خانه‌ای که توش مبلغ وارد می‌شه، همون لحظه‌یِ تایپ سه‌رقم‌سه‌رقم جدا نشون داده می‌شه تا
+// خوانا باشه و موقعِ نوشتن بشه فهمید چه عددی داره وارد می‌شه. موقعِ ذخیره، جداکننده‌ها حذف
+// و فقط عددِ خام فرستاده می‌شه (readAmountValue).
+function formatAmountInput(el){
+  var digits = String(el.value).replace(/[^0-9]/g,'');
   el.value = digits ? Number(digits).toLocaleString('en-US') : '';
 }
+function readAmountValue(id){
+  var el = document.getElementById(id);
+  if(!el) return '';
+  return String(el.value).replace(/[^0-9]/g,'');
+}
+function setAmountValue(id, val){
+  var el = document.getElementById(id);
+  if(!el) return;
+  var n = Number(val);
+  el.value = (val === '' || val === null || val === undefined || isNaN(n)) ? '' : n.toLocaleString('en-US');
+}
+function formatServiceAmountInput(el){ formatAmountInput(el); }
 function openServiceAmountModal(id){
   _serviceAmountTargetId = id;
   var r = (window._allServiceTrips||[]).filter(function(x){ return x.id===id; })[0];
@@ -9092,7 +9107,7 @@ function startEditPayrollWageGroup(id){
   _prEditWageGroupId = id;
   document.getElementById('prGroupYear').value = r.year;
   document.getElementById('prGroupNum').value = r.groupNum;
-  document.getElementById('prGroupDaily').value = r.dailyBase;
+  setAmountValue('prGroupDaily', r.dailyBase);
   document.getElementById('prGroupSaveBtn').textContent = '💾 بروزرسانی';
   document.getElementById('prGroupCancelBtn').style.display = 'block';
 }
@@ -9109,7 +9124,7 @@ async function savePayrollWageGroup(){
     pin: adminPin,
     year: document.getElementById('prGroupYear').value,
     groupNum: document.getElementById('prGroupNum').value,
-    dailyBase: document.getElementById('prGroupDaily').value
+    dailyBase: readAmountValue('prGroupDaily')
   };
   if(!payload.year || !payload.groupNum || payload.dailyBase === ''){ alert('سال، گروه و مبلغ را کامل وارد کن'); return; }
   if(_prEditWageGroupId) payload.id = _prEditWageGroupId;
@@ -9155,7 +9170,7 @@ function startEditPayrollSeniority(id){
   document.getElementById('prSenYear').value = r.year;
   document.getElementById('prSenGroup').value = r.groupNum;
   document.getElementById('prSenYears').value = r.yearsOfService;
-  document.getElementById('prSenAmount').value = r.dailyAmount;
+  setAmountValue('prSenAmount', r.dailyAmount);
   document.getElementById('prSenSaveBtn').textContent = '💾 بروزرسانی';
   document.getElementById('prSenCancelBtn').style.display = 'block';
 }
@@ -9171,7 +9186,7 @@ async function savePayrollSeniority(){
     year: document.getElementById('prSenYear').value,
     groupNum: document.getElementById('prSenGroup').value,
     yearsOfService: document.getElementById('prSenYears').value,
-    dailyAmount: document.getElementById('prSenAmount').value
+    dailyAmount: readAmountValue('prSenAmount')
   };
   if(!payload.year || !payload.groupNum || payload.yearsOfService === '' || payload.dailyAmount === ''){ alert('همه‌ی خانه‌ها را کامل وارد کن'); return; }
   if(_prEditSeniorityId) payload.id = _prEditSeniorityId;
@@ -9215,8 +9230,8 @@ function startEditPayrollTax(id){
   _prEditTaxId = id;
   document.getElementById('prTaxYear').value = r.year;
   document.getElementById('prTaxPercent').value = r.percent;
-  document.getElementById('prTaxFrom').value = r.fromRial;
-  document.getElementById('prTaxTo').value = (r.toRial === '' || r.toRial === null || r.toRial === undefined) ? '' : r.toRial;
+  setAmountValue('prTaxFrom', r.fromRial);
+  setAmountValue('prTaxTo', (r.toRial === '' || r.toRial === null || r.toRial === undefined) ? '' : r.toRial);
   document.getElementById('prTaxSaveBtn').textContent = '💾 بروزرسانی';
   document.getElementById('prTaxCancelBtn').style.display = 'block';
 }
@@ -9231,8 +9246,8 @@ async function savePayrollTaxBracket(){
     pin: adminPin,
     year: document.getElementById('prTaxYear').value,
     percent: document.getElementById('prTaxPercent').value,
-    fromRial: document.getElementById('prTaxFrom').value || 0,
-    toRial: document.getElementById('prTaxTo').value
+    fromRial: readAmountValue('prTaxFrom') || 0,
+    toRial: readAmountValue('prTaxTo')
   };
   if(!payload.year || payload.percent === ''){ alert('سال و درصد را وارد کن'); return; }
   if(_prEditTaxId) payload.id = _prEditTaxId;
@@ -9306,15 +9321,15 @@ function startEditPayrollDecree(id){
   document.getElementById('prDecreeYear').value = r.effectiveYear;
   document.getElementById('prDecreeMonth').value = r.effectiveMonth;
   syncCustomSelectDisplay('prDecreeMonth', 'prDecreeMonth_pickerBtn');
-  document.getElementById('prDecreeHousing').value = r.housingAllowance;
-  document.getElementById('prDecreeFood').value = r.foodAllowance;
+  setAmountValue('prDecreeHousing', r.housingAllowance);
+  setAmountValue('prDecreeFood', r.foodAllowance);
   document.getElementById('prDecreeOvertime').value = r.overtimePercent;
   document.getElementById('prDecreeNight').value = r.nightPercent;
   document.getElementById('prDecreeShift').value = r.shiftPercent;
   document.getElementById('prDecreeHoliday').value = r.holidayPercent;
-  document.getElementById('prDecreeMarriage').value = r.marriageAllowance;
-  document.getElementById('prDecreeMission').value = r.missionDailyAmount;
-  document.getElementById('prDecreeBonus').value = r.bonus;
+  setAmountValue('prDecreeMarriage', r.marriageAllowance);
+  setAmountValue('prDecreeMission', r.missionDailyAmount);
+  setAmountValue('prDecreeBonus', r.bonus);
   document.getElementById('prDecreeFormTitle').textContent = 'ویرایشِ حکم';
   document.getElementById('prDecreeSaveBtn').textContent = '💾 بروزرسانیِ حکم';
   document.getElementById('prDecreeCancelBtn').style.display = 'block';
@@ -9337,15 +9352,15 @@ async function savePayrollDecree(){
     pin: adminPin, username: username, employeeCode: emp ? (emp.employeeCode||'') : '',
     effectiveYear: document.getElementById('prDecreeYear').value,
     effectiveMonth: document.getElementById('prDecreeMonth').value,
-    housingAllowance: document.getElementById('prDecreeHousing').value || 0,
-    foodAllowance: document.getElementById('prDecreeFood').value || 0,
+    housingAllowance: readAmountValue('prDecreeHousing') || 0,
+    foodAllowance: readAmountValue('prDecreeFood') || 0,
     overtimePercent: document.getElementById('prDecreeOvertime').value || 0,
     nightPercent: document.getElementById('prDecreeNight').value || 0,
     shiftPercent: document.getElementById('prDecreeShift').value || 0,
     holidayPercent: document.getElementById('prDecreeHoliday').value || 0,
-    marriageAllowance: document.getElementById('prDecreeMarriage').value || 0,
-    missionDailyAmount: document.getElementById('prDecreeMission').value || 0,
-    bonus: document.getElementById('prDecreeBonus').value || 0
+    marriageAllowance: readAmountValue('prDecreeMarriage') || 0,
+    missionDailyAmount: readAmountValue('prDecreeMission') || 0,
+    bonus: readAmountValue('prDecreeBonus') || 0
   };
   if(!payload.effectiveYear){ alert('سالِ اجرا را وارد کن'); return; }
   if(_prEditDecreeId) payload.id = _prEditDecreeId;
@@ -9429,7 +9444,7 @@ async function savePayrollDeductionSeries(){
   var payload = {
     pin: adminPin, username: username, employeeCode: emp ? (emp.employeeCode||'') : '',
     type: document.getElementById('prDedType').value,
-    totalAmount: document.getElementById('prDedTotal').value,
+    totalAmount: readAmountValue('prDedTotal'),
     installmentCount: document.getElementById('prDedCount').value,
     startYear: document.getElementById('prDedStartYear').value,
     startMonth: document.getElementById('prDedStartMonth').value,
