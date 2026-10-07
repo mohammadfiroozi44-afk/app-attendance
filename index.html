@@ -493,7 +493,7 @@
   .day-nav button{ background:none; border:none; color:#0b3b3f; font-weight:800; font-size:13px; cursor:pointer; }
   @media print{
     #adminGate, #empLoginGate, .hamburger-btn, .cal-icon-btn, .req-fab, .side-drawer, .drawer-overlay,
-    #tabEmpBtn, #tabAdminBtn, .req-tabs, .day-nav { display:none !important; }
+    #tabEmpBtn, #tabAdminBtn, .req-tabs, .day-nav, #appUpdateBar { display:none !important; }
     @page{ size:A4 portrait; margin:6mm; }
   }
 
@@ -705,6 +705,12 @@
 </style>
 </head>
 <body>
+<!-- نوارِ «نسخه‌ی جدید آماده است» — فقط وقتی version.json روی سرور از نسخه‌ی همین صفحه جلوتر باشه نشون داده می‌شه. -->
+<div id="appUpdateBar" style="display:none; position:fixed; top:0; left:0; right:0; z-index:5500; align-items:center; gap:10px; padding:10px 14px; background:linear-gradient(135deg, #e6522a, #c43f1c); color:#fff; font-size:12.5px; font-weight:700; line-height:1.7; box-shadow:0 6px 18px -6px #00000066;">
+  <span id="appUpdateBarText" style="flex:1;"></span>
+  <button type="button" onclick="forceAppUpdate(this)" style="flex-shrink:0; background:#fff; color:#c43f1c; border:0; border-radius:8px; padding:7px 12px; font-family:inherit; font-size:12.5px; font-weight:800; cursor:pointer;">به‌روزرسانی</button>
+  <button type="button" onclick="hideFrontendUpdateBar()" aria-label="بستن" style="flex-shrink:0; background:#ffffff33; color:#fff; border:0; border-radius:8px; width:28px; height:28px; font-family:inherit; font-size:15px; font-weight:800; cursor:pointer;">×</button>
+</div>
 <div id="splashScreen" style="position:fixed; inset:0; z-index:5000; background:radial-gradient(900px 500px at 15% 0%, #3457c733 0%, transparent 60%), radial-gradient(700px 420px at 100% 100%, #ff6a3d2e 0%, transparent 60%), linear-gradient(160deg, var(--navy-3, #0e1b3d), var(--navy)); display:flex; align-items:center; justify-content:center;">
   <div id="splashOwnBrand" style="display:flex; flex-direction:column; align-items:center; gap:16px; color:var(--on-dark); text-align:center; padding:20px;">
     <img id="splashOwnBrandLogo" style="display:none; max-width:220px; max-height:110px; width:auto; height:auto; border-radius:14px; object-fit:contain;">
@@ -1841,6 +1847,8 @@
       <div class="hint" style="margin-top:-4px;">این گزینه نسخه‌ی فعال Code.gs روی سرور و نسخه‌ی همین صفحه را بررسی می‌کند تا از هماهنگ بودن بک‌اند و فرانت‌اند پس از هر به‌روزرسانی اطمینان حاصل شود.</div>
       <button type="button" class="btn btn-ghost" onclick="checkServerVersion()">🔍 چک کردن نسخه</button>
       <div id="serverVersionResult" style="margin-top:8px; font-size:13px; direction:ltr; text-align:right;"></div>
+      <div class="hint" style="margin-top:10px;">اگر نسخه‌ی این صفحه قدیمی بود (یا تغییرِ تازه‌ای که باید می‌دیدید نیامده)، این گزینه همه‌ی فایل‌های ذخیره‌شده‌ی اپ روی این دستگاه را پاک می‌کند و صفحه را از نو از سرور می‌گیرد. هیچ اطلاعاتی از گوگل‌شیت پاک نمی‌شود.</div>
+      <button type="button" class="btn btn-ghost" onclick="forceAppUpdate(this)">♻️ به‌روزرسانی اجباری اپ (پاک‌کردن کش)</button>
     </div>
     </div><!-- /admSec-settings -->
 
@@ -2453,7 +2461,13 @@
 // (Setup instructions + the code to deploy are shown on screen until
 // this is filled in.) Example: "https://script.google.com/macros/s/AKfycb.../exec"
 const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6U_qdwpUmQp-8WTNxEaW5zCD7vPZxfbhc6tppuHEujCAbRg/exec";
-const FRONTEND_VERSION = "v-2026-09-17-break-toggle-floatbefore-columnfix"; // bump this every time index.html is updated, so "چک کردن نسخه" can catch a stale GitHub Pages upload / cached PWA too, not just an undeployed backend
+// Bump this every time index.html is updated, AND change version.json next to it to the
+// same string. The app fetches version.json on every launch, so a phone still showing a
+// cached copy can tell on its own that it is behind and offer a real update.
+const FRONTEND_VERSION = "v-2026-10-07-timesheet-pdf";
+// The version string the deployed Code.gs answers «ping» with. This moves only when the
+// backend actually changes, which is far less often than the frontend.
+const BACKEND_EXPECTED_VERSION = "v-2026-09-17-break-toggle-floatbefore-columnfix";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -5481,21 +5495,115 @@ async function setupSheetFiltersBtn(){
   clearAdminNotice();
   alert('فیلتر روی این شیت‌ها اعمال شد: ' + (res.sheets||[]).join('، '));
 }
+// ---------- آپدیت خودکارِ خودِ صفحه ----------
+// مشکلِ کلاسیکِ یک PWA: index.html جدید روی گیت‌هاب آپلود شده، ولی گوشی هنوز نسخه‌ی
+// کش‌شده‌ی قدیمی رو نشون می‌ده و رفرشِ معمولی هم درستش نمی‌کنه. برای همین خودِ صفحه
+// نسخه‌ی واقعیِ آپلودشده رو از version.json می‌خونه و اگر از خودش جلوتر بود، یک نوار
+// بالای صفحه می‌آره که با یک کلیک همه‌ی کش‌ها رو پاک می‌کنه و از نو لود می‌کنه.
+var _liveFrontendVersion = null;   // نسخه‌ای که همین حالا روی سرور آپلود شده — برای دیباگ
+
+function appShellUrl(){
+  return location.href.split('#')[0].split('?')[0];
+}
+
+// نسخه‌ی آپلودشده رو از version.json می‌گیریم (چند بایت)، و اگر نبود از خودِ index.html.
+async function fetchLiveFrontendVersion(){
+  var base = appShellUrl().replace(/[^\/]*$/, '');
+  var bust = 'v=' + Date.now();
+  try{
+    var r = await fetch(base + 'version.json?' + bust, {cache:'no-store'});
+    if(r.ok){
+      var j = await r.json();
+      if(j && j.frontendVersion) return String(j.frontendVersion);
+    }
+  }catch(e){}
+  try{
+    var r2 = await fetch(appShellUrl() + '?' + bust, {cache:'no-store'});
+    if(!r2.ok) return null;
+    var txt = await r2.text();
+    var m = txt.match(/FRONTEND_VERSION\s*=\s*"([^"]+)"/);
+    return m ? m[1] : null;
+  }catch(e){ return null; }
+}
+
+function showFrontendUpdateBar(){
+  var bar = document.getElementById('appUpdateBar');
+  if(!bar) return;
+  document.getElementById('appUpdateBarText').textContent =
+    'نسخه‌ی جدیدِ سایت آماده است — چیزی که الان باز کرده‌اید نسخه‌ی قدیمیِ ذخیره‌شده روی همین دستگاه است.';
+  bar.style.display = 'flex';
+  // نوار روی هدرِ چسبیده‌ی بالای صفحه می‌افته، پس کلِ صفحه رو به اندازه‌ی خودش می‌بریم پایین.
+  document.body.style.paddingTop = bar.offsetHeight + 'px';
+}
+
+function hideFrontendUpdateBar(){
+  var bar = document.getElementById('appUpdateBar');
+  if(bar) bar.style.display = 'none';
+  document.body.style.paddingTop = '';
+}
+
+// برمی‌گردونه: نسخه‌ی جدید اگر عقب بودیم، '' اگر به‌روز بودیم، و null اگر نتونستیم چک کنیم.
+async function checkForFrontendUpdate(){
+  if(!navigator.onLine) return null;
+  var live = await fetchLiveFrontendVersion();
+  if(!live) return null;
+  _liveFrontendVersion = live;
+  if(live !== FRONTEND_VERSION){ showFrontendUpdateBar(); return live; }
+  hideFrontendUpdateBar();
+  return '';
+}
+
+// به سروینس‌ورکر می‌گیم کشش رو خالی کنه، خودش رو هم از ثبت درمی‌آریم، کشِ خودِ مرورگر
+// رو هم با یک fetch اجباری تازه می‌کنیم، و بعد صفحه رو از نو لود می‌کنیم.
+async function forceAppUpdate(btnEl){
+  var oldLabel = null;
+  if(btnEl){ oldLabel = btnEl.textContent; btnEl.disabled = true; btnEl.textContent = 'در حال به‌روزرسانی...'; }
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.controller){
+      try{ navigator.serviceWorker.controller.postMessage({type:'TARDOD_FLUSH_CACHE'}); }catch(e){}
+    }
+    if(window.caches){
+      try{
+        var keys = await caches.keys();
+        await Promise.all(keys.map(function(k){ return caches.delete(k); }));
+      }catch(e){}
+    }
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+      try{
+        var regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(function(r){ return r.unregister(); }));
+      }catch(e){}
+    }
+    // cache:'reload' مجبورش می‌کنه نسخه‌ی تازه رو از شبکه بگیره و جای نسخه‌ی کش‌شده‌ی
+    // خودِ مرورگر بذاره، تا لودِ بعدی هم نسخه‌ی جدید رو ببینه.
+    try{ await fetch(appShellUrl() + '?v=' + Date.now(), {cache:'reload'}); }catch(e){}
+  }finally{
+    if(btnEl){ btnEl.disabled = false; if(oldLabel) btnEl.textContent = oldLabel; }
+  }
+  location.reload();
+}
+
 async function checkServerVersion(){
   var box = document.getElementById('serverVersionResult');
   box.textContent = 'در حال چک کردن...';
-  var res = await apiCall(function(){ return apiPost('ping', {}); });
-  if(!res.ok){
-    box.innerHTML = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
-    return;
+  var live = await checkForFrontendUpdate();
+  var frontendLine;
+  if(live === null){
+    frontendLine = '⚠️ نسخه‌ی آپلودشده روی گیت‌هاب خونده نشد (اینترنت یا آدرسِ سایت) — نسخه‌ی همین صفحه: <b>' + esc(FRONTEND_VERSION) + '</b>';
+  } else if(live === ''){
+    frontendLine = '✅ فرانت‌اند (همین صفحه) به‌روزه: <b>' + esc(FRONTEND_VERSION) + '</b>';
+  } else {
+    frontendLine = '⛔ فرانت‌اند (همین صفحه) قدیمیه: <b>' + esc(FRONTEND_VERSION) + '</b><br>نسخه‌ی آپلودشده: <b>' + esc(live) + '</b><br>یعنی گوشی نسخه‌ی کش‌شده رو نشون می‌ده — دکمه‌ی «به‌روزرسانی اجباری» پایین رو بزن.';
   }
-  var expected = 'v-2026-09-17-break-toggle-floatbefore-columnfix'; // must match FRONTEND_VERSION above and the backend's ping response
-  var backendLine = (res.version === expected)
-    ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
-    : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + expected + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
-  var frontendLine = (FRONTEND_VERSION === expected)
-    ? '✅ فرانت‌اند (همین صفحه): <b>' + esc(FRONTEND_VERSION) + '</b>'
-    : '⛔ فرانت‌اند (همین صفحه) قدیمیه: <b>' + esc(FRONTEND_VERSION) + '</b><br>یعنی یا index.html جدید رو هنوز رو گیت‌هاب آپلود نکردی، یا گوشی نسخه‌ی کش‌شده رو نشون می‌ده — یه‌بار اپ رو کامل ببند و دوباره باز کن.';
+  var res = await apiCall(function(){ return apiPost('ping', {}); });
+  var backendLine;
+  if(!res.ok){
+    backendLine = '⛔ سرور جواب نداد یا اکشن «ping» رو نمی‌شناسه — یعنی حتماً نسخه‌ی خیلی قدیمیه.';
+  } else {
+    backendLine = (res.version === BACKEND_EXPECTED_VERSION)
+      ? '✅ بک‌اند (Code.gs) به‌روزه: <b>' + esc(res.version) + '</b>'
+      : '⛔ بک‌اند (Code.gs) قدیمیه: <b>' + esc(res.version||'نامشخص') + '</b><br>انتظار داشتیم: <b>' + esc(BACKEND_EXPECTED_VERSION) + '</b><br>یعنی Deploy جدید هنوز درست انجام نشده — برو Apps Script → Deploy → Manage deployments → مداد کنار همون دیپلوی فعال → New version → Deploy.';
+  }
   box.innerHTML = backendLine + '<br><br>' + frontendLine;
 }
 async function saveNotifyEmail(){
@@ -11016,6 +11124,9 @@ function init(){
 
   loadProjectsPublic();
   loadMenuVisibility(); // منوهایی که سوپرادمین خاموششون کرده، همون اولِ کار مخفی می‌شن
+  // یک‌کم بعد از بالا آمدنِ صفحه چک می‌کنیم نسخه‌ی آپلودشده از این نسخه جلوتر هست یا نه،
+  // تا کسی با نسخه‌ی کش‌شده‌ی قدیمی گیر نکنه. عمداً دیر اجرا می‌شه که لودِ اول رو کند نکنه.
+  setTimeout(function(){ checkForFrontendUpdate(); }, 4000);
 
   var savedEmp = localStorage.getItem('loggedInEmployee');
   if(savedEmp){
@@ -11047,7 +11158,11 @@ function init(){
 // ---------- PWA install support ----------
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('service-worker.js').catch(function(e){ console.warn('SW register failed', e); });
+    navigator.serviceWorker.register('service-worker.js').then(function(reg){
+      // سروینس‌ورکرِ نصب‌شده ممکنه خودش هم نسخه‌ی قدیمی باشه؛ هر بار که اپ باز می‌شه
+      // به مرورگر می‌گیم فایلش رو دوباره چک کنه.
+      try{ reg.update(); }catch(e){}
+    }).catch(function(e){ console.warn('SW register failed', e); });
   });
 }
 

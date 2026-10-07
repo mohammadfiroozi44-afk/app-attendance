@@ -2,7 +2,7 @@
 // available offline. It does NOT cache API calls (attendance data always needs
 // to be fresh/live), only the static app shell (HTML/CSS/JS/icons).
 
-var CACHE_NAME = 'tardod-shell-v2';
+var CACHE_NAME = 'tardod-shell-v3';
 var SHELL_FILES = [
   './',
   './index.html',
@@ -28,19 +28,42 @@ self.addEventListener('activate', function(event){
   );
 });
 
+// The page asks for this when the user hits «به‌روزرسانی اجباری»: throw away every
+// cached shell file so the next load has to come from the network.
+self.addEventListener('message', function(event){
+  var data = event.data || {};
+  if(data.type !== 'TARDOD_FLUSH_CACHE') return;
+  event.waitUntil(
+    caches.keys().then(function(keys){
+      return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+    }).then(function(){
+      if(event.source && event.source.postMessage) event.source.postMessage({type:'TARDOD_CACHE_FLUSHED'});
+    })
+  );
+});
+
 self.addEventListener('fetch', function(event){
   var req = event.request;
   // Only handle same-origin GET requests for the app shell. Everything else
   // (API POSTs to Apps Script, map tiles, fonts, etc.) goes straight to the network.
   if(req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
 
+  var url = new URL(req.url);
+  // version.json is the staleness probe itself — if it ever came from the cache the
+  // app could never notice a new upload, so it always goes straight to the network.
+  if(/version\.json$/.test(url.pathname)) return;
+
   event.respondWith(
     fetch(req, {cache: 'no-store'}).then(function(res){
-      var resClone = res.clone();
-      caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
+      // Don't cache one-off URLs (the cache-busting ?v=... probes) — they'd just
+      // pile up under keys nothing ever reads again.
+      if(!url.search){
+        var resClone = res.clone();
+        caches.open(CACHE_NAME).then(function(cache){ cache.put(req, resClone); });
+      }
       return res;
     }).catch(function(){
-      return caches.match(req).then(function(cached){ return cached || caches.match('./index.html'); });
+      return caches.match(req, {ignoreSearch: true}).then(function(cached){ return cached || caches.match('./index.html'); });
     })
   );
 });
