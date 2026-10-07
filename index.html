@@ -2108,6 +2108,17 @@
         <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-deductions" onclick="showPayrollTab('deductions')">💳 وام و کسورات</button>
         <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-slip" onclick="showPayrollTab('slip')">🧮 مشاهده فیش</button>
       </div>
+      <div class="hr"></div>
+      <div class="eyebrow">درجِ مقادیرِ رسمیِ قانونِ کار</div>
+      <div class="hint" style="margin-top:-4px;">جدولِ گروه‌هایِ شغلی، پایه سنوات و مالیاتِ یک سال را یک‌جا طبقِ بخشنامه‌یِ همان سال پر می‌کند. بعدش هر عددی را می‌تونی از همین‌جا ویرایش کنی. اگر برایِ اون سال از قبل چیزی ثبت شده باشه، جایگزین می‌شه.</div>
+      <div class="date-row">
+        <select id="prSeedYear">
+          <option value="1405">سال ۱۴۰۵</option>
+          <option value="1404">سال ۱۴۰۴</option>
+        </select>
+        <button type="button" class="btn btn-primary" style="flex:1; margin:0;" onclick="seedPayrollDefaultsBtn()">⬇️ درجِ مقادیرِ رسمی</button>
+      </div>
+      <div class="hint" id="prSeedMsg" style="margin-top:6px;"></div>
     </div>
 
     <!-- ===== تعریف حقوق (حکمِ حقوقی) ===== -->
@@ -5294,6 +5305,7 @@ async function refreshAdminSection(name){
     autoWirePicker('prDecreeMonth', 'ماهِ اجرا');
     autoWirePicker('prDedStartMonth', 'ماهِ شروع');
     autoWirePicker('prDedType', 'نوعِ کسورات');
+    autoWirePicker('prSeedYear', 'سال');
     showPayrollTab(_payrollTab || 'decrees');
   }
   else if(name === 'settings'){
@@ -9065,6 +9077,22 @@ function fmtRial(n){
   var v = Math.round(Number(n)||0);
   return v.toLocaleString('en-US');
 }
+async function seedPayrollDefaultsBtn(){
+  var year = document.getElementById('prSeedYear').value;
+  var msg = document.getElementById('prSeedMsg');
+  if(!(await showAppConfirm('مقادیرِ رسمیِ سالِ '+year+' تویِ جدول‌هایِ گروهِ شغلی، پایه سنوات و مالیات درج بشه؟ اگه برایِ همین سال از قبل چیزی ثبت شده باشه، جایگزین می‌شه.'))) return;
+  msg.textContent = 'در حال درج... (جدولِ پایه سنوات بزرگه، چند ثانیه طول می‌کشه)';
+  var res = await apiCall(function(){ return apiPost('seedPayrollDefaults', {pin:adminPin, year:year}); });
+  if(!res.ok){
+    msg.textContent = '⛔ درج ناموفق بود: ' + (res.error === 'year_not_available' ? 'برایِ این سال مقدارِ آماده‌ای تعریف نشده.' : (res.error||''));
+    return;
+  }
+  msg.textContent = '✅ درج شد — '+res.wageGroups+' گروهِ شغلی، '+res.seniority+' ردیفِ پایه سنوات، '+res.taxBrackets+' پله‌یِ مالیات.';
+  if(_payrollTab === 'groups') loadPayrollWageGroups();
+  else if(_payrollTab === 'seniority') loadPayrollSeniority();
+  else if(_payrollTab === 'tax') loadPayrollTaxBrackets();
+  else if(_payrollTab === 'insurance') loadPayrollItemRules();
+}
 function showPayrollTab(name){
   _payrollTab = name;
   ['decrees','groups','seniority','tax','insurance','children','deductions','slip'].forEach(function(t){
@@ -9154,7 +9182,12 @@ function renderPayrollSeniority(){
   var list = _prSeniority.filter(function(r){ return !q || String(r.year).indexOf(q) !== -1 || String(r.groupNum) === q; });
   list.sort(function(a,b){ return (Number(b.year)-Number(a.year)) || (Number(a.groupNum)-Number(b.groupNum)) || (Number(a.yearsOfService)-Number(b.yearsOfService)); });
   if(!list.length){ box.innerHTML = '<div class="empty">چیزی ثبت نشده</div>'; return; }
-  box.innerHTML = list.map(function(r){
+  // این جدول برایِ هر سال ۶۲۰ ردیفه (۲۰ گروه × ۳۱ سطحِ سابقه) — رندرِ همه‌ش صفحه رو سنگین
+  // می‌کنه، پس فقط بخشِ اول نشون داده می‌شه و بقیه با فیلتر پیدا می‌شن.
+  var totalCount = list.length;
+  var capped = list.length > 150;
+  if(capped) list = list.slice(0, 150);
+  box.innerHTML = (capped ? '<div class="hint">نمایشِ ۱۵۰ ردیف از '+totalCount+' ردیف — برایِ دیدنِ بقیه، سال یا گروه رو فیلتر کن.</div>' : '') + list.map(function(r){
     return '<div class="list-item"><div><b>گروه '+esc(r.groupNum)+'</b> — سال '+esc(r.year)+' · سابقه '+esc(r.yearsOfService)+' سال'+
       '<div class="meta mono">'+fmtRial(r.dailyAmount)+' ریال در روز</div></div>'+
       '<div class="actions">'+
