@@ -495,6 +495,18 @@
     #adminGate, #empLoginGate, .hamburger-btn, .cal-icon-btn, .req-fab, .side-drawer, .drawer-overlay,
     #tabEmpBtn, #tabAdminBtn, .req-tabs, .day-nav { display:none !important; }
     @page{ size:A4 portrait; margin:6mm; }
+    /* چاپِ یک کادرِ مشخص (مثلِ فیشِ حقوقی): بقیه‌یِ صفحه — فرم‌ها، فیلترها، بخش‌هایِ دیگه —
+       نباید رویِ کاغذ بیان. visibility به‌جایِ display استفاده شده تا چیدمانِ خودِ کادر
+       به‌هم نریزه. */
+    body.print-one *{ visibility:hidden !important; }
+    body.print-one .print-target, body.print-one .print-target *{ visibility:visible !important; }
+    body.print-one .print-target{
+      position:absolute; top:0; right:0; left:0; width:100%;
+      margin:0 !important; padding:0 !important; box-shadow:none !important;
+    }
+    body.print-one .print-target .btn{ display:none !important; }
+    /* رنگِ هدرِ ستون‌هایِ فیش (سبز/قرمز/آبی) باید رویِ کاغذ هم بمونه. */
+    .print-target *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
   }
 
   .hamburger-btn{
@@ -9647,7 +9659,7 @@ async function loadAdminPayslip(){
   var res = await apiCall(function(){ return apiPost('getPayslip', {pin:adminPin, username:username, year:year, month:monthIdx}); });
   if(!res.ok){ box.innerHTML = '<div class="empty">محاسبه ناموفق بود: '+esc(res.error||'')+'</div>'; return; }
   box.innerHTML = renderPayslipHtml(res.slip, monthName, true) +
-    '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="window.print()">🖨 چاپ</button>';
+    '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="printElement(\'prSlipBox\')">🖨 چاپ</button>';
 }
 async function loadMyPayslip(){
   var monthName = document.getElementById('myPayslipMonth').value;
@@ -9662,7 +9674,7 @@ async function loadMyPayslip(){
     return;
   }
   box.innerHTML = renderPayslipHtml(res.slip, monthName) +
-    '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="window.print()">🖨 چاپ</button>';
+    '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="printElement(\'myPayslipBox\')">🖨 چاپ</button>';
 }
 // ---------- Official print-form PDF export (admin only, one employee at a time) ----------
 async function generateEmployeeFormExcel(){
@@ -10643,7 +10655,24 @@ async function loadMyPerf(){
     '</div>';
   }).join('');
 }
-function printMyPerf(){ window.print(); }
+// فقط همون کادری که بهش داده می‌شه چاپ می‌شه، نه کلِ صفحه. کلاس‌ها بعد از بسته‌شدنِ
+// پنجره‌یِ چاپ برداشته می‌شن (onafterprint رویِ بعضی مرورگرهایِ موبایل صدا زده نمی‌شه،
+// برایِ همین یه تایمر هم به‌عنوانِ پشتیبان هست).
+function printElement(boxId){
+  var el = document.getElementById(boxId);
+  if(!el){ window.print(); return; }
+  el.classList.add('print-target');
+  document.body.classList.add('print-one');
+  var cleanup = function(){
+    el.classList.remove('print-target');
+    document.body.classList.remove('print-one');
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(function(){ window.print(); }, 30);
+  setTimeout(cleanup, 4000);
+}
+function printMyPerf(){ printElement('perfStatsCards'); }
 
 function jalaliIsLeap(jy){
   var r = jy % 33;
