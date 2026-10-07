@@ -2135,6 +2135,8 @@
       <label>نامِ سیستمِ حقوقی</label>
       <div class="hint" style="margin-top:-6px;">یه نامِ کوتاه برایِ شناختنِ این حکم — مثلاً «فیروزی-۱۴۰۵». رویِ خودِ فیش هم نشون داده می‌شه.</div>
       <input type="text" id="prDecreeName" placeholder="مثلاً: فیروزی-۱۴۰۵">
+      <label>تاریخِ اجرا</label>
+      <div class="hint" style="margin-top:-6px;">حکم به سالِ خودش وابسته‌ست و به سالِ بعد سرایت نمی‌کنه — برایِ هر سال باید حکمِ همون سال ثبت بشه، وگرنه فیشِ اون سال صفر درمی‌آد. تاریخِ اجرا می‌تونه جلوتر از امروز باشه (مثلاً افزایشِ حقوقی که از دو ماهِ دیگه اعمال می‌شه)؛ تا رسیدنِ اون ماه رویِ هیچ فیشی اثر نمی‌ذاره. تاریخِ ثبتِ حکم جداگانه و خودکار ذخیره می‌شه.</div>
       <div class="date-row">
         <div style="flex:1;"><label style="font-size:12px;">سالِ اجرا</label><input type="number" id="prDecreeYear" class="field-mono" placeholder="مثلاً 1405"></div>
         <div style="flex:1;"><label style="font-size:12px;">ماهِ اجرا</label><select id="prDecreeMonth"></select></div>
@@ -2461,10 +2463,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-07-no-decree-zero";
+const FRONTEND_VERSION = "v-2026-10-07-decree-per-year";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-07-no-decree-zero";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-07-decree-per-year";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -9537,9 +9539,17 @@ async function loadPayrollDecrees(){
   _prDecrees = res.rows || [];
   if(!_prDecrees.length){ box.innerHTML = '<div class="empty">برایِ این پرسنل هنوز حکمی ثبت نشده</div>'; return; }
   var sorted = _prDecrees.slice().sort(function(a,b){ return (Number(b.effectiveYear)*12+Number(b.effectiveMonth)) - (Number(a.effectiveYear)*12+Number(a.effectiveMonth)); });
+  var nowD = new Date();
+  var nowJ = toJalaali(nowD.getFullYear(), nowD.getMonth()+1, nowD.getDate());
+  var _jNowYear = nowJ[0], _jNowMonth = nowJ[1];
   box.innerHTML = sorted.map(function(r){
+    // تاریخِ اجرا و تاریخِ ثبت دو چیزِ متفاوتن — حکمی که امروز ثبت شده می‌تونه از دو ماهِ
+    // دیگه اجرا بشه، و تا رسیدنِ اون ماه رویِ هیچ فیشی اثر نمی‌ذاره.
+    var notYet = (Number(r.effectiveYear)*12 + Number(r.effectiveMonth)) > (_jNowYear*12 + _jNowMonth);
     return '<div class="list-item"><div><b>'+esc(r.systemName || 'حکم')+'</b> — اجرا از '+esc(jMonths[Number(r.effectiveMonth)-1]||'')+' '+esc(r.effectiveYear)+
       (String(r.taxEnabled||'بله')==='خیر' ? ' <span class="badge badge-unbound">بدونِ مالیات</span>' : '')+
+      (notYet ? ' <span class="badge badge-unbound">هنوز اجرا نشده</span>' : '')+
+      '<div class="meta mono">کد پرسنلی '+esc(r.employeeCode || '—')+' · تاریخِ ثبت '+esc(r.issuedDate || '—')+'</div>'+
       '<div class="meta mono">'+(r.wageGroup ? ('گروهِ شغلی '+esc(r.wageGroup)+' · ') : '')+'مسکن '+fmtRial(r.housingAllowance)+' · بن '+fmtRial(r.foodAllowance)+' · پاداش '+fmtRial(r.bonus)+'</div>'+
       '<div class="meta mono">ض.اضافه‌کاری '+esc(r.overtimePercent)+' · ض.شب‌کاری '+esc(r.nightPercent)+' · ض.تعطیل‌کاری '+esc(r.holidayPercent)+'</div></div>'+
       '<div class="actions">'+
@@ -9604,6 +9614,7 @@ async function savePayrollDecree(){
     bonus: readAmountValue('prDecreeBonus') || 0
   };
   if(!payload.effectiveYear){ alert('سالِ اجرا را وارد کن'); return; }
+  if(!payload.effectiveMonth){ alert('ماهِ اجرا را انتخاب کن'); return; }
   if(_prEditDecreeId) payload.id = _prEditDecreeId;
   var action = _prEditDecreeId ? 'updatePayrollDecree' : 'addPayrollDecree';
   var res = await apiCall(function(){ return apiPost(action, payload); });
@@ -9758,7 +9769,9 @@ function renderPayslipHtml(slip, monthName, showWarnings){
     payslipRow('سهمِ کارفرما ('+Math.round(slip.rates.employer*100)+'٪)', fmtRial(slip.insurance.employer), 'info') +
     payslipRow('کلِ حقِ بیمه', fmtRial(slip.insurance.total), 'info', true);
   var decreeTxt = slip.decree
-    ? (esc(slip.decree.systemName || 'حکم') + ' — اجرا از ' + esc(jMonths[Number(slip.decree.effectiveMonth)-1]||'') + ' ' + esc(slip.decree.effectiveYear) + (slip.decree.taxEnabled === 'خیر' ? ' · بدونِ کسرِ مالیات' : ''))
+    ? (esc(slip.decree.systemName || 'حکم') + ' — اجرا از ' + esc(jMonths[Number(slip.decree.effectiveMonth)-1]||'') + ' ' + esc(slip.decree.effectiveYear) +
+       (slip.decree.issuedDate ? ' · ثبت در ' + esc(slip.decree.issuedDate) : '') +
+       (slip.decree.taxEnabled === 'خیر' ? ' · بدونِ کسرِ مالیات' : ''))
     : '<span style="color:#b42318;">حکمی ثبت نشده</span>';
   // کادرِ هشدار فقط مالِ مدیره — کارمند نباید ببینه کدوم تعریف جا افتاده.
   var warnHtml = (showWarnings && slip.warnings && slip.warnings.length)
@@ -9772,8 +9785,8 @@ function renderPayslipHtml(slip, monthName, showWarnings){
   // چون توضیحِ خودِ عددهاست نه یک تذکرِ داخلیِ مدیریتی.
   var noDecreeHtml = (slip.decreeFound === false)
     ? '<div style="background:#fef3f2; border:1px solid #fda29b; border-radius:10px; padding:10px 12px; margin-bottom:12px; color:#b42318; font-size:12.5px; font-weight:700; line-height:1.9;">'+
-        '⛔ برایِ '+esc(monthName||'')+' '+esc(slip.year)+' هیچ حکمِ حقوقی‌ای تعریف نشده — همه‌یِ مبالغِ این فیش صفر است.'+
-        (showWarnings ? '<div style="font-weight:600; margin-top:3px;">برایِ محاسبه، از «تعریف حقوق» یک حکم با تاریخِ اجرایِ این ماه یا قبل‌تر ثبت کن.</div>' : '')+
+        '⛔ برایِ '+esc(monthName||'')+' '+esc(slip.year)+' هیچ حکمِ حقوقیِ اجراشده‌ای برایِ این پرسنل وجود ندارد — همه‌یِ مبالغِ این فیش صفر است.'+
+        (showWarnings ? '<div style="font-weight:600; margin-top:3px;">حکم باید برایِ همین پرسنل و برایِ سالِ '+esc(slip.year)+' ثبت شده باشد و تاریخِ اجرایش '+esc(monthName||'')+' یا پیش از آن باشد. حکمِ سالِ دیگر یا حکمی که تاریخِ اجرایش هنوز نرسیده، روی این فیش اثری ندارد.</div>' : '')+
       '</div>'
     : '';
   function chip(label, value){
