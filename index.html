@@ -2461,10 +2461,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-07-seed-year-input";
+const FRONTEND_VERSION = "v-2026-10-07-no-decree-zero";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-07-seed-year-input";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-07-no-decree-zero";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -9768,6 +9768,14 @@ function renderPayslipHtml(slip, monthName, showWarnings){
           slip.warnings.map(function(w){ return '<li>'+esc(w)+'</li>'; }).join('')+
         '</ul></div>'
     : '';
+  // بدونِ حکم، همه‌یِ مبالغِ فیش صفره. این رو بالایِ فیش و برایِ هردو (مدیر و کارمند) می‌گیم،
+  // چون توضیحِ خودِ عددهاست نه یک تذکرِ داخلیِ مدیریتی.
+  var noDecreeHtml = (slip.decreeFound === false)
+    ? '<div style="background:#fef3f2; border:1px solid #fda29b; border-radius:10px; padding:10px 12px; margin-bottom:12px; color:#b42318; font-size:12.5px; font-weight:700; line-height:1.9;">'+
+        '⛔ برایِ '+esc(monthName||'')+' '+esc(slip.year)+' هیچ حکمِ حقوقی‌ای تعریف نشده — همه‌یِ مبالغِ این فیش صفر است.'+
+        (showWarnings ? '<div style="font-weight:600; margin-top:3px;">برایِ محاسبه، از «تعریف حقوق» یک حکم با تاریخِ اجرایِ این ماه یا قبل‌تر ثبت کن.</div>' : '')+
+      '</div>'
+    : '';
   function chip(label, value){
     return '<span style="background:var(--paper-2); border:1px solid var(--border-soft); border-radius:999px; padding:3px 10px; font-size:12px;">'+
       '<b>'+label+':</b> '+value+'</span>';
@@ -9786,6 +9794,7 @@ function renderPayslipHtml(slip, monthName, showWarnings){
       chip('وضعیتِ تاهل', e.maritalStatus ? esc(e.maritalStatus) : '<span style="color:#b42318;">تعیین‌نشده</span>')+
       chip('سیستمِ حقوقی', decreeTxt)+
     '</div>'+
+    noDecreeHtml+
     warnHtml+
     '<div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start;">'+
       payslipColumn('پرداخت‌ها (ریال)', 'pay', payRows)+
@@ -10979,6 +10988,12 @@ function buildPayslipDocNode(slip, monthName){
         head('وضعیتِ تاهل', esc(e.maritalStatus || '—')) +
       '</tr>'+
     '</table>'+
+    // برگه‌یِ چاپی سیاه‌وسفیده، پس این خط به‌جایِ رنگ با کادر و متنِ پررنگ دیده می‌شه.
+    (slip.decreeFound === false
+      ? '<table style="width:100%; border-collapse:collapse; margin-top:2mm;"><tr><td style="border:0.3mm solid #000; padding:1.2mm; text-align:center; font-size:8pt; font-weight:800;">'+
+          'برایِ '+esc(monthName || '')+' '+esc(slip.year)+' حکمِ حقوقی‌ای تعریف نشده — همه‌یِ مبالغِ این فیش صفر است.'+
+        '</td></tr></table>'
+      : '')+
     '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2mm;">'+
       '<tr>'+
         '<td style="vertical-align:top; width:33.4%; padding-left:1.5mm;">'+pdfSubTable('پرداخت‌ها (ریال)', payRows)+'</td>'+

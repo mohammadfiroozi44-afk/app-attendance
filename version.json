@@ -1,4 +1,4 @@
 {
   "_comment": "نسخه‌ی index.html که روی گیت‌هاب آپلود شده. هر بار index.html عوض شد، این عدد هم باید همراهش عوض بشه (باید دقیقاً با FRONTEND_VERSION داخل index.html یکی باشه) تا سایت بتونه بفهمه نسخه‌ی کش‌شده‌ی گوشی قدیمی شده.",
-  "frontendVersion": "v-2026-10-07-seed-year-input"
+  "frontendVersion": "v-2026-10-07-no-decree-zero"
 }
