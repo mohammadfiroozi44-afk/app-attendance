@@ -999,6 +999,19 @@
     </div>
     </div><!-- /empSec-perf -->
 
+    <div class="emp-section" id="empSec-payslip" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">فیشِ حقوقی</div>
+      <div class="hint" style="margin-top:-4px;">فیشِ حقوقیِ ماهانه‌یِ خودت — جمعِ پرداخت‌ها، کسورات و خالصِ دریافتی.</div>
+      <div class="date-row">
+        <select id="myPayslipMonth"><option value="">ماه</option></select>
+        <select id="myPayslipYear"><option value="">سال</option></select>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="loadMyPayslip()">🧾 نمایشِ فیش</button>
+      <div id="myPayslipBox" style="margin-top:14px;"><div class="empty">ماه و سال را انتخاب کرده و «نمایشِ فیش» را بزنید.</div></div>
+    </div>
+    </div><!-- /empSec-payslip -->
+
     <div class="emp-section" id="empSec-services" style="display:none;">
     <div class="card">
       <div class="eyebrow" id="serviceFormTitle">ثبتِ سرویسِ جدید</div>
@@ -1341,6 +1354,21 @@
       <input type="text" id="empFormJobGroup" placeholder="مثلاً: اجرایی، فنی، اداری">
       <label>کد ملی (اختیاری)</label>
       <input type="text" id="empFormNationalId" class="field-mono" placeholder="۱۰ رقم">
+      <label>وضعیتِ تاهل</label>
+      <div class="hint" style="margin-top:-6px;">مبنایِ پرداختِ «حق تاهل» تویِ فیشِ حقوقیه.</div>
+      <select id="empFormMaritalStatus">
+        <option value="">— تعیین‌نشده —</option>
+        <option value="مجرد">مجرد</option>
+        <option value="متاهل">متاهل</option>
+      </select>
+      <label>گروهِ شغلیِ حقوق (۱ تا ۲۰)</label>
+      <div class="hint" style="margin-top:-6px;">شماره‌یِ گروهِ مزدی طبقِ جدولِ گروه‌هایِ شغلی — مبنایِ پایه حقوق و پایه سنوات.</div>
+      <input type="number" id="empFormWageGroup" class="field-mono" placeholder="مثلاً 15">
+      <label>مشمولِ مالیات</label>
+      <select id="empFormPayrollTaxable">
+        <option value="بله">بله</option>
+        <option value="خیر">خیر</option>
+      </select>
       <label>عکس پرسنلی (اختیاری)</label>
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
         <img id="empFormPhotoPreview" style="width:56px; height:56px; border-radius:50%; object-fit:cover; background:#eee7d6; display:none;">
@@ -2065,6 +2093,167 @@
       <button type="button" class="btn btn-primary" onclick="generateEmployeeFormExcel()">⬇️ دانلود اکسل</button>
     </div>
     </div><!-- /admSec-performance -->
+
+    <div class="admin-section" id="admSec-payroll" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">حقوق و دستمزد</div>
+      <div class="hint" style="margin-top:-4px;">همه‌یِ مبالغ و جدول‌ها رو خودت همینجا تعریف می‌کنی؛ تنها چیزی که سیستم خودکار حساب می‌کنه، ساعت و روزهایِ کارکرده که از همین سایت می‌آد.</div>
+      <div class="btn-row" style="flex-wrap:wrap; gap:6px;">
+        <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-decrees" onclick="showPayrollTab('decrees')">📜 تعریف حقوق</button>
+        <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-groups" onclick="showPayrollTab('groups')">🗂 گروه‌های شغلی</button>
+        <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-seniority" onclick="showPayrollTab('seniority')">📈 پایه سنوات</button>
+        <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-tax" onclick="showPayrollTab('tax')">🧾 جدول مالیات</button>
+        <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-insurance" onclick="showPayrollTab('insurance')">🛡 بیمه و مالیات</button>
+        <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-children" onclick="showPayrollTab('children')">👶 حق اولاد</button>
+        <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-deductions" onclick="showPayrollTab('deductions')">💳 وام و کسورات</button>
+        <button type="button" class="btn btn-ghost btn-small" id="prTabBtn-slip" onclick="showPayrollTab('slip')">🧮 مشاهده فیش</button>
+      </div>
+    </div>
+
+    <!-- ===== تعریف حقوق (حکمِ حقوقی) ===== -->
+    <div class="card payroll-tab" id="prTab-decrees" style="display:none;">
+      <div class="eyebrow">تعریف حقوق (حکمِ حقوقی)</div>
+      <div class="hint" style="margin-top:-4px;">برایِ هر پرسنل می‌تونی چند حکم با تاریخ‌هایِ اجرایِ مختلف ثبت کنی — موقعِ محاسبه، آخرین حکمی که تاریخِ اجراش قبل یا مساویِ ماهِ فیشه ملاک قرار می‌گیره.</div>
+      <label>پرسنل</label>
+      <select id="prDecreeEmp" onchange="loadPayrollDecrees()"></select>
+      <div id="prDecreeList" style="margin-top:12px;"><div class="empty">یک پرسنل انتخاب کن</div></div>
+      <div class="hr"></div>
+      <div class="eyebrow" id="prDecreeFormTitle">افزودنِ حکمِ جدید</div>
+      <div class="date-row">
+        <div style="flex:1;"><label style="font-size:12px;">سالِ اجرا</label><input type="number" id="prDecreeYear" class="field-mono" placeholder="مثلاً 1405"></div>
+        <div style="flex:1;"><label style="font-size:12px;">ماهِ اجرا</label><select id="prDecreeMonth"></select></div>
+      </div>
+      <label>حق مسکن (ریال)</label><input type="number" id="prDecreeHousing" class="field-mono" placeholder="0">
+      <label>بن کالای اساسی (ریال)</label><input type="number" id="prDecreeFood" class="field-mono" placeholder="0">
+      <label>ضریبِ اضافه‌کاری</label><input type="number" step="0.00001" id="prDecreeOvertime" class="field-mono" placeholder="مثلاً 2.46092">
+      <label>ضریبِ شب‌کاری</label><input type="number" step="0.00001" id="prDecreeNight" class="field-mono" placeholder="مثلاً 0.04778">
+      <label>ضریبِ نوبت‌کاری</label><input type="number" step="0.00001" id="prDecreeShift" class="field-mono" placeholder="0">
+      <label>ضریبِ تعطیل‌کاری</label><input type="number" step="0.00001" id="prDecreeHoliday" class="field-mono" placeholder="مثلاً 1.4">
+      <label>حق تاهل (ریال)</label><input type="number" id="prDecreeMarriage" class="field-mono" placeholder="0">
+      <label>مبلغِ روزانه‌یِ ماموریت (ریال)</label><input type="number" id="prDecreeMission" class="field-mono" placeholder="0">
+      <label>پاداش (ریال)</label><input type="number" id="prDecreeBonus" class="field-mono" placeholder="0">
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="prDecreeSaveBtn" onclick="savePayrollDecree()">💾 ثبتِ حکم</button>
+        <button type="button" class="btn btn-ghost" id="prDecreeCancelBtn" style="display:none;" onclick="cancelPayrollDecreeEdit()">لغوِ ویرایش</button>
+      </div>
+      <div class="hint" id="prDecreeMsg" style="margin-top:6px;"></div>
+    </div>
+
+    <!-- ===== گروه‌های شغلی ===== -->
+    <div class="card payroll-tab" id="prTab-groups" style="display:none;">
+      <div class="eyebrow">جدولِ گروه‌هایِ شغلی — پایه حقوقِ روزانه</div>
+      <div class="hint" style="margin-top:-4px;">برایِ هر سال، نرخِ روزانه‌یِ هر گروهِ شغلی (۱ تا ۲۰) رو وارد کن. گروهِ ۱ مبنایِ محاسبه‌یِ حق اولاد هم هست.</div>
+      <div class="date-row">
+        <div style="flex:1;"><label style="font-size:12px;">سال</label><input type="number" id="prGroupYear" class="field-mono" placeholder="1405"></div>
+        <div style="flex:1;"><label style="font-size:12px;">گروه</label><input type="number" id="prGroupNum" class="field-mono" placeholder="1 تا 20"></div>
+      </div>
+      <label>پایه حقوقِ روزانه (ریال)</label><input type="number" id="prGroupDaily" class="field-mono" placeholder="0">
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="prGroupSaveBtn" onclick="savePayrollWageGroup()">💾 ثبت</button>
+        <button type="button" class="btn btn-ghost" id="prGroupCancelBtn" style="display:none;" onclick="cancelPayrollWageGroupEdit()">لغوِ ویرایش</button>
+      </div>
+      <input type="text" id="prGroupFilter" placeholder="فیلترِ سال" class="field-mono" style="margin-top:10px;" oninput="renderPayrollWageGroups()">
+      <div id="prGroupList" style="margin-top:8px;"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+
+    <!-- ===== پایه سنوات ===== -->
+    <div class="card payroll-tab" id="prTab-seniority" style="display:none;">
+      <div class="eyebrow">جدولِ پایه سنوات روزانه</div>
+      <div class="hint" style="margin-top:-4px;">برایِ هر سال و هر گروه، مبلغِ روزانه‌یِ پایه سنوات به‌ازایِ سال‌هایِ سابقه. اگه سابقه‌یِ پرسنل از بالاترین سطحِ تعریف‌شده بیشتر باشه، همون بالاترین سطح ملاک می‌مونه.</div>
+      <div class="date-row">
+        <div style="flex:1;"><label style="font-size:12px;">سال</label><input type="number" id="prSenYear" class="field-mono" placeholder="1405"></div>
+        <div style="flex:1;"><label style="font-size:12px;">گروه</label><input type="number" id="prSenGroup" class="field-mono" placeholder="1 تا 20"></div>
+        <div style="flex:1;"><label style="font-size:12px;">سالِ سابقه</label><input type="number" id="prSenYears" class="field-mono" placeholder="0"></div>
+      </div>
+      <label>مبلغِ روزانه (ریال)</label><input type="number" id="prSenAmount" class="field-mono" placeholder="0">
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="prSenSaveBtn" onclick="savePayrollSeniority()">💾 ثبت</button>
+        <button type="button" class="btn btn-ghost" id="prSenCancelBtn" style="display:none;" onclick="cancelPayrollSeniorityEdit()">لغوِ ویرایش</button>
+      </div>
+      <input type="text" id="prSenFilter" placeholder="فیلترِ سال یا گروه" class="field-mono" style="margin-top:10px;" oninput="renderPayrollSeniority()">
+      <div id="prSenList" style="margin-top:8px;"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+
+    <!-- ===== جدول مالیات ===== -->
+    <div class="card payroll-tab" id="prTab-tax" style="display:none;">
+      <div class="eyebrow">جدولِ پلکانیِ مالیاتِ حقوق</div>
+      <div class="hint" style="margin-top:-4px;">برایِ هر سال، پله‌هایِ مالیات رو وارد کن. پله‌یِ با درصدِ صفر همون معافیتِ ماهانه‌ست. برایِ آخرین پله (بدونِ سقف)، خانه‌یِ «تا» رو خالی بذار.</div>
+      <div class="date-row">
+        <div style="flex:1;"><label style="font-size:12px;">سال</label><input type="number" id="prTaxYear" class="field-mono" placeholder="1405"></div>
+        <div style="flex:1;"><label style="font-size:12px;">درصد</label><input type="number" step="0.01" id="prTaxPercent" class="field-mono" placeholder="مثلاً 0.1"></div>
+      </div>
+      <label>از (ریالِ ماهانه)</label><input type="number" id="prTaxFrom" class="field-mono" placeholder="0">
+      <label>تا (ریالِ ماهانه) — خالی یعنی بی‌سقف</label><input type="number" id="prTaxTo" class="field-mono" placeholder="">
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="prTaxSaveBtn" onclick="savePayrollTaxBracket()">💾 ثبت</button>
+        <button type="button" class="btn btn-ghost" id="prTaxCancelBtn" style="display:none;" onclick="cancelPayrollTaxEdit()">لغوِ ویرایش</button>
+      </div>
+      <div id="prTaxList" style="margin-top:10px;"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+
+    <!-- ===== بیمه و مالیات ===== -->
+    <div class="card payroll-tab" id="prTab-insurance" style="display:none;">
+      <div class="eyebrow">تنظیماتِ بیمه و مالیات</div>
+      <div class="hint" style="margin-top:-4px;">نرخِ بیمه و اینکه هر آیتمِ فیش مشمولِ بیمه/مالیات هست یا نه.</div>
+      <div class="date-row">
+        <div style="flex:1;"><label style="font-size:12px;">نرخِ سهمِ کارمند</label><input type="number" step="0.001" id="prInsEmployeeRate" class="field-mono" placeholder="0.07"></div>
+        <div style="flex:1;"><label style="font-size:12px;">نرخِ سهمِ کارفرما</label><input type="number" step="0.001" id="prInsEmployerRate" class="field-mono" placeholder="0.23"></div>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="savePayrollInsuranceRates()">💾 ثبتِ نرخ‌ها</button>
+      <div id="prInsList" style="margin-top:12px;"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+
+    <!-- ===== حق اولاد ===== -->
+    <div class="card payroll-tab" id="prTab-children" style="display:none;">
+      <div class="eyebrow">حق اولاد — فرزندانِ هر پرسنل</div>
+      <div class="hint" style="margin-top:-4px;">حق اولاد طبقِ قانونِ کار برابرِ ۳ برابرِ پایه حقوقِ روزانه‌یِ گروهِ ۱ به‌ازایِ هر فرزنده — فقط کافیه فرزندها رو اینجا ثبت کنی.</div>
+      <label>پرسنل</label>
+      <select id="prChildEmp" onchange="loadPayrollChildren()"></select>
+      <label>نامِ فرزند</label><input type="text" id="prChildName" placeholder="نام و نام خانوادگی">
+      <label>کدِ ملی (اختیاری)</label><input type="text" id="prChildNationalId" class="field-mono">
+      <label>تاریخِ تولد (اختیاری)</label><input type="text" id="prChildBirth" class="field-mono" placeholder="مثلاً 1398/05/12">
+      <button type="button" class="btn btn-primary" onclick="savePayrollChild()">➕ افزودنِ فرزند</button>
+      <div id="prChildList" style="margin-top:12px;"><div class="empty">یک پرسنل انتخاب کن</div></div>
+    </div>
+
+    <!-- ===== وام و کسورات ===== -->
+    <div class="card payroll-tab" id="prTab-deductions" style="display:none;">
+      <div class="eyebrow">وام، مساعده و کسورات</div>
+      <div class="hint" style="margin-top:-4px;">با ثبتِ یک وام، همه‌یِ قسط‌هاش خودکار از ماهِ شروع به بعد ساخته می‌شه و هر ماه از فیشِ همون ماه کم می‌شه.</div>
+      <label>پرسنل</label>
+      <select id="prDedEmp" onchange="loadPayrollDeductions()"></select>
+      <label>نوع</label>
+      <select id="prDedType">
+        <option value="وام">وام</option>
+        <option value="مساعده">مساعده</option>
+        <option value="بیمه تکمیلی">بیمه تکمیلی</option>
+        <option value="جریمه / کسر انضباطی">جریمه / کسر انضباطی</option>
+        <option value="سایر کسورات">سایر کسورات</option>
+      </select>
+      <label>مبلغِ کل (ریال)</label><input type="number" id="prDedTotal" class="field-mono" placeholder="0">
+      <label>تعدادِ اقساط</label><input type="number" id="prDedCount" class="field-mono" placeholder="مثلاً 12">
+      <div class="date-row">
+        <div style="flex:1;"><label style="font-size:12px;">سالِ شروع</label><input type="number" id="prDedStartYear" class="field-mono" placeholder="1405"></div>
+        <div style="flex:1;"><label style="font-size:12px;">ماهِ شروع</label><select id="prDedStartMonth"></select></div>
+      </div>
+      <label>توضیحات (اختیاری)</label><input type="text" id="prDedDesc">
+      <button type="button" class="btn btn-primary" onclick="savePayrollDeductionSeries()">💾 ثبتِ وام/کسورات</button>
+      <div id="prDedList" style="margin-top:12px;"><div class="empty">یک پرسنل انتخاب کن</div></div>
+    </div>
+
+    <!-- ===== مشاهده فیش ===== -->
+    <div class="card payroll-tab" id="prTab-slip" style="display:none;">
+      <div class="eyebrow">مشاهده‌یِ فیشِ حقوقی</div>
+      <label>پرسنل</label>
+      <select id="prSlipEmp"></select>
+      <div class="date-row">
+        <select id="prSlipMonth"><option value="">ماه</option></select>
+        <select id="prSlipYear"><option value="">سال</option></select>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="loadAdminPayslip()">🧮 محاسبه و نمایشِ فیش</button>
+      <div id="prSlipBox" style="margin-top:14px;"><div class="empty">پرسنل، ماه و سال را انتخاب کن.</div></div>
+    </div>
+    </div><!-- /admSec-payroll -->
   </div>
 
   <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
@@ -2214,6 +2403,7 @@
     <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon dicon-red"><i class="fa-solid fa-triangle-exclamation"></i></span> تردد ناقص<span class="menu-badge" id="badge-admMenu-offline"></span></div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon dicon-navy"><i class="fa-solid fa-chart-column"></i></span> گزارش</div>
     <div class="drawer-item" id="admMenu-performance" onclick="showAdminSection('performance')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکردها</div>
+    <div class="drawer-item" id="admMenu-payroll" onclick="showAdminSection('payroll')"><span class="dicon dicon-teal"><i class="fa-solid fa-money-check-dollar"></i></span> حقوق و دستمزد</div>
     <div class="drawer-nav-group-title">سیستم</div>
     <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon dicon-gray"><i class="fa-solid fa-gear"></i></span> تنظیمات</div>
     <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon dicon-teal"><i class="fa-solid fa-clock-rotate-left"></i></span> ثبت‌ها</div>
@@ -2228,6 +2418,7 @@
     <div class="drawer-item" id="empMenu-services" onclick="showEmpSection('services')"><span class="dicon dicon-orange"><i class="fa-solid fa-car-side"></i></span> سرویس‌ها<span class="menu-badge" id="badge-empMenu-services"></span></div>
     <div class="drawer-item" id="empMenu-history" onclick="showEmpSection('history')"><span class="dicon dicon-blue"><i class="fa-solid fa-list"></i></span> سوابق من</div>
     <div class="drawer-item" id="empMenu-perf" onclick="showEmpSection('perf')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکرد من</div>
+    <div class="drawer-item" id="empMenu-payslip" onclick="showEmpSection('payslip')"><span class="dicon dicon-teal"><i class="fa-solid fa-receipt"></i></span> فیشِ حقوقی</div>
     <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon dicon-orange"><i class="fa-solid fa-calendar-day"></i></span> عملکرد روزانه</div>
     <div class="drawer-item" id="empMenu-myshift" onclick="showEmpSection('myshift')"><span class="dicon dicon-purple"><i class="fa-solid fa-calendar-week"></i></span> شیفت‌هایِ من</div>
     <div class="drawer-item" id="empMenu-messages" onclick="showEmpSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها<span class="menu-badge" id="badge-empMenu-messages"></span></div>
@@ -4933,7 +5124,7 @@ function showEmpSection(name){
     });
   }
   _lastEmpSection = name;
-  ['checkin','request','services','history','perf','daily','myshift','messages'].forEach(function(s){
+  ['checkin','request','services','history','perf','payslip','daily','myshift','messages'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -4958,13 +5149,18 @@ function showEmpSection(name){
     var dailyBoxES = document.getElementById('dailyStatsCards');
     if(dailyBoxES) dailyBoxES.innerHTML = '<div class="empty">ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.</div>';
   }
+  else if(name === 'payslip'){
+    populateMonthYearFilter('myPayslipMonth','myPayslipYear', true);
+    var slipBoxES = document.getElementById('myPayslipBox');
+    if(slipBoxES) slipBoxES.innerHTML = '<div class="empty">ماه و سال را انتخاب کرده و «نمایشِ فیش» را بزنید.</div>';
+  }
   else if(name === 'myshift') loadMyShiftInfo();
   else if(name === 'messages') switchEmpMsgTab('sent');
   pushSectionHistory(name, name === 'checkin');
   closeDrawer();
 }
 function refreshCurrentAdminSection(){
-  var active = ['dashboard','employees','projects','requests','services','offline','report','settings'].find(function(s){
+  var active = ['dashboard','employees','projects','requests','services','offline','report','payroll','settings'].find(function(s){
     var sec = document.getElementById('admSec-'+s);
     return sec && sec.style.display !== 'none';
   }) || 'dashboard';
@@ -4993,7 +5189,7 @@ function showAdminSection(name){
     });
   }
   _lastAdminSection = name;
-  ['dashboard','employees','projects','shifts','requests','services','messages','offline','report','performance','settings'].forEach(function(s){
+  ['dashboard','employees','projects','shifts','requests','services','messages','offline','report','performance','payroll','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -5019,7 +5215,14 @@ async function refreshAdminSection(name){
   // wait time on top of the round-trip the section needed anyway.
   if(name === 'dashboard') await Promise.all([ensureEmployeesFresh(), loadDashboard()]);
   else if(name === 'offline') await Promise.all([ensureEmployeesFresh(), loadPendingOffline(), loadOpenSessions()]);
-  else if(name === 'employees') await loadEmployeesAdmin();
+  else if(name === 'employees'){
+    await loadEmployeesAdmin();
+    // کشوهایِ فرمِ پرسنل همیشه باید تمِ خودِ اپ رو داشته باشن — نه فقط وقتی فرم برایِ
+    // ویرایشِ یه پرسنلِ موجود باز می‌شه (حالتِ «افزودنِ پرسنل» هم از همین فرم استفاده می‌کنه).
+    autoWirePicker('empFormMaritalStatus', 'وضعیتِ تاهل');
+    autoWirePicker('empFormPayrollTaxable', 'مشمولِ مالیات');
+    autoWirePicker('empFormCarryoverMode', 'قانونِ انتقال');
+  }
   else if(name === 'projects') await loadProjectsAdmin();
   else if(name === 'shifts') await loadShiftsAdmin();
   else if(name === 'requests'){
@@ -5074,6 +5277,24 @@ async function refreshAdminSection(name){
     var pdfEmpSel = document.getElementById('pdfExportEmp');
     pdfEmpSel.innerHTML = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+(e.employeeCode?(' (کد '+esc(e.employeeCode)+')'):'')+'</option>'; }).join('');
     wireCustomPicker('pdfExportEmp', 'pdfExportEmpBtn', 'انتخاب پرسنل');
+  }
+  else if(name === 'payroll'){
+    await ensureEmployeesFresh();
+    var prEmpOpts = employees.map(function(e){ return '<option value="'+e.username+'">'+esc(e.fullName)+(e.employeeCode?(' (کد '+esc(e.employeeCode)+')'):'')+'</option>'; }).join('');
+    ['prDecreeEmp','prChildEmp','prDedEmp','prSlipEmp'].forEach(function(selId){
+      var sel = document.getElementById(selId);
+      if(sel) sel.innerHTML = '<option value="">— انتخاب پرسنل —</option>' + prEmpOpts;
+    });
+    ['prDecreeMonth','prDedStartMonth'].forEach(function(selId){
+      var msel = document.getElementById(selId);
+      if(msel && !msel.options.length) msel.innerHTML = jMonths.map(function(m,i){ return '<option value="'+(i+1)+'">'+m+'</option>'; }).join('');
+    });
+    populateMonthYearFilter('prSlipMonth','prSlipYear', true);
+    ['prDecreeEmp','prChildEmp','prDedEmp','prSlipEmp'].forEach(function(id){ autoWirePicker(id, 'انتخاب پرسنل'); });
+    autoWirePicker('prDecreeMonth', 'ماهِ اجرا');
+    autoWirePicker('prDedStartMonth', 'ماهِ شروع');
+    autoWirePicker('prDedType', 'نوعِ کسورات');
+    showPayrollTab(_payrollTab || 'decrees');
   }
   else if(name === 'settings'){
     var emailRes = await apiCall(function(){ return apiPost('getNotifyEmail', {pin:adminPin}); });
@@ -5646,6 +5867,11 @@ function startEditEmp(id){
   document.getElementById('empFormJobTitle').value = emp.jobTitle || '';
   document.getElementById('empFormJobGroup').value = emp.jobGroup || '';
   document.getElementById('empFormNationalId').value = emp.nationalId || '';
+  document.getElementById('empFormMaritalStatus').value = emp.maritalStatus || '';
+  document.getElementById('empFormWageGroup').value = emp.payrollWageGroup || '';
+  document.getElementById('empFormPayrollTaxable').value = emp.payrollTaxable || 'بله';
+  autoWirePicker('empFormMaritalStatus', 'وضعیتِ تاهل');
+  autoWirePicker('empFormPayrollTaxable', 'مشمولِ مالیات');
   initLeaveDateSelects();
   if(emp.hireDate) setDateSelectValue('empHireDate', emp.hireDate);
   document.getElementById('empFormLeaveBalance').value = (emp.leaveBalanceOverride !== undefined && emp.leaveBalanceOverride !== '') ? emp.leaveBalanceOverride : '';
@@ -5688,6 +5914,11 @@ function cancelEmpEdit(){
   document.getElementById('empFormJobTitle').value = '';
   document.getElementById('empFormJobGroup').value = '';
   document.getElementById('empFormNationalId').value = '';
+  document.getElementById('empFormMaritalStatus').value = '';
+  document.getElementById('empFormWageGroup').value = '';
+  document.getElementById('empFormPayrollTaxable').value = 'بله';
+  syncCustomSelectDisplay('empFormMaritalStatus', 'empFormMaritalStatus_pickerBtn');
+  syncCustomSelectDisplay('empFormPayrollTaxable', 'empFormPayrollTaxable_pickerBtn');
   document.getElementById('empFormPhoto').value = '';
   document.getElementById('empFormPhotoPreview').style.display = 'none';
   pendingPhotoDataUrl = null;
@@ -5793,7 +6024,10 @@ async function saveEmployee(){
     var leaveBalanceOverride = document.getElementById('empFormLeaveBalance').value.trim();
     var leaveCarryoverMode = document.getElementById('empFormCarryoverMode').value;
     var leaveCarryoverCap = document.getElementById('empFormCarryoverCap').value.trim();
-    var leavePayload = {hireDate:hireDate, leaveBalanceOverride:leaveBalanceOverride, leaveCarryoverMode:leaveCarryoverMode, leaveCarryoverCap:leaveCarryoverCap};
+    var leavePayload = {hireDate:hireDate, leaveBalanceOverride:leaveBalanceOverride, leaveCarryoverMode:leaveCarryoverMode, leaveCarryoverCap:leaveCarryoverCap,
+      maritalStatus: document.getElementById('empFormMaritalStatus').value,
+      payrollWageGroup: document.getElementById('empFormWageGroup').value.trim(),
+      payrollTaxable: document.getElementById('empFormPayrollTaxable').value};
     var res;
     if(editingEmpId){
       res = await apiCall(function(){ return apiPost('updateEmployee', Object.assign({pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
@@ -8803,6 +9037,468 @@ function exportPerformanceCSV(){
   link.href = URL.createObjectURL(blob);
   link.download = 'گزارش-کارکرد-'+monthName+'-'+yearVal+'.csv';
   link.click();
+}
+
+// ================= حقوق و دستمزد =================
+// همه‌یِ جدول‌هایِ مرجع (گروهِ شغلی، پایه سنوات، مالیات، بیمه) و حکم‌هایِ حقوقی کاملاً دستی و
+// توسطِ خودِ مدیر تعریف می‌شن؛ هیچ عددی از جایِ دیگه‌ای خودکار وارد نمی‌شه. تنها دادهٔ خودکار،
+// ساعت/روزهایِ کارکرده که سرور از همون موتورِ «کارکردها»یِ خودِ سایت برمی‌داره.
+var _payrollTab = 'decrees';
+var _prWageGroups = [], _prSeniority = [], _prTaxBrackets = [];
+var _prEditWageGroupId = null, _prEditSeniorityId = null, _prEditTaxId = null, _prEditDecreeId = null;
+function fmtRial(n){
+  var v = Math.round(Number(n)||0);
+  return v.toLocaleString('en-US');
+}
+function showPayrollTab(name){
+  _payrollTab = name;
+  ['decrees','groups','seniority','tax','insurance','children','deductions','slip'].forEach(function(t){
+    var sec = document.getElementById('prTab-'+t);
+    var btn = document.getElementById('prTabBtn-'+t);
+    if(sec) sec.style.display = (t===name) ? 'block' : 'none';
+    if(btn) btn.classList.toggle('btn-primary', t===name);
+  });
+  if(name === 'groups') loadPayrollWageGroups();
+  else if(name === 'seniority') loadPayrollSeniority();
+  else if(name === 'tax') loadPayrollTaxBrackets();
+  else if(name === 'insurance') loadPayrollItemRules();
+}
+// ---------- گروه‌هایِ شغلی ----------
+async function loadPayrollWageGroups(){
+  var res = await apiCall(function(){ return apiPost('listPayrollWageGroups', {pin:adminPin}); });
+  if(!res.ok){ document.getElementById('prGroupList').innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  _prWageGroups = res.rows || [];
+  renderPayrollWageGroups();
+}
+function renderPayrollWageGroups(){
+  var box = document.getElementById('prGroupList');
+  if(!box) return;
+  var q = (document.getElementById('prGroupFilter').value||'').trim();
+  var list = _prWageGroups.filter(function(r){ return !q || String(r.year).indexOf(q) !== -1; });
+  list.sort(function(a,b){ return (Number(b.year)-Number(a.year)) || (Number(a.groupNum)-Number(b.groupNum)); });
+  if(!list.length){ box.innerHTML = '<div class="empty">چیزی ثبت نشده</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    return '<div class="list-item"><div><b>گروه '+esc(r.groupNum)+'</b> — سال '+esc(r.year)+
+      '<div class="meta mono">'+fmtRial(r.dailyBase)+' ریال در روز</div></div>'+
+      '<div class="actions">'+
+        '<button class="icon-btn edit" title="ویرایش" onclick="startEditPayrollWageGroup(\''+r.id+'\')">✏️</button>'+
+        '<button class="icon-btn del" title="حذف" onclick="deletePayrollWageGroupBtn(\''+r.id+'\')">🗑</button>'+
+      '</div></div>';
+  }).join('');
+}
+function startEditPayrollWageGroup(id){
+  var r = _prWageGroups.filter(function(x){ return x.id === id; })[0];
+  if(!r) return;
+  _prEditWageGroupId = id;
+  document.getElementById('prGroupYear').value = r.year;
+  document.getElementById('prGroupNum').value = r.groupNum;
+  document.getElementById('prGroupDaily').value = r.dailyBase;
+  document.getElementById('prGroupSaveBtn').textContent = '💾 بروزرسانی';
+  document.getElementById('prGroupCancelBtn').style.display = 'block';
+}
+function cancelPayrollWageGroupEdit(){
+  _prEditWageGroupId = null;
+  document.getElementById('prGroupYear').value = '';
+  document.getElementById('prGroupNum').value = '';
+  document.getElementById('prGroupDaily').value = '';
+  document.getElementById('prGroupSaveBtn').textContent = '💾 ثبت';
+  document.getElementById('prGroupCancelBtn').style.display = 'none';
+}
+async function savePayrollWageGroup(){
+  var payload = {
+    pin: adminPin,
+    year: document.getElementById('prGroupYear').value,
+    groupNum: document.getElementById('prGroupNum').value,
+    dailyBase: document.getElementById('prGroupDaily').value
+  };
+  if(!payload.year || !payload.groupNum || payload.dailyBase === ''){ alert('سال، گروه و مبلغ را کامل وارد کن'); return; }
+  if(_prEditWageGroupId) payload.id = _prEditWageGroupId;
+  var action = _prEditWageGroupId ? 'updatePayrollWageGroup' : 'addPayrollWageGroup';
+  var res = await apiCall(function(){ return apiPost(action, payload); });
+  if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
+  cancelPayrollWageGroupEdit();
+  await loadPayrollWageGroups();
+}
+async function deletePayrollWageGroupBtn(id){
+  if(!(await showAppConfirm('این ردیف حذف بشه؟'))) return;
+  var res = await apiCall(function(){ return apiPost('deletePayrollWageGroup', {pin:adminPin, id:id}); });
+  if(!res.ok){ alert('حذف ناموفق بود: ' + (res.error||'')); return; }
+  await loadPayrollWageGroups();
+}
+// ---------- پایه سنوات ----------
+async function loadPayrollSeniority(){
+  var res = await apiCall(function(){ return apiPost('listPayrollSeniority', {pin:adminPin}); });
+  if(!res.ok){ document.getElementById('prSenList').innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  _prSeniority = res.rows || [];
+  renderPayrollSeniority();
+}
+function renderPayrollSeniority(){
+  var box = document.getElementById('prSenList');
+  if(!box) return;
+  var q = (document.getElementById('prSenFilter').value||'').trim();
+  var list = _prSeniority.filter(function(r){ return !q || String(r.year).indexOf(q) !== -1 || String(r.groupNum) === q; });
+  list.sort(function(a,b){ return (Number(b.year)-Number(a.year)) || (Number(a.groupNum)-Number(b.groupNum)) || (Number(a.yearsOfService)-Number(b.yearsOfService)); });
+  if(!list.length){ box.innerHTML = '<div class="empty">چیزی ثبت نشده</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    return '<div class="list-item"><div><b>گروه '+esc(r.groupNum)+'</b> — سال '+esc(r.year)+' · سابقه '+esc(r.yearsOfService)+' سال'+
+      '<div class="meta mono">'+fmtRial(r.dailyAmount)+' ریال در روز</div></div>'+
+      '<div class="actions">'+
+        '<button class="icon-btn edit" title="ویرایش" onclick="startEditPayrollSeniority(\''+r.id+'\')">✏️</button>'+
+        '<button class="icon-btn del" title="حذف" onclick="deletePayrollSeniorityBtn(\''+r.id+'\')">🗑</button>'+
+      '</div></div>';
+  }).join('');
+}
+function startEditPayrollSeniority(id){
+  var r = _prSeniority.filter(function(x){ return x.id === id; })[0];
+  if(!r) return;
+  _prEditSeniorityId = id;
+  document.getElementById('prSenYear').value = r.year;
+  document.getElementById('prSenGroup').value = r.groupNum;
+  document.getElementById('prSenYears').value = r.yearsOfService;
+  document.getElementById('prSenAmount').value = r.dailyAmount;
+  document.getElementById('prSenSaveBtn').textContent = '💾 بروزرسانی';
+  document.getElementById('prSenCancelBtn').style.display = 'block';
+}
+function cancelPayrollSeniorityEdit(){
+  _prEditSeniorityId = null;
+  ['prSenYear','prSenGroup','prSenYears','prSenAmount'].forEach(function(id){ document.getElementById(id).value = ''; });
+  document.getElementById('prSenSaveBtn').textContent = '💾 ثبت';
+  document.getElementById('prSenCancelBtn').style.display = 'none';
+}
+async function savePayrollSeniority(){
+  var payload = {
+    pin: adminPin,
+    year: document.getElementById('prSenYear').value,
+    groupNum: document.getElementById('prSenGroup').value,
+    yearsOfService: document.getElementById('prSenYears').value,
+    dailyAmount: document.getElementById('prSenAmount').value
+  };
+  if(!payload.year || !payload.groupNum || payload.yearsOfService === '' || payload.dailyAmount === ''){ alert('همه‌ی خانه‌ها را کامل وارد کن'); return; }
+  if(_prEditSeniorityId) payload.id = _prEditSeniorityId;
+  var action = _prEditSeniorityId ? 'updatePayrollSeniority' : 'addPayrollSeniority';
+  var res = await apiCall(function(){ return apiPost(action, payload); });
+  if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
+  cancelPayrollSeniorityEdit();
+  await loadPayrollSeniority();
+}
+async function deletePayrollSeniorityBtn(id){
+  if(!(await showAppConfirm('این ردیف حذف بشه؟'))) return;
+  var res = await apiCall(function(){ return apiPost('deletePayrollSeniority', {pin:adminPin, id:id}); });
+  if(!res.ok){ alert('حذف ناموفق بود: ' + (res.error||'')); return; }
+  await loadPayrollSeniority();
+}
+// ---------- جدول مالیات ----------
+async function loadPayrollTaxBrackets(){
+  var res = await apiCall(function(){ return apiPost('listPayrollTaxBrackets', {pin:adminPin}); });
+  if(!res.ok){ document.getElementById('prTaxList').innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  _prTaxBrackets = res.rows || [];
+  renderPayrollTaxBrackets();
+}
+function renderPayrollTaxBrackets(){
+  var box = document.getElementById('prTaxList');
+  if(!box) return;
+  var list = _prTaxBrackets.slice().sort(function(a,b){ return (Number(b.year)-Number(a.year)) || (Number(a.fromRial)-Number(b.fromRial)); });
+  if(!list.length){ box.innerHTML = '<div class="empty">چیزی ثبت نشده</div>'; return; }
+  box.innerHTML = list.map(function(r){
+    var toTxt = (r.toRial === '' || r.toRial === null || r.toRial === undefined) ? 'بی‌سقف' : (fmtRial(r.toRial)+' ریال');
+    return '<div class="list-item"><div><b>سال '+esc(r.year)+'</b> — '+Math.round(Number(r.percent)*100)+'٪'+
+      '<div class="meta mono">از '+fmtRial(r.fromRial)+' تا '+esc(toTxt)+'</div></div>'+
+      '<div class="actions">'+
+        '<button class="icon-btn edit" title="ویرایش" onclick="startEditPayrollTax(\''+r.id+'\')">✏️</button>'+
+        '<button class="icon-btn del" title="حذف" onclick="deletePayrollTaxBtn(\''+r.id+'\')">🗑</button>'+
+      '</div></div>';
+  }).join('');
+}
+function startEditPayrollTax(id){
+  var r = _prTaxBrackets.filter(function(x){ return x.id === id; })[0];
+  if(!r) return;
+  _prEditTaxId = id;
+  document.getElementById('prTaxYear').value = r.year;
+  document.getElementById('prTaxPercent').value = r.percent;
+  document.getElementById('prTaxFrom').value = r.fromRial;
+  document.getElementById('prTaxTo').value = (r.toRial === '' || r.toRial === null || r.toRial === undefined) ? '' : r.toRial;
+  document.getElementById('prTaxSaveBtn').textContent = '💾 بروزرسانی';
+  document.getElementById('prTaxCancelBtn').style.display = 'block';
+}
+function cancelPayrollTaxEdit(){
+  _prEditTaxId = null;
+  ['prTaxYear','prTaxPercent','prTaxFrom','prTaxTo'].forEach(function(id){ document.getElementById(id).value = ''; });
+  document.getElementById('prTaxSaveBtn').textContent = '💾 ثبت';
+  document.getElementById('prTaxCancelBtn').style.display = 'none';
+}
+async function savePayrollTaxBracket(){
+  var payload = {
+    pin: adminPin,
+    year: document.getElementById('prTaxYear').value,
+    percent: document.getElementById('prTaxPercent').value,
+    fromRial: document.getElementById('prTaxFrom').value || 0,
+    toRial: document.getElementById('prTaxTo').value
+  };
+  if(!payload.year || payload.percent === ''){ alert('سال و درصد را وارد کن'); return; }
+  if(_prEditTaxId) payload.id = _prEditTaxId;
+  var action = _prEditTaxId ? 'updatePayrollTaxBracket' : 'addPayrollTaxBracket';
+  var res = await apiCall(function(){ return apiPost(action, payload); });
+  if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
+  cancelPayrollTaxEdit();
+  await loadPayrollTaxBrackets();
+}
+async function deletePayrollTaxBtn(id){
+  if(!(await showAppConfirm('این پله حذف بشه؟'))) return;
+  var res = await apiCall(function(){ return apiPost('deletePayrollTaxBracket', {pin:adminPin, id:id}); });
+  if(!res.ok){ alert('حذف ناموفق بود: ' + (res.error||'')); return; }
+  await loadPayrollTaxBrackets();
+}
+// ---------- بیمه و مالیاتِ هر آیتم ----------
+async function loadPayrollItemRules(){
+  var res = await apiCall(function(){ return apiPost('getPayrollItemRules', {pin:adminPin}); });
+  if(!res.ok){ document.getElementById('prInsList').innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  document.getElementById('prInsEmployeeRate').value = res.employeeRate;
+  document.getElementById('prInsEmployerRate').value = res.employerRate;
+  var box = document.getElementById('prInsList');
+  box.innerHTML = (res.rows||[]).map(function(r){
+    return '<div class="list-item"><div><b>'+esc(r.itemLabel)+'</b>'+
+      '<div class="meta">'+
+        '<label class="chk-item" style="display:inline-flex; margin-inline-end:10px;"><input type="checkbox" '+(r.taxable==='بله'?'checked':'')+' onchange="savePayrollItemRule(\''+r.itemKey+'\')" id="prRuleTax-'+r.itemKey+'"> مشمولِ مالیات</label>'+
+        '<label class="chk-item" style="display:inline-flex;"><input type="checkbox" '+(r.insurable==='بله'?'checked':'')+' onchange="savePayrollItemRule(\''+r.itemKey+'\')" id="prRuleIns-'+r.itemKey+'"> مشمولِ بیمه</label>'+
+      '</div></div></div>';
+  }).join('');
+}
+async function savePayrollItemRule(itemKey){
+  var taxable = document.getElementById('prRuleTax-'+itemKey).checked ? 'بله' : 'خیر';
+  var insurable = document.getElementById('prRuleIns-'+itemKey).checked ? 'بله' : 'خیر';
+  var res = await apiCall(function(){ return apiPost('updatePayrollItemRule', {pin:adminPin, itemKey:itemKey, taxable:taxable, insurable:insurable}); });
+  if(!res.ok) alert('ثبت ناموفق بود: ' + (res.error||''));
+}
+async function savePayrollInsuranceRates(){
+  var res = await apiCall(function(){ return apiPost('setPayrollInsuranceRates', {
+    pin: adminPin,
+    employeeRate: document.getElementById('prInsEmployeeRate').value,
+    employerRate: document.getElementById('prInsEmployerRate').value
+  }); });
+  if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
+  alert('نرخ‌ها ذخیره شد.');
+}
+// ---------- تعریف حقوق (حکمِ حقوقی) ----------
+var _prDecrees = [];
+async function loadPayrollDecrees(){
+  var username = document.getElementById('prDecreeEmp').value;
+  var box = document.getElementById('prDecreeList');
+  if(!username){ box.innerHTML = '<div class="empty">یک پرسنل انتخاب کن</div>'; _prDecrees = []; return; }
+  var res = await apiCall(function(){ return apiPost('listPayrollDecrees', {pin:adminPin, username:username}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  _prDecrees = res.rows || [];
+  if(!_prDecrees.length){ box.innerHTML = '<div class="empty">برایِ این پرسنل هنوز حکمی ثبت نشده</div>'; return; }
+  var sorted = _prDecrees.slice().sort(function(a,b){ return (Number(b.effectiveYear)*12+Number(b.effectiveMonth)) - (Number(a.effectiveYear)*12+Number(a.effectiveMonth)); });
+  box.innerHTML = sorted.map(function(r){
+    return '<div class="list-item"><div><b>اجرا از '+esc(jMonths[Number(r.effectiveMonth)-1]||'')+' '+esc(r.effectiveYear)+'</b>'+
+      '<div class="meta mono">مسکن '+fmtRial(r.housingAllowance)+' · بن '+fmtRial(r.foodAllowance)+' · پاداش '+fmtRial(r.bonus)+'</div>'+
+      '<div class="meta mono">ض.اضافه‌کاری '+esc(r.overtimePercent)+' · ض.شب‌کاری '+esc(r.nightPercent)+' · ض.تعطیل‌کاری '+esc(r.holidayPercent)+'</div></div>'+
+      '<div class="actions">'+
+        '<button class="icon-btn edit" title="ویرایش" onclick="startEditPayrollDecree(\''+r.id+'\')">✏️</button>'+
+        '<button class="icon-btn del" title="حذف" onclick="deletePayrollDecreeBtn(\''+r.id+'\')">🗑</button>'+
+      '</div></div>';
+  }).join('');
+}
+function startEditPayrollDecree(id){
+  var r = _prDecrees.filter(function(x){ return x.id === id; })[0];
+  if(!r) return;
+  _prEditDecreeId = id;
+  document.getElementById('prDecreeYear').value = r.effectiveYear;
+  document.getElementById('prDecreeMonth').value = r.effectiveMonth;
+  syncCustomSelectDisplay('prDecreeMonth', 'prDecreeMonth_pickerBtn');
+  document.getElementById('prDecreeHousing').value = r.housingAllowance;
+  document.getElementById('prDecreeFood').value = r.foodAllowance;
+  document.getElementById('prDecreeOvertime').value = r.overtimePercent;
+  document.getElementById('prDecreeNight').value = r.nightPercent;
+  document.getElementById('prDecreeShift').value = r.shiftPercent;
+  document.getElementById('prDecreeHoliday').value = r.holidayPercent;
+  document.getElementById('prDecreeMarriage').value = r.marriageAllowance;
+  document.getElementById('prDecreeMission').value = r.missionDailyAmount;
+  document.getElementById('prDecreeBonus').value = r.bonus;
+  document.getElementById('prDecreeFormTitle').textContent = 'ویرایشِ حکم';
+  document.getElementById('prDecreeSaveBtn').textContent = '💾 بروزرسانیِ حکم';
+  document.getElementById('prDecreeCancelBtn').style.display = 'block';
+}
+function cancelPayrollDecreeEdit(){
+  _prEditDecreeId = null;
+  ['prDecreeYear','prDecreeHousing','prDecreeFood','prDecreeOvertime','prDecreeNight','prDecreeShift','prDecreeHoliday','prDecreeMarriage','prDecreeMission','prDecreeBonus'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value = '';
+  });
+  var msgEl = document.getElementById('prDecreeMsg'); if(msgEl) msgEl.textContent = '';
+  var titleEl = document.getElementById('prDecreeFormTitle'); if(titleEl) titleEl.textContent = 'افزودنِ حکمِ جدید';
+  var saveEl = document.getElementById('prDecreeSaveBtn'); if(saveEl) saveEl.textContent = '💾 ثبتِ حکم';
+  var cancelEl = document.getElementById('prDecreeCancelBtn'); if(cancelEl) cancelEl.style.display = 'none';
+}
+async function savePayrollDecree(){
+  var username = document.getElementById('prDecreeEmp').value;
+  if(!username){ alert('اول یک پرسنل انتخاب کن'); return; }
+  var emp = employees.filter(function(e){ return e.username === username; })[0];
+  var payload = {
+    pin: adminPin, username: username, employeeCode: emp ? (emp.employeeCode||'') : '',
+    effectiveYear: document.getElementById('prDecreeYear').value,
+    effectiveMonth: document.getElementById('prDecreeMonth').value,
+    housingAllowance: document.getElementById('prDecreeHousing').value || 0,
+    foodAllowance: document.getElementById('prDecreeFood').value || 0,
+    overtimePercent: document.getElementById('prDecreeOvertime').value || 0,
+    nightPercent: document.getElementById('prDecreeNight').value || 0,
+    shiftPercent: document.getElementById('prDecreeShift').value || 0,
+    holidayPercent: document.getElementById('prDecreeHoliday').value || 0,
+    marriageAllowance: document.getElementById('prDecreeMarriage').value || 0,
+    missionDailyAmount: document.getElementById('prDecreeMission').value || 0,
+    bonus: document.getElementById('prDecreeBonus').value || 0
+  };
+  if(!payload.effectiveYear){ alert('سالِ اجرا را وارد کن'); return; }
+  if(_prEditDecreeId) payload.id = _prEditDecreeId;
+  var action = _prEditDecreeId ? 'updatePayrollDecree' : 'addPayrollDecree';
+  var res = await apiCall(function(){ return apiPost(action, payload); });
+  if(!res.ok){ document.getElementById('prDecreeMsg').textContent = '⛔ ثبت ناموفق بود: ' + (res.error||''); return; }
+  cancelPayrollDecreeEdit();
+  document.getElementById('prDecreeMsg').textContent = '✅ ثبت شد.';
+  await loadPayrollDecrees();
+}
+async function deletePayrollDecreeBtn(id){
+  if(!(await showAppConfirm('این حکم حذف بشه؟'))) return;
+  var res = await apiCall(function(){ return apiPost('deletePayrollDecree', {pin:adminPin, id:id}); });
+  if(!res.ok){ alert('حذف ناموفق بود: ' + (res.error||'')); return; }
+  await loadPayrollDecrees();
+}
+// ---------- حق اولاد ----------
+async function loadPayrollChildren(){
+  var username = document.getElementById('prChildEmp').value;
+  var box = document.getElementById('prChildList');
+  if(!username){ box.innerHTML = '<div class="empty">یک پرسنل انتخاب کن</div>'; return; }
+  var res = await apiCall(function(){ return apiPost('listPayrollChildren', {pin:adminPin, username:username}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  var rows = res.rows || [];
+  if(!rows.length){ box.innerHTML = '<div class="empty">فرزندی ثبت نشده</div>'; return; }
+  box.innerHTML = rows.map(function(r){
+    return '<div class="list-item"><div><b>'+esc(r.childName)+'</b>'+
+      '<div class="meta mono">'+esc(r.nationalId||'')+(r.birthDate?(' · '+esc(r.birthDate)):'')+'</div></div>'+
+      '<div class="actions"><button class="icon-btn del" title="حذف" onclick="deletePayrollChildBtn(\''+r.id+'\')">🗑</button></div></div>';
+  }).join('');
+}
+async function savePayrollChild(){
+  var username = document.getElementById('prChildEmp').value;
+  if(!username){ alert('اول یک پرسنل انتخاب کن'); return; }
+  var name = document.getElementById('prChildName').value.trim();
+  if(!name){ alert('نامِ فرزند را وارد کن'); return; }
+  var emp = employees.filter(function(e){ return e.username === username; })[0];
+  var res = await apiCall(function(){ return apiPost('addPayrollChild', {
+    pin: adminPin, username: username, employeeCode: emp ? (emp.employeeCode||'') : '',
+    childName: name,
+    nationalId: document.getElementById('prChildNationalId').value.trim(),
+    birthDate: document.getElementById('prChildBirth').value.trim()
+  }); });
+  if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
+  ['prChildName','prChildNationalId','prChildBirth'].forEach(function(id){ document.getElementById(id).value = ''; });
+  await loadPayrollChildren();
+}
+async function deletePayrollChildBtn(id){
+  if(!(await showAppConfirm('این فرزند حذف بشه؟'))) return;
+  var res = await apiCall(function(){ return apiPost('deletePayrollChild', {pin:adminPin, id:id}); });
+  if(!res.ok){ alert('حذف ناموفق بود: ' + (res.error||'')); return; }
+  await loadPayrollChildren();
+}
+// ---------- وام و کسورات ----------
+async function loadPayrollDeductions(){
+  var username = document.getElementById('prDedEmp').value;
+  var box = document.getElementById('prDedList');
+  if(!username){ box.innerHTML = '<div class="empty">یک پرسنل انتخاب کن</div>'; return; }
+  var res = await apiCall(function(){ return apiPost('listPayrollDeductions', {pin:adminPin, username:username}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  var rows = res.rows || [];
+  if(!rows.length){ box.innerHTML = '<div class="empty">چیزی ثبت نشده</div>'; return; }
+  // ردیف‌هایِ یک وام (همه‌یِ قسط‌هاش) زیرِ یک کارت جمع می‌شن تا لیست شلوغ نشه.
+  var byLoan = {};
+  rows.forEach(function(r){ (byLoan[r.loanId] = byLoan[r.loanId] || []).push(r); });
+  box.innerHTML = Object.keys(byLoan).map(function(loanId){
+    var items = byLoan[loanId].sort(function(a,b){ return Number(a.installmentIndex)-Number(b.installmentIndex); });
+    var f = items[0];
+    var monthsTxt = items.map(function(i){ return (jMonths[Number(i.applyMonth)-1]||'')+' '+i.applyYear; }).join('، ');
+    return '<div class="list-item"><div><b>'+esc(f.type)+'</b> — '+fmtRial(f.totalAmount)+' ریال در '+esc(f.installmentCount)+' قسط'+
+      '<div class="meta mono">هر قسط '+fmtRial(f.installmentAmount)+' ریال</div>'+
+      (f.description?('<div class="meta">'+esc(f.description)+'</div>'):'')+
+      '<div class="meta" style="font-size:10px;">'+esc(monthsTxt)+'</div></div>'+
+      '<div class="actions"><button class="icon-btn del" title="حذفِ کلِ این وام" onclick="deletePayrollDeductionSeriesBtn(\''+loanId+'\')">🗑</button></div></div>';
+  }).join('');
+}
+async function savePayrollDeductionSeries(){
+  var username = document.getElementById('prDedEmp').value;
+  if(!username){ alert('اول یک پرسنل انتخاب کن'); return; }
+  var emp = employees.filter(function(e){ return e.username === username; })[0];
+  var payload = {
+    pin: adminPin, username: username, employeeCode: emp ? (emp.employeeCode||'') : '',
+    type: document.getElementById('prDedType').value,
+    totalAmount: document.getElementById('prDedTotal').value,
+    installmentCount: document.getElementById('prDedCount').value,
+    startYear: document.getElementById('prDedStartYear').value,
+    startMonth: document.getElementById('prDedStartMonth').value,
+    description: document.getElementById('prDedDesc').value.trim()
+  };
+  if(!payload.totalAmount || !payload.installmentCount || !payload.startYear){ alert('مبلغ، تعدادِ اقساط و سالِ شروع را وارد کن'); return; }
+  var res = await apiCall(function(){ return apiPost('addPayrollDeductionSeries', payload); });
+  if(!res.ok){ alert('ثبت ناموفق بود: ' + (res.error||'')); return; }
+  ['prDedTotal','prDedCount','prDedDesc'].forEach(function(id){ document.getElementById(id).value = ''; });
+  await loadPayrollDeductions();
+}
+async function deletePayrollDeductionSeriesBtn(loanId){
+  if(!(await showAppConfirm('کلِ قسط‌هایِ این مورد حذف بشه؟'))) return;
+  var res = await apiCall(function(){ return apiPost('deletePayrollDeductionSeries', {pin:adminPin, loanId:loanId}); });
+  if(!res.ok){ alert('حذف ناموفق بود: ' + (res.error||'')); return; }
+  await loadPayrollDeductions();
+}
+// ---------- فیشِ حقوقی ----------
+function renderPayslipHtml(slip, monthName){
+  var payRows = slip.payments.filter(function(p){ return Math.round(p.amount) !== 0; }).map(function(p){
+    return '<div style="display:flex; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--border-soft);">'+
+      '<span style="color:var(--muted); font-size:13px;">'+esc(p.label)+'</span>'+
+      '<span class="mono" style="font-weight:700;">'+fmtRial(p.amount)+'</span></div>';
+  }).join('');
+  var dedRows = slip.deductions.filter(function(d){ return Math.round(d.amount) !== 0; }).map(function(d){
+    return '<div style="display:flex; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--border-soft);">'+
+      '<span style="color:var(--muted); font-size:13px;">'+esc(d.label)+'</span>'+
+      '<span class="mono" style="font-weight:700;">'+fmtRial(d.amount)+'</span></div>';
+  }).join('');
+  var warn = slip.decreeFound ? '' : '<div class="hint" style="color:#a32a2a;">⚠️ برایِ این پرسنل تا این ماه هیچ حکمِ حقوقی ثبت نشده — مبالغِ حکمی صفر حساب شده‌ان.</div>';
+  return '<div class="card" style="margin-bottom:0;">'+
+    '<div class="eyebrow">'+esc(slip.employee.fullName)+(slip.employee.employeeCode?(' <span class="mono" style="font-size:12px; color:var(--muted);">(کد '+esc(slip.employee.employeeCode)+')</span>'):'')+'</div>'+
+    '<div class="hint" style="margin-top:-4px;">'+esc(monthName||'')+' '+esc(slip.year)+' · گروهِ شغلی '+esc(slip.employee.wageGroup||'—')+' · سابقه '+esc(slip.employee.yearsOfService)+' سال · '+esc(slip.employee.childCount)+' فرزند</div>'+
+    warn+
+    '<div class="eyebrow" style="margin-top:10px;">پرداخت‌ها (ریال)</div>'+ payRows +
+    '<div style="display:flex; justify-content:space-between; padding:9px 4px; font-weight:800;"><span>جمعِ پرداخت‌ها</span><span class="mono">'+fmtRial(slip.grossPay)+'</span></div>'+
+    '<div class="eyebrow" style="margin-top:10px;">کسورات (ریال)</div>'+ (dedRows || '<div class="empty">کسوراتی نیست</div>') +
+    '<div style="display:flex; justify-content:space-between; padding:9px 4px; font-weight:800;"><span>جمعِ کسورات</span><span class="mono">'+fmtRial(slip.deductionsTotal)+'</span></div>'+
+    '<div style="display:flex; justify-content:space-between; padding:12px 4px; font-weight:800; font-size:16px; border-top:2px solid var(--navy-2); margin-top:6px;"><span>خالصِ پرداختی</span><span class="mono">'+fmtRial(slip.netPay)+'</span></div>'+
+    '<div class="hint" style="margin-top:8px;">کارکردِ محاسبه‌شده: اضافه‌کاری '+esc(slip.attendance.overtimeHours.toFixed(2))+' ساعت · شب‌کاری '+esc(slip.attendance.nightHours.toFixed(2))+' ساعت · جمعه/تعطیل '+esc(slip.attendance.fridayHolidayHours.toFixed(2))+' ساعت · ماموریت '+esc(slip.attendance.missionDays)+' روز</div>'+
+  '</div>';
+}
+async function loadAdminPayslip(){
+  var username = document.getElementById('prSlipEmp').value;
+  var monthName = document.getElementById('prSlipMonth').value;
+  var year = document.getElementById('prSlipYear').value;
+  var box = document.getElementById('prSlipBox');
+  if(!username || !monthName || !year){ box.innerHTML = '<div class="empty">پرسنل، ماه و سال را انتخاب کن.</div>'; return; }
+  box.innerHTML = '<div class="empty">در حال محاسبه...</div>';
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var res = await apiCall(function(){ return apiPost('getPayslip', {pin:adminPin, username:username, year:year, month:monthIdx}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">محاسبه ناموفق بود: '+esc(res.error||'')+'</div>'; return; }
+  box.innerHTML = renderPayslipHtml(res.slip, monthName) +
+    '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="window.print()">🖨 چاپ</button>';
+}
+async function loadMyPayslip(){
+  var monthName = document.getElementById('myPayslipMonth').value;
+  var year = document.getElementById('myPayslipYear').value;
+  var box = document.getElementById('myPayslipBox');
+  if(!monthName || !year){ box.innerHTML = '<div class="empty">ماه و سال را انتخاب کنید.</div>'; return; }
+  box.innerHTML = '<div class="empty">در حال محاسبه...</div>';
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var res = await apiCall(function(){ return apiPost('getPayslip', {username: loggedInEmployee.username, year:year, month:monthIdx}); });
+  if(!res.ok){
+    box.innerHTML = '<div class="empty">'+(res.error === 'payroll_disabled' ? 'این بخش فعال نیست.' : ('دریافتِ فیش ناموفق بود: '+esc(res.error||'')))+'</div>';
+    return;
+  }
+  box.innerHTML = renderPayslipHtml(res.slip, monthName) +
+    '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="window.print()">🖨 چاپ</button>';
 }
 // ---------- Official print-form PDF export (admin only, one employee at a time) ----------
 async function generateEmployeeFormExcel(){
