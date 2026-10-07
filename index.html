@@ -495,18 +495,6 @@
     #adminGate, #empLoginGate, .hamburger-btn, .cal-icon-btn, .req-fab, .side-drawer, .drawer-overlay,
     #tabEmpBtn, #tabAdminBtn, .req-tabs, .day-nav { display:none !important; }
     @page{ size:A4 portrait; margin:6mm; }
-    /* چاپِ یک کادرِ مشخص (مثلِ فیشِ حقوقی): بقیه‌یِ صفحه — فرم‌ها، فیلترها، بخش‌هایِ دیگه —
-       نباید رویِ کاغذ بیان. visibility به‌جایِ display استفاده شده تا چیدمانِ خودِ کادر
-       به‌هم نریزه. */
-    body.print-one *{ visibility:hidden !important; }
-    body.print-one .print-target, body.print-one .print-target *{ visibility:visible !important; }
-    body.print-one .print-target{
-      position:absolute; top:0; right:0; left:0; width:100%;
-      margin:0 !important; padding:0 !important; box-shadow:none !important;
-    }
-    body.print-one .print-target .btn{ display:none !important; }
-    /* رنگِ هدرِ ستون‌هایِ فیش (سبز/قرمز/آبی) باید رویِ کاغذ هم بمونه. */
-    .print-target *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
   }
 
   .hamburger-btn{
@@ -9659,7 +9647,8 @@ async function loadAdminPayslip(){
   var res = await apiCall(function(){ return apiPost('getPayslip', {pin:adminPin, username:username, year:year, month:monthIdx}); });
   if(!res.ok){ box.innerHTML = '<div class="empty">محاسبه ناموفق بود: '+esc(res.error||'')+'</div>'; return; }
   box.innerHTML = renderPayslipHtml(res.slip, monthName, true) +
-    '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="printElement(\'prSlipBox\')">🖨 چاپ</button>';
+    '<button type="button" class="btn btn-ghost" id="prSlipPdfBtn" style="margin-top:10px;">⬇️ دانلودِ PDF</button>';
+  wirePayslipPdfButton('prSlipPdfBtn', 'prSlipBox', res.slip, monthName);
 }
 async function loadMyPayslip(){
   var monthName = document.getElementById('myPayslipMonth').value;
@@ -9674,7 +9663,8 @@ async function loadMyPayslip(){
     return;
   }
   box.innerHTML = renderPayslipHtml(res.slip, monthName) +
-    '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="printElement(\'myPayslipBox\')">🖨 چاپ</button>';
+    '<button type="button" class="btn btn-ghost" id="myPayslipPdfBtn" style="margin-top:10px;">⬇️ دانلودِ PDF</button>';
+  wirePayslipPdfButton('myPayslipPdfBtn', 'myPayslipBox', res.slip, monthName);
 }
 // ---------- Official print-form PDF export (admin only, one employee at a time) ----------
 async function generateEmployeeFormExcel(){
@@ -10655,28 +10645,80 @@ async function loadMyPerf(){
     '</div>';
   }).join('');
 }
-// فقط همون کادری که بهش داده می‌شه چاپ می‌شه، نه کلِ صفحه.
-// نکته‌یِ مهم: window.print() باید دقیقاً همون لحظه‌ی کلیک صدا زده بشه. اگه بندازیمش تویِ
-// setTimeout، مرورگرهایِ موبایل (کروم/سامسونگ) چون دیگه «اقدامِ کاربر» حسابش نمی‌کنن،
-// بی‌هیچ پیامی بلاکش می‌کنن و دکمه ظاهراً هیچ کاری نمی‌کنه.
-function printElement(boxId){
+// ---------- خروجیِ PDF ----------
+// کتابخانه فقط همون لحظه‌ای که کاربر دکمه رو می‌زنه بارگذاری می‌شه، نه موقعِ بازشدنِ سایت —
+// تا سرعتِ عادیِ اپ (مخصوصاً رویِ موبایل و اینترنتِ ضعیف) دست‌نخورده بمونه.
+var _pdfLibsPromise = null;
+function loadPdfLibs(){
+  if(_pdfLibsPromise) return _pdfLibsPromise;
+  function loadScript(src){
+    return new Promise(function(resolve, reject){
+      var sc = document.createElement('script');
+      sc.src = src;
+      sc.onload = resolve;
+      sc.onerror = function(){ reject(new Error('load_failed')); };
+      document.head.appendChild(sc);
+    });
+  }
+  _pdfLibsPromise = Promise.all([
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+  ]).catch(function(err){ _pdfLibsPromise = null; throw err; });
+  return _pdfLibsPromise;
+}
+// کادرِ داده‌شده رو به PDF تبدیل و دانلود می‌کنه. چون از رویِ خودِ صفحه عکس گرفته می‌شه،
+// فارسی و راست‌به‌چپ دقیقاً همون‌طوری درمیاد که رویِ صفحه دیده می‌شه — بدونِ دردسرِ
+// جاسازیِ فونت تویِ PDF.
+async function downloadElementPdf(boxId, fileName, btnEl){
   var el = document.getElementById(boxId);
-  if(!el){ window.print(); return; }
-  el.classList.add('print-target');
-  document.body.classList.add('print-one');
-  var cleanup = function(){
-    el.classList.remove('print-target');
-    document.body.classList.remove('print-one');
-    window.removeEventListener('afterprint', cleanup);
-  };
-  window.addEventListener('afterprint', cleanup);
-  try{ window.print(); }
-  finally{
-    // روی موبایل afterprint همیشه صدا زده نمی‌شه — این پشتیبانه تا صفحه قفلِ حالتِ چاپ نمونه.
-    setTimeout(cleanup, 3000);
+  if(!el) return;
+  var oldLabel = btnEl ? btnEl.textContent : '';
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = '⏳ در حال ساختِ فایل...'; }
+  // خودِ دکمه نباید تویِ فایل بیفته
+  var hidden = Array.prototype.slice.call(el.querySelectorAll('.btn'));
+  hidden.forEach(function(b){ b.style.visibility = 'hidden'; });
+  try{
+    await loadPdfLibs();
+    var canvas = await html2canvas(el, {scale: 2, backgroundColor: '#ffffff', useCORS: true});
+    var JsPdf = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    var pdf = new JsPdf({orientation: 'portrait', unit: 'mm', format: 'a4'});
+    var pageW = pdf.internal.pageSize.getWidth();
+    var pageH = pdf.internal.pageSize.getHeight();
+    var margin = 6;
+    var imgW = pageW - margin*2;
+    var imgH = canvas.height * imgW / canvas.width;
+    var img = canvas.toDataURL('image/jpeg', 0.95);
+    if(imgH <= pageH - margin*2){
+      pdf.addImage(img, 'JPEG', margin, margin, imgW, imgH);
+    } else {
+      // بلندتر از یک صفحه: همون تصویر رو صفحه‌به‌صفحه جابه‌جا می‌کنیم
+      var drawnH = 0;
+      while(drawnH < imgH){
+        pdf.addImage(img, 'JPEG', margin, margin - drawnH, imgW, imgH);
+        drawnH += (pageH - margin*2);
+        if(drawnH < imgH) pdf.addPage();
+      }
+    }
+    pdf.save(fileName);
+  }catch(err){
+    alert('ساختِ فایلِ PDF ناموفق بود' + (err && err.message === 'load_failed' ? ' — برایِ بارِ اول به اینترنت نیاز داره.' : '') + '.');
+  }finally{
+    hidden.forEach(function(b){ b.style.visibility = ''; });
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = oldLabel; }
   }
 }
-function printMyPerf(){ printElement('perfStatsCards'); }
+// نامِ فایل از رویِ دادهٔ فیش ساخته می‌شه و ممکنه هر کاراکتری توش باشه — پس به‌جایِ
+// گذاشتنش تویِ onclick (که با یه کوتیشن کلِ دکمه رو خراب می‌کنه)، هندلر بعد از ساختِ
+// دکمه بهش وصل می‌شه.
+function wirePayslipPdfButton(btnId, boxId, slip, monthName){
+  var btn = document.getElementById(btnId);
+  if(!btn) return;
+  btn.onclick = function(){ downloadElementPdf(boxId, payslipFileName(slip, monthName), btn); };
+}
+function payslipFileName(slip, monthName){
+  var who = (slip.employee.employeeCode || slip.employee.fullName || '').toString().replace(/[\\/:*?"<>|]/g, '');
+  return 'فیش-حقوقی-' + (monthName||'') + '-' + slip.year + '-' + who + '.pdf';
+}
 
 function jalaliIsLeap(jy){
   var r = jy % 33;
