@@ -2459,6 +2459,8 @@ const OWN_BRAND_LOGO = "icon-512.png"; // same icon as the app itself (icon-512.
 // =====================================================================
 
 // ---------- Custom in-app alert (replaces the native browser popup everywhere) ----------
+var _companyBrandName = '';
+var _companyBrandLogo = '';
 var _appAlertResolve = null;
 // Simple show/hide toggle for any password field — used by the admin login, employee login,
 // and super-admin ("ترددیار") password inputs so the person can double-check what they typed
@@ -2785,6 +2787,9 @@ async function runSplashSequence(){
   var res = await brandingPromise;
   var companyName = (res && res.ok) ? (res.companyName || '') : '';
   var companyLogo = (res && res.ok) ? (res.companyLogo || '') : '';
+  // برایِ سربرگِ فیشِ حقوقی هم لازمه، پس همینجا نگهش می‌داریم تا دوباره از سرور گرفته نشه.
+  _companyBrandName = companyName;
+  _companyBrandLogo = companyLogo;
 
   if(companyName || companyLogo){
     document.getElementById('splashCompanyName').textContent = companyName;
@@ -10666,54 +10671,112 @@ function loadPdfLibs(){
   ]).catch(function(err){ _pdfLibsPromise = null; throw err; });
   return _pdfLibsPromise;
 }
-// کادرِ داده‌شده رو به PDF تبدیل و دانلود می‌کنه. چون از رویِ خودِ صفحه عکس گرفته می‌شه،
-// فارسی و راست‌به‌چپ دقیقاً همون‌طوری درمیاد که رویِ صفحه دیده می‌شه — بدونِ دردسرِ
-// جاسازیِ فونت تویِ PDF.
-async function downloadElementPdf(boxId, fileName, btnEl){
-  var el = document.getElementById(boxId);
-  if(!el) return;
+// ---------- سندِ فیشِ حقوقی برایِ PDF ----------
+// این یه «عکس از صفحه» نیست: یه برگه‌یِ جداگانه با اندازه‌یِ دقیقِ A5ِ افقی ساخته می‌شه،
+// سفید و بدونِ رنگ، با جدولِ کادردار — همون چیزی که رویِ کاغذ انتظار می‌ره. چون برگه
+// داخلِ خودِ مرورگر رندر می‌شه، فارسی و راست‌به‌چپ بدونِ دردسرِ فونت درست درمیان.
+function pdfCell(label, value, labelW){
+  return '<tr>'+
+    '<td style="border:0.2mm solid #000; padding:0.9mm 1.4mm; font-size:7pt; color:#333; white-space:nowrap;'+(labelW?(' width:'+labelW+';'):'')+'">'+label+'</td>'+
+    '<td style="border:0.2mm solid #000; padding:0.9mm 1.4mm; font-size:7.5pt; font-weight:700; text-align:left; direction:ltr;">'+value+'</td>'+
+  '</tr>';
+}
+function pdfSubTable(title, rowsHtml){
+  return '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">'+
+    '<tr><td colspan="2" style="border:0.2mm solid #000; background:#f0f0f0; padding:1mm; font-size:8pt; font-weight:800; text-align:center;">'+title+'</td></tr>'+
+    rowsHtml+
+  '</table>';
+}
+function buildPayslipDocNode(slip, monthName){
+  var e = slip.employee, a = slip.attendance, d = slip.dailyRates;
+  var payRows = slip.payments.map(function(p){ return pdfCell(esc(p.label), fmtRial(p.amount)); }).join('') +
+    pdfCell('<b>جمعِ پرداخت‌ها</b>', '<b>'+fmtRial(slip.grossPay)+'</b>');
+  var dedRows = slip.deductions.map(function(x){ return pdfCell(esc(x.label), fmtRial(x.amount)); }).join('') +
+    pdfCell('<b>جمعِ کسور</b>', '<b>'+fmtRial(slip.deductionsTotal)+'</b>');
+  var infoRows =
+    pdfCell('کارکرد (روز)', esc(a.workedDays)) +
+    pdfCell('اضافه‌کاری (ساعت)', hoursText(a.overtimeHours)) +
+    pdfCell('جمعه‌کاری (ساعت)', hoursText(a.fridayHours)) +
+    pdfCell('تعطیل‌کاری (ساعت)', hoursText(a.holidayHours)) +
+    pdfCell('جمعِ کلِ اضافه‌کاری', hoursText(a.totalOvertimeHours)) +
+    pdfCell('شب‌کاری (ساعت)', hoursText(a.nightHours)) +
+    pdfCell('تعدادِ اولاد', esc(e.childCount)) +
+    pdfCell('روزِ ماموریت', esc(a.missionDays)) +
+    pdfCell('پایه حقوقِ روزانه', fmtRial(d.base)) +
+    pdfCell('پایه سنواتِ روزانه', fmtRial(d.seniority)) +
+    pdfCell('مشمولِ بیمه', fmtRial(slip.insurance.base)) +
+    pdfCell('مشمولِ مالیات', fmtRial(slip.taxableBase)) +
+    pdfCell('سهمِ کارفرما', fmtRial(slip.insurance.employer));
+  function head(label, value){
+    return '<td style="border:0.2mm solid #000; padding:1mm 1.5mm; font-size:7.5pt;"><span style="color:#444;">'+label+':</span> <b>'+value+'</b></td>';
+  }
+  var node = document.createElement('div');
+  node.setAttribute('dir', 'rtl');
+  node.style.cssText = 'position:fixed; left:-20000px; top:0; width:210mm; height:148mm; box-sizing:border-box;'+
+    ' padding:6mm; background:#ffffff; color:#000000;';
+  node.innerHTML =
+    '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">'+
+      '<tr><td style="border:0.3mm solid #000; padding:2mm; text-align:center;">'+
+        '<div style="font-size:14pt; font-weight:800;">فیشِ حقوقی</div>'+
+        '<div style="font-size:10pt; font-weight:700; margin-top:1mm;">'+esc(_companyBrandName || '')+'</div>'+
+        '<div style="font-size:7.5pt; color:#555; margin-top:0.5mm;">'+esc(OWN_BRAND_NAME)+'</div>'+
+      '</td></tr>'+
+    '</table>'+
+    '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2mm;">'+
+      '<tr>'+
+        head('نام و نام خانوادگی', esc(e.fullName)) +
+        head('شماره پرسنلی', esc(e.employeeCode || '—')) +
+        head('مربوط به', esc(monthName || '') + ' ' + esc(slip.year)) +
+      '</tr>'+
+      '<tr>'+
+        head('گروهِ شغلی', esc(e.wageGroup || '—')) +
+        head('تاریخِ استخدام', esc(e.hireDate || '—')) +
+        head('سالِ سنواتی', esc(e.yearsOfService)) +
+      '</tr>'+
+    '</table>'+
+    '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2mm;">'+
+      '<tr>'+
+        '<td style="vertical-align:top; width:33.4%; padding-left:1.5mm;">'+pdfSubTable('پرداخت‌ها (ریال)', payRows)+'</td>'+
+        '<td style="vertical-align:top; width:33.3%; padding-left:1.5mm;">'+pdfSubTable('کسور (ریال)', dedRows)+'</td>'+
+        '<td style="vertical-align:top; width:33.3%;">'+pdfSubTable('سایرِ اطلاعات', infoRows)+'</td>'+
+      '</tr>'+
+    '</table>'+
+    '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2mm;">'+
+      '<tr>'+
+        '<td style="border:0.3mm solid #000; padding:2mm; font-size:10pt; font-weight:800; text-align:center; width:60%;">'+
+          'خالصِ پرداختی: '+fmtRial(slip.netPay)+' ریال</td>'+
+        '<td style="border:0.3mm solid #000; padding:2mm 3mm; font-size:7.5pt; text-align:center;">'+
+          'مهر و امضایِ مدیریت<div style="height:11mm;"></div></td>'+
+      '</tr>'+
+    '</table>';
+  document.body.appendChild(node);
+  return node;
+}
+// برگه‌یِ ساخته‌شده رو به یک صفحه‌یِ A5ِ افقی تبدیل و دانلود می‌کنه.
+async function downloadPayslipPdf(slip, monthName, btnEl){
   var oldLabel = btnEl ? btnEl.textContent : '';
   if(btnEl){ btnEl.disabled = true; btnEl.textContent = '⏳ در حال ساختِ فایل...'; }
-  // خودِ دکمه نباید تویِ فایل بیفته
-  var hidden = Array.prototype.slice.call(el.querySelectorAll('.btn'));
-  hidden.forEach(function(b){ b.style.visibility = 'hidden'; });
+  var node = null;
   try{
     await loadPdfLibs();
-    var canvas = await html2canvas(el, {scale: 2, backgroundColor: '#ffffff', useCORS: true});
+    node = buildPayslipDocNode(slip, monthName);
+    var canvas = await html2canvas(node, {scale: 3, backgroundColor: '#ffffff', useCORS: true});
     var JsPdf = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-    var pdf = new JsPdf({orientation: 'portrait', unit: 'mm', format: 'a4'});
-    var pageW = pdf.internal.pageSize.getWidth();
-    var pageH = pdf.internal.pageSize.getHeight();
-    var margin = 6;
-    var imgW = pageW - margin*2;
-    var imgH = canvas.height * imgW / canvas.width;
-    var img = canvas.toDataURL('image/jpeg', 0.95);
-    if(imgH <= pageH - margin*2){
-      pdf.addImage(img, 'JPEG', margin, margin, imgW, imgH);
-    } else {
-      // بلندتر از یک صفحه: همون تصویر رو صفحه‌به‌صفحه جابه‌جا می‌کنیم
-      var drawnH = 0;
-      while(drawnH < imgH){
-        pdf.addImage(img, 'JPEG', margin, margin - drawnH, imgW, imgH);
-        drawnH += (pageH - margin*2);
-        if(drawnH < imgH) pdf.addPage();
-      }
-    }
-    pdf.save(fileName);
+    var pdf = new JsPdf({orientation: 'landscape', unit: 'mm', format: 'a5'});
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0,
+      pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+    pdf.save(payslipFileName(slip, monthName));
   }catch(err){
     alert('ساختِ فایلِ PDF ناموفق بود' + (err && err.message === 'load_failed' ? ' — برایِ بارِ اول به اینترنت نیاز داره.' : '') + '.');
   }finally{
-    hidden.forEach(function(b){ b.style.visibility = ''; });
+    if(node && node.parentNode) node.parentNode.removeChild(node);
     if(btnEl){ btnEl.disabled = false; btnEl.textContent = oldLabel; }
   }
 }
-// نامِ فایل از رویِ دادهٔ فیش ساخته می‌شه و ممکنه هر کاراکتری توش باشه — پس به‌جایِ
-// گذاشتنش تویِ onclick (که با یه کوتیشن کلِ دکمه رو خراب می‌کنه)، هندلر بعد از ساختِ
-// دکمه بهش وصل می‌شه.
 function wirePayslipPdfButton(btnId, boxId, slip, monthName){
   var btn = document.getElementById(btnId);
   if(!btn) return;
-  btn.onclick = function(){ downloadElementPdf(boxId, payslipFileName(slip, monthName), btn); };
+  btn.onclick = function(){ downloadPayslipPdf(slip, monthName, btn); };
 }
 function payslipFileName(slip, monthName){
   var who = (slip.employee.employeeCode || slip.employee.fullName || '').toString().replace(/[\\/:*?"<>|]/g, '');
