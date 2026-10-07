@@ -9515,11 +9515,25 @@ async function deletePayrollDeductionSeriesBtn(loanId){
 }
 // ---------- فیشِ حقوقی ----------
 // چیدمانِ فیش عیناً مثلِ همون شیتِ «فیش حقوقی»ِ اکسل: سه ستونِ پرداخت‌ها، کسرها و سایر
-// اطلاعات، با همون ردیف‌ها و همون ترتیب.
-function payslipRow(label, valueHtml, bold){
-  return '<div style="display:flex; justify-content:space-between; gap:8px; padding:6px 4px; border-bottom:1px solid var(--border-soft);'+(bold?' font-weight:800;':'')+'">'+
-    '<span style="color:'+(bold?'var(--ink)':'var(--muted)')+'; font-size:12.5px;">'+label+'</span>'+
-    '<span class="mono" style="font-weight:'+(bold?'800':'700')+'; font-size:12.5px; white-space:nowrap;">'+valueHtml+'</span></div>';
+// اطلاعات، با همون ردیف‌ها و همون ترتیب — هر ستون با رنگِ خودش تا موقعِ نگاه‌کردن سریع
+// بشه تشخیص داد کدوم عدد پرداختیه، کدوم کسر، و کدوم فقط اطلاعاته.
+var PAYSLIP_COLORS = {
+  pay:  {ink:'#15803d', soft:'#ecfdf3', line:'#bbf7d0'},
+  ded:  {ink:'#b42318', soft:'#fef3f2', line:'#fecdca'},
+  info: {ink:'#1d4ed8', soft:'#eff6ff', line:'#bfdbfe'}
+};
+function payslipRow(label, valueHtml, tone, bold){
+  var c = PAYSLIP_COLORS[tone] || PAYSLIP_COLORS.info;
+  return '<div style="display:flex; justify-content:space-between; gap:8px; padding:7px 9px; border-bottom:1px solid '+c.line+';'+
+      (bold ? ' background:'+c.soft+'; font-weight:800;' : '')+'">'+
+    '<span style="font-size:12.5px; color:'+(bold ? c.ink : 'var(--muted)')+';">'+label+'</span>'+
+    '<span class="mono" style="font-size:12.5px; font-weight:'+(bold?'800':'700')+'; white-space:nowrap; color:'+(bold ? c.ink : 'var(--ink)')+';">'+valueHtml+'</span></div>';
+}
+function payslipColumn(title, tone, rowsHtml){
+  var c = PAYSLIP_COLORS[tone] || PAYSLIP_COLORS.info;
+  return '<div style="flex:1; min-width:240px; border:1px solid '+c.line+'; border-radius:12px; overflow:hidden;">'+
+    '<div style="background:'+c.ink+'; color:#fff; font-weight:800; font-size:12.5px; padding:8px 9px;">'+title+'</div>'+
+    rowsHtml+'</div>';
 }
 function hoursText(h){
   var total = Math.round((Number(h)||0) * 60);
@@ -9528,52 +9542,68 @@ function hoursText(h){
 }
 function renderPayslipHtml(slip, monthName){
   var e = slip.employee, a = slip.attendance, d = slip.dailyRates;
-  var payRows = slip.payments.map(function(p){ return payslipRow(esc(p.label), fmtRial(p.amount)); }).join('') +
-    payslipRow('جمعِ پرداخت‌ها', fmtRial(slip.grossPay), true);
-  var dedRows = slip.deductions.map(function(x){ return payslipRow(esc(x.label), fmtRial(x.amount)); }).join('') +
-    payslipRow('جمعِ کسرها', fmtRial(slip.deductionsTotal), true) +
-    payslipRow('خالصِ پرداختی', fmtRial(slip.netPay), true);
+  var payRows = slip.payments.map(function(p){ return payslipRow(esc(p.label), fmtRial(p.amount), 'pay'); }).join('') +
+    payslipRow('جمعِ پرداخت‌ها', fmtRial(slip.grossPay), 'pay', true);
+  var dedRows = slip.deductions.map(function(x){ return payslipRow(esc(x.label), fmtRial(x.amount), 'ded'); }).join('') +
+    payslipRow('جمعِ کسرها', fmtRial(slip.deductionsTotal), 'ded', true);
   var infoRows =
-    payslipRow('کارکرد (روز)', esc(a.workedDays)) +
-    payslipRow('اضافه‌کاری (ساعت)', hoursText(a.overtimeHours)) +
-    payslipRow('جمعه‌کاری (ساعت)', hoursText(a.fridayHours)) +
-    payslipRow('تعطیل‌کاری (ساعت)', hoursText(a.holidayHours)) +
-    payslipRow('جمعِ کلِ اضافه‌کاری (ساعت)', hoursText(a.totalOvertimeHours)) +
-    payslipRow('شب‌کاری (ساعت)', hoursText(a.nightHours)) +
-    payslipRow('نوبت‌کاری', esc(a.shiftPercent)) +
-    payslipRow('تعدادِ اولاد', esc(e.childCount)) +
-    payslipRow('تعدادِ روزِ ماموریت', esc(a.missionDays)) +
-    payslipRow('گروهِ شغلی', esc(e.wageGroup || '—')) +
-    payslipRow('تاریخِ استخدام', esc(e.hireDate || '—')) +
-    payslipRow('سالِ سنواتی', esc(e.yearsOfService)) +
-    payslipRow('پایه حقوقِ روزانه', fmtRial(d.base)) +
-    payslipRow('پایه سنواتِ روزانه', fmtRial(d.seniority));
+    payslipRow('کارکرد (روز)', esc(a.workedDays) + (a.absentDays ? ' <span style="color:#b42318;">(' + esc(a.absentDays) + ' روز غیبت)</span>' : ''), 'info') +
+    payslipRow('اضافه‌کاری (ساعت)', hoursText(a.overtimeHours), 'info') +
+    payslipRow('جمعه‌کاری (ساعت)', hoursText(a.fridayHours), 'info') +
+    payslipRow('تعطیل‌کاری (ساعت)', hoursText(a.holidayHours), 'info') +
+    payslipRow('جمعِ کلِ اضافه‌کاری (ساعت)', hoursText(a.totalOvertimeHours), 'info') +
+    payslipRow('شب‌کاری (ساعت)', hoursText(a.nightHours), 'info') +
+    payslipRow('نوبت‌کاری', esc(a.shiftPercent), 'info') +
+    payslipRow('تعدادِ اولاد', esc(e.childCount), 'info') +
+    payslipRow('تعدادِ روزِ ماموریت', esc(a.missionDays), 'info') +
+    payslipRow('گروهِ شغلی', e.wageGroup ? esc(e.wageGroup) : '<span style="color:#b42318;">تعریف‌نشده</span>', 'info') +
+    payslipRow('تاریخِ استخدام', esc(e.hireDate || '—'), 'info') +
+    payslipRow('سالِ سنواتی', esc(e.yearsOfService), 'info') +
+    payslipRow('پایه حقوقِ روزانه', fmtRial(d.base), 'info') +
+    payslipRow('پایه سنواتِ روزانه', fmtRial(d.seniority), 'info');
   var insRows =
-    payslipRow('جمعِ مشمولِ بیمه', fmtRial(slip.insurance.base)) +
-    payslipRow('جمعِ مشمولِ مالیات', fmtRial(slip.taxableBase)) +
-    payslipRow('بیمه سهمِ کارمند ('+Math.round(slip.rates.employee*100)+'٪)', fmtRial(slip.insurance.employee)) +
-    payslipRow('سهمِ کارفرما ('+Math.round(slip.rates.employer*100)+'٪)', fmtRial(slip.insurance.employer)) +
-    payslipRow('کلِ حقِ بیمه', fmtRial(slip.insurance.total));
+    payslipRow('جمعِ مشمولِ بیمه', fmtRial(slip.insurance.base), 'info') +
+    payslipRow('جمعِ مشمولِ مالیات', fmtRial(slip.taxableBase), 'info') +
+    payslipRow('بیمه سهمِ کارمند ('+Math.round(slip.rates.employee*100)+'٪)', fmtRial(slip.insurance.employee), 'info') +
+    payslipRow('سهمِ کارفرما ('+Math.round(slip.rates.employer*100)+'٪)', fmtRial(slip.insurance.employer), 'info') +
+    payslipRow('کلِ حقِ بیمه', fmtRial(slip.insurance.total), 'info', true);
   var decreeTxt = slip.decree
     ? (esc(slip.decree.systemName || 'حکم') + ' — اجرا از ' + esc(jMonths[Number(slip.decree.effectiveMonth)-1]||'') + ' ' + esc(slip.decree.effectiveYear) + (slip.decree.taxEnabled === 'خیر' ? ' · بدونِ کسرِ مالیات' : ''))
-    : '<span style="color:#a32a2a;">حکمِ حقوقی وجود ندارد — مبالغِ حکمی صفر حساب شده</span>';
-  var col = 'flex:1; min-width:230px;';
+    : '<span style="color:#b42318;">حکمی ثبت نشده</span>';
+  var warnHtml = (slip.warnings && slip.warnings.length)
+    ? '<div style="background:#fffaeb; border:1px solid #fedf89; border-radius:10px; padding:9px 11px; margin-bottom:12px;">'+
+        '<div style="font-weight:800; color:#b54708; font-size:12.5px; margin-bottom:4px;">⚠️ این موارد باعث شده بخشی از فیش صفر دربیاد:</div>'+
+        '<ul style="margin:0; padding-inline-start:18px; color:#b54708; font-size:12px; line-height:1.9;">'+
+          slip.warnings.map(function(w){ return '<li>'+esc(w)+'</li>'; }).join('')+
+        '</ul></div>'
+    : '';
+  function chip(label, value){
+    return '<span style="background:var(--paper-2); border:1px solid var(--border-soft); border-radius:999px; padding:3px 10px; font-size:12px;">'+
+      '<b>'+label+':</b> '+value+'</span>';
+  }
   return '<div class="card" style="margin-bottom:0;">'+
-    '<div class="eyebrow">فیشِ حقوقی — '+esc(monthName||'')+' '+esc(slip.year)+'</div>'+
-    '<div style="display:flex; flex-wrap:wrap; gap:4px 18px; font-size:12.5px; margin:4px 0 10px;">'+
-      '<span><b>نام:</b> '+esc(e.fullName)+'</span>'+
-      '<span><b>شماره پرسنلی:</b> <span class="mono">'+esc(e.employeeCode||'—')+'</span></span>'+
-      (e.jobTitle ? '<span><b>سمت:</b> '+esc(e.jobTitle)+'</span>' : '')+
-      (e.unit ? '<span><b>واحد:</b> '+esc(e.unit)+'</span>' : '')+
-      '<span><b>وضعیتِ تاهل:</b> '+esc(e.maritalStatus||'—')+'</span>'+
-      '<span><b>سیستمِ حقوقی:</b> '+decreeTxt+'</span>'+
+    '<div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px;">'+
+      '<div class="eyebrow" style="margin:0;">فیشِ حقوقی — '+esc(monthName||'')+' '+esc(slip.year)+'</div>'+
+      '<div style="background:'+PAYSLIP_COLORS.pay.ink+'; color:#fff; border-radius:10px; padding:7px 14px; font-weight:800;">'+
+        'خالصِ پرداختی: <span class="mono">'+fmtRial(slip.netPay)+'</span> ریال</div>'+
     '</div>'+
-    '<div style="display:flex; flex-wrap:wrap; gap:14px;">'+
-      '<div style="'+col+'"><div class="eyebrow" style="margin-bottom:2px;">پرداخت‌ها (ریال)</div>'+payRows+'</div>'+
-      '<div style="'+col+'"><div class="eyebrow" style="margin-bottom:2px;">کسرها (ریال)</div>'+dedRows+'</div>'+
-      '<div style="'+col+'"><div class="eyebrow" style="margin-bottom:2px;">سایر اطلاعات</div>'+infoRows+'</div>'+
+    '<div style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 12px;">'+
+      chip('نام', esc(e.fullName))+
+      chip('شماره پرسنلی', '<span class="mono">'+esc(e.employeeCode||'—')+'</span>')+
+      (e.jobTitle ? chip('سمت', esc(e.jobTitle)) : '')+
+      (e.unit ? chip('واحد', esc(e.unit)) : '')+
+      chip('وضعیتِ تاهل', e.maritalStatus ? esc(e.maritalStatus) : '<span style="color:#b42318;">تعیین‌نشده</span>')+
+      chip('سیستمِ حقوقی', decreeTxt)+
     '</div>'+
-    '<div class="eyebrow" style="margin-top:12px;">محاسباتِ بیمه و مالیات (ریال)</div>'+insRows+
+    warnHtml+
+    '<div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start;">'+
+      payslipColumn('پرداخت‌ها (ریال)', 'pay', payRows)+
+      payslipColumn('کسرها (ریال)', 'ded', dedRows)+
+      payslipColumn('سایر اطلاعات', 'info', infoRows)+
+    '</div>'+
+    '<div style="margin-top:14px; display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start;">'+
+      payslipColumn('محاسباتِ بیمه و مالیات (ریال)', 'info', insRows)+
+    '</div>'+
   '</div>';
 }
 async function loadAdminPayslip(){
