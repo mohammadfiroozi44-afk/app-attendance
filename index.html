@@ -2077,14 +2077,17 @@
 
     <div class="card">
       <div class="eyebrow">خروجی فرم رسمی (اکسل) — یک پرسنل</div>
-      <div class="hint" style="margin-top:-4px;">فرمِ کارکردِ ماهانه (تاریخ، ایامِ هفته، ورود/خروجِ اول و دوم، مرخصی، استراحت) برای یک پرسنلِ مشخص، به‌صورتِ فایلِ اکسل — قابلِ تبدیل به PDF از خودِ اکسل/شیت هم هست.</div>
+      <div class="hint" style="margin-top:-4px;">فرمِ کارکردِ ماهانه (تاریخ، ایامِ هفته، ورود/خروجِ اول و دوم، کارکرد، موظفی، مرخصی، استراحت) برایِ یک پرسنلِ مشخص — هم به‌صورتِ اکسل، هم به‌صورتِ یک برگه‌یِ آماده‌یِ چاپِ A4.</div>
       <select id="pdfExportEmp"></select>
       <button type="button" class="picker-display-btn" id="pdfExportEmpBtn"><span class="picker-display-text">انتخاب پرسنل</span><span class="picker-arrow">▾</span></button>
       <div class="date-row">
         <select id="pdfExportMonth"><option value="">ماه</option></select>
         <select id="pdfExportYear"><option value="">سال</option></select>
       </div>
-      <button type="button" class="btn btn-primary" onclick="generateEmployeeFormExcel()">⬇️ دانلود اکسل</button>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" onclick="generateEmployeeFormExcel()">⬇️ دانلود اکسل</button>
+        <button type="button" class="btn btn-ghost" onclick="generateEmployeeFormPdf(this)">⬇️ دانلودِ PDF</button>
+      </div>
     </div>
     </div><!-- /admSec-performance -->
 
@@ -9677,85 +9680,96 @@ async function loadMyPayslip(){
   wirePayslipPdfButton('myPayslipPdfBtn', 'myPayslipBox', res.slip, monthName);
 }
 // ---------- Official print-form PDF export (admin only, one employee at a time) ----------
-async function generateEmployeeFormExcel(){
- try {
-  var username = document.getElementById('pdfExportEmp').value;
-  var monthName = document.getElementById('pdfExportMonth').value;
-  var year = document.getElementById('pdfExportYear').value;
-  if(!username){ alert('یک پرسنل انتخاب کن'); return; }
-  if(!monthName || !year){ alert('ماه و سال را انتخاب کن'); return; }
-  var monthIdx = jMonths.indexOf(monthName) + 1;
-  var res = await apiCall(function(){ return apiPost('getEmployeePerformanceDetail', {pin:adminPin, username:username, year:year, month:monthIdx}); });
-  if(!res.ok){ alert('دریافت اطلاعات ناموفق بود: ' + (res.error||'')); return; }
-
+// ---------- فرمِ رسمیِ تایم‌شیت (اکسل + PDF) ----------
+// ردیف‌ها یک‌بار اینجا ساخته می‌شن و هر دو خروجی از همین استفاده می‌کنن، تا ستون‌هاشون
+// هیچ‌وقت از هم جدا نیفتن.
+function timesheetSlashDate(jalaliDateStr){
+  var parts = String(jalaliDateStr||'').trim().split(' ');
+  if(parts.length < 3) return jalaliDateStr;
+  var day = parseInt(parts[0], 10);
+  var mIdx = jMonths.indexOf(parts[1]) + 1;
+  var yr = parts[parts.length-1];
+  if(!day || !mIdx) return jalaliDateStr;
+  var pad2local = function(n){ return (n<10?'0':'')+n; };
+  return yr + '/' + pad2local(mIdx) + '/' + pad2local(day);
+}
+function buildTimesheetData(res){
   var daily = res.daily || [];
   var t = res.totals || {};
   var missionDaysCount = daily.filter(function(d){ return d.statusLabel === 'ماموریت'; }).length;
-
-  // "13 مرداد 1405" -> "1405/06/13", since that's the format wanted in the exported file.
-  function toSlashDate(jalaliDateStr){
-    var parts = String(jalaliDateStr||'').trim().split(' ');
-    if(parts.length < 3) return jalaliDateStr;
-    var day = parseInt(parts[0], 10);
-    var mIdx = jMonths.indexOf(parts[1]) + 1;
-    var yr = parts[parts.length-1];
-    if(!day || !mIdx) return jalaliDateStr;
-    var pad2local = function(n){ return (n<10?'0':'')+n; };
-    return yr + '/' + pad2local(mIdx) + '/' + pad2local(day);
-  }
-
-  // CSV instead of an image-based PDF — Persian/RTL text is just plain data here, so there's
-  // no font-shaping or canvas-rendering pipeline that could scramble it. This sidesteps every
-  // problem the html2canvas/jsPDF approach kept running into (garbled letters, canvas
-  // tainting from web fonts, black output) — Excel/Sheets renders the text correctly on its
-  // own, and can convert to PDF locally if that's still needed.
-  var rows = [];
-  rows.push(['فرم ثبت ساعت ورود و خروج کارکنان']);
-  rows.push(['نام و نام‌خانوادگی', res.fullName + (res.employeeCode ? (' (کد '+res.employeeCode+')') : ''), 'ماه', monthName, 'سال', year]);
-  rows.push([]);
-  rows.push(['روز','تاریخ','ایام هفته','ورود اول','خروج اول','ورود دوم','خروج دوم','پروژه','مرخصی','استراحت','توضیحات']);
-  daily.forEach(function(d){
+  var head = ['روز','تاریخ','ایام هفته','ورود اول','خروج اول','ورود دوم','خروج دوم','پروژه','کارکرد روز','موظفی','مرخصی','استراحت','توضیحات'];
+  var rows = daily.map(function(d){
     var shift1 = d.shiftPairs[0] || {}, shift2 = d.shiftPairs[1] || {};
     var noteParts = [];
     if(d.isFriday) noteParts.push('جمعه');
     if(d.isHoliday) noteParts.push('تعطیل');
-    // Mission now included here too (e.g. "تعطیل/ماموریت") — it's only kept OUT of the
-    // ورود اول cell below, since a mission day can still have real check-in/out times that
-    // must stay visible there; the notes column has no such conflict.
+    // ماموریت اینجا هم میاد — فقط از خانه‌یِ «ورودِ اول» بیرون می‌مونه، چون روزِ ماموریت
+    // می‌تونه ساعتِ ورود/خروجِ واقعی هم داشته باشه که نباید پنهان بشه.
     if(d.statusLabel) noteParts.push(d.statusLabel);
     var shift1In = shift1.inTime || '';
     if(!shift1In && d.statusLabel && d.statusLabel !== 'ماموریت'){ shift1In = d.statusLabel; }
-    // One combined project column — if the check-in and check-out (across however many
-    // shifts that day had) all happened on the same project, show it once; if the person
-    // actually moved between different projects that day, list each distinct one instead of
-    // silently picking just one.
+    // یک ستونِ پروژه: اگه همه‌یِ ترددهایِ اون روز رویِ یک پروژه بوده یک‌بار نوشته می‌شه،
+    // اگه واقعاً بینِ چند پروژه جابه‌جا شده، همه‌شون میان.
     var dayProjects = [shift1.inProject, shift1.outProject, shift2.inProject, shift2.outProject]
-      .filter(function(p){ return p; })
-      .filter(function(p, i, arr){ return arr.indexOf(p) === i; }); // dedupe
-    rows.push([
-      d.day, toSlashDate(d.jalaliDate), d.weekday||'', shift1In, shift1.outTime||'', shift2.inTime||'', shift2.outTime||'',
+      .filter(function(pr){ return pr; })
+      .filter(function(pr, i, arr){ return arr.indexOf(pr) === i; });
+    return [
+      d.day, timesheetSlashDate(d.jalaliDate), d.weekday||'', shift1In, shift1.outTime||'', shift2.inTime||'', shift2.outTime||'',
       dayProjects.join(' / '),
-      d.leaveMin ? minutesToHM(d.leaveMin) : '', d.breakMin ? minutesToHM(d.breakMin) : '', noteParts.join('/')
-    ]);
+      d.workedMin ? minutesToHM(d.workedMin) : '',
+      d.requiredMin ? minutesToHM(d.requiredMin) : '',
+      d.leaveMin ? minutesToHM(d.leaveMin) : '',
+      d.breakMin ? minutesToHM(d.breakMin) : '',
+      noteParts.join('/')
+    ];
   });
-  rows.push([]);
-  rows.push(['موظفی','کارکرد','مفید','شب‌کاری','اضافه‌کاری','کسریِ کار','تعطیل‌کاری','جمعه‌کاری','مرخصی','استراحت (عادی)','استراحت (جمعه/تعطیل)','جمعِ کلِ اضافه‌کاری','تعداد روز ماموریت']);
-  rows.push([
+  var totalsHead = ['موظفی','کارکرد','مفید','شب‌کاری','اضافه‌کاری','کسریِ کار','تعطیل‌کاری','جمعه‌کاری','مرخصی','استراحت (عادی)','استراحت (جمعه/تعطیل)','جمعِ کلِ اضافه‌کاری','تعداد روز ماموریت'];
+  var totalsRow = [
     minutesToHM(t.requiredMin), minutesToHM(t.workedMin), minutesToHM(t.usefulMin), minutesToHM(t.nightMin),
     minutesToHM(t.overtimeMin), minutesToHM(t.shortfallMin), minutesToHM(t.holidayMin), minutesToHM(t.fridayMin), minutesToHM(t.leaveMin),
     minutesToHM(t.breakMin), minutesToHM(t.holidayBreakMin), minutesToHM(t.grandOvertimeMin), missionDaysCount
-  ]);
+  ];
+  return {head: head, rows: rows, totalsHead: totalsHead, totalsRow: totalsRow};
+}
+async function fetchTimesheet(){
+  var username = document.getElementById('pdfExportEmp').value;
+  var monthName = document.getElementById('pdfExportMonth').value;
+  var year = document.getElementById('pdfExportYear').value;
+  if(!username){ alert('یک پرسنل انتخاب کن'); return null; }
+  if(!monthName || !year){ alert('ماه و سال را انتخاب کن'); return null; }
+  var monthIdx = jMonths.indexOf(monthName) + 1;
+  var res = await apiCall(function(){ return apiPost('getEmployeePerformanceDetail', {pin:adminPin, username:username, year:year, month:monthIdx}); });
+  if(!res.ok){ alert('دریافت اطلاعات ناموفق بود: ' + (res.error||'')); return null; }
+  return {res: res, monthName: monthName, year: year};
+}
+async function generateEmployeeFormExcel(){
+ try {
+  var got = await fetchTimesheet();
+  if(!got) return;
+  var res = got.res, monthName = got.monthName, year = got.year;
+  var data = buildTimesheetData(res);
+  // CSV به‌جایِ PDFِ تصویری: متنِ فارسی اینجا دادهٔ خامه، پس هیچ مرحله‌یِ فونت/کانواسی
+  // نیست که به‌همش بریزه. اکسل/شیت خودش درست نمایشش می‌ده.
+  var rows = [];
+  rows.push(['فرم ثبت ساعت ورود و خروج کارکنان']);
+  rows.push(['نام و نام‌خانوادگی', res.fullName + (res.employeeCode ? (' (کد '+res.employeeCode+')') : ''), 'ماه', monthName, 'سال', year]);
+  rows.push([]);
+  rows.push(data.head);
+  data.rows.forEach(function(r){ rows.push(r); });
+  rows.push([]);
+  rows.push(data.totalsHead);
+  rows.push(data.totalsRow);
   rows.push([]);
   rows.push(['امضاء و اثر انگشت کارگر:', '', '', '', '', 'امضاء مدیر:']);
 
   var csvText = rows.map(function(r){
     return r.map(function(cell){
-      var s = String(cell === undefined || cell === null ? '' : cell);
-      return '"' + s.replace(/"/g,'""') + '"';
+      var cellStr = String(cell === undefined || cell === null ? '' : cell);
+      return '"' + cellStr.replace(/"/g,'""') + '"';
     }).join(',');
   }).join('\n');
 
-  var blob = new Blob(['\ufeff'+csvText], {type:'text/csv;charset=utf-8;'});
+  var blob = new Blob(['﻿'+csvText], {type:'text/csv;charset=utf-8;'});
   var link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = res.fullName + (res.employeeCode ? ('-'+res.employeeCode) : '') + '-' + monthName + '-' + year + '-ترددیار.csv';
@@ -9763,6 +9777,81 @@ async function generateEmployeeFormExcel(){
  } catch(errXls){
   showAdminNotice('ساخت فایل ناموفق بود: ' + (errXls && errXls.message ? errXls.message : String(errXls)));
  }
+}
+// برگه‌یِ A4ِ ایستاده‌یِ تایم‌شیت — سفید، کادردار، با همون ستون‌هایِ خروجیِ اکسل.
+function buildTimesheetDocNode(res, monthName, year){
+  var data = buildTimesheetData(res);
+  function cell(v, isHead, align){
+    return '<td style="border:0.2mm solid #000; padding:0.5mm 0.8mm; font-size:6.4pt; text-align:'+(align||'center')+';'+
+      (isHead ? ' font-weight:800; background:#f0f0f0;' : '')+'">'+esc(v === undefined || v === null ? '' : String(v))+'</td>';
+  }
+  var headHtml = '<tr>' + data.head.map(function(h){ return cell(h, true); }).join('') + '</tr>';
+  var bodyHtml = data.rows.map(function(r){
+    return '<tr>' + r.map(function(v, i){ return cell(v, false, i === 12 ? 'right' : 'center'); }).join('') + '</tr>';
+  }).join('');
+  var totalsHtml = '<tr>' + data.totalsHead.map(function(h){ return cell(h, true); }).join('') + '</tr>' +
+                   '<tr>' + data.totalsRow.map(function(v){ return cell(v); }).join('') + '</tr>';
+  var node = document.createElement('div');
+  node.setAttribute('dir', 'rtl');
+  node.style.cssText = 'position:fixed; left:-20000px; top:0; width:210mm; height:297mm; box-sizing:border-box;'+
+    ' padding:7mm; background:#ffffff; color:#000000; overflow:hidden;';
+  node.innerHTML =
+    '<div id="timesheetPdfInner" style="transform-origin:top right;">'+
+      '<table style="width:100%; border-collapse:collapse;">'+
+        '<tr><td style="border:0.3mm solid #000; padding:2mm; text-align:center;">'+
+          '<div style="font-size:14pt; font-weight:800;">تایم‌شیت — '+esc(monthName)+' '+esc(year)+'</div>'+
+          '<div style="font-size:10pt; font-weight:700; margin-top:1mm;">'+esc(_companyBrandName || '')+'</div>'+
+          '<div style="font-size:7.5pt; color:#555; margin-top:0.5mm;">'+esc(OWN_BRAND_NAME)+'</div>'+
+        '</td></tr>'+
+      '</table>'+
+      '<table style="width:100%; border-collapse:collapse; margin-top:2mm;">'+
+        '<tr>'+
+          '<td style="border:0.2mm solid #000; padding:1mm 1.5mm; font-size:8pt;"><span style="color:#444;">نام و نام خانوادگی:</span> <b>'+esc(res.fullName)+'</b></td>'+
+          '<td style="border:0.2mm solid #000; padding:1mm 1.5mm; font-size:8pt;"><span style="color:#444;">شماره پرسنلی:</span> <b>'+esc(res.employeeCode || '—')+'</b></td>'+
+        '</tr>'+
+      '</table>'+
+      '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2mm;">'+headHtml+bodyHtml+'</table>'+
+      '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2.5mm;">'+totalsHtml+'</table>'+
+      '<table style="width:100%; border-collapse:collapse; margin-top:3mm;">'+
+        '<tr>'+
+          '<td style="border:0.2mm solid #000; padding:2mm; font-size:8pt; text-align:center;">امضاء و اثرِ انگشتِ کارگر<div style="height:12mm;"></div></td>'+
+          '<td style="border:0.2mm solid #000; padding:2mm; font-size:8pt; text-align:center;">امضاء مدیر<div style="height:12mm;"></div></td>'+
+        '</tr>'+
+      '</table>'+
+    '</div>';
+  document.body.appendChild(node);
+  // ماه‌هایِ ۳۱ روزه ممکنه از ارتفاعِ A4 رد بشن — در اون صورت کلِ برگه به‌اندازه‌یِ لازم
+  // کوچک می‌شه تا امضاها هم داخلِ همون یک صفحه بمونن.
+  var inner = node.querySelector('#timesheetPdfInner');
+  var availableH = node.clientHeight - 14 * 3.7795;
+  if(inner && inner.scrollHeight > availableH){
+    var k = availableH / inner.scrollHeight;
+    inner.style.transform = 'scale(' + k + ')';
+    inner.style.width = (100 / k) + '%';
+  }
+  return node;
+}
+async function generateEmployeeFormPdf(btnEl){
+  var oldLabel = btnEl ? btnEl.textContent : '';
+  var node = null;
+  try{
+    var got = await fetchTimesheet();
+    if(!got) return;
+    if(btnEl){ btnEl.disabled = true; btnEl.textContent = '⏳ در حال ساختِ فایل...'; }
+    await loadPdfLibs();
+    node = buildTimesheetDocNode(got.res, got.monthName, got.year);
+    var canvas = await html2canvas(node, {scale: 2.5, backgroundColor: '#ffffff', useCORS: true});
+    var JsPdf = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    var pdf = new JsPdf({orientation: 'portrait', unit: 'mm', format: 'a4'});
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0,
+      pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+    pdf.save('تایم‌شیت-' + got.monthName + '-' + got.year + '-' + (got.res.employeeCode || got.res.fullName) + '.pdf');
+  }catch(err){
+    showAdminNotice('ساختِ فایلِ PDF ناموفق بود' + (err && err.message === 'load_failed' ? ' — برایِ بارِ اول به اینترنت نیاز داره.' : '') + '.');
+  }finally{
+    if(node && node.parentNode) node.parentNode.removeChild(node);
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = oldLabel; }
+  }
 }
 async function loadStatusReport(status){
   var myReqId = ++_statusReportReqId;
