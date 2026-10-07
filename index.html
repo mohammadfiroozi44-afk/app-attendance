@@ -2464,10 +2464,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-07-timesheet-pdf";
+const FRONTEND_VERSION = "v-2026-10-07-offline-dedupe";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-09-17-break-toggle-floatbefore-columnfix";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-07-offline-dedupe";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -7943,9 +7943,18 @@ function getOfflineQueue(){
 function setOfflineQueue(q){
   try{ localStorage.setItem('offlineQueue', JSON.stringify(q)); }catch(e){}
 }
+// Minted once, here, and kept with the entry through every retry. The server uses it to
+// recognise a submission it has already stored — see the clientRef handling in
+// submitOfflineLog. Without it, a request that reached the sheet but whose reply never got
+// back to the phone was retried as a brand-new pending row, so the admin kept rejecting the
+// same check-in again and again.
+function newClientRef(){
+  try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(e){}
+  return 'ref-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+}
 function queueOfflineEntry(entry, projectId){
   var q = getOfflineQueue();
-  q.push({entry: entry, deviceId: DEVICE_ID, project_id: projectId, queuedAt: new Date().toISOString()});
+  q.push({entry: entry, deviceId: DEVICE_ID, project_id: projectId, queuedAt: new Date().toISOString(), clientRef: newClientRef()});
   setOfflineQueue(q);
 }
 function updateOfflineQueueBanner(){
@@ -7968,14 +7977,24 @@ async function syncOfflineQueue(){
   var submittedCount = 0;
   var failMessages = [];
   var waitingOnApproval = false;
+  var rejectedCount = 0;
+  var alreadyThereCount = 0;
   for(var i=0;i<q.length;i++){
     var item = q[i];
-    var res = await apiCall(function(){ return apiPost('submitOfflineLog', {entry:item.entry, deviceId:item.deviceId, project_id:item.project_id}); });
+    // Entries queued before clientRef existed fall back to their clientIso, which identifies
+    // the entry just as uniquely — so old queued items are deduplicated too.
+    var ref = item.clientRef || (item.entry && item.entry.clientIso) || '';
+    var res = await apiCall(function(){ return apiPost('submitOfflineLog', {entry:item.entry, deviceId:item.deviceId, project_id:item.project_id, clientRef: ref}); });
     if(!res.ok && res.networkError){
       remaining.push(item); // still offline — try again next time
     } else if(!res.ok && res.error === 'pending_offline_exists'){
       remaining.push(item); // keep it queued — it'll go through once the admin resolves the earlier one
       waitingOnApproval = true;
+    } else if(res.ok && res.duplicate){
+      // The server already has this exact entry — an earlier attempt did land, we just never
+      // heard back. Drop it from the queue rather than submitting it a second time.
+      if(res.status === 'rejected') rejectedCount++;
+      else alreadyThereCount++;
     } else if(!res.ok){
       // real server-side rejection (e.g. device_mismatch, unknown_employee) — don't silently lose it, tell the user
       failMessages.push((res.error||'خطای نامشخص') + ' — ثبت ' + (item.entry.type==='in'?'ورود':'خروج') + ' حذف شد، دوباره امتحان کن.');
@@ -7986,6 +8005,11 @@ async function syncOfflineQueue(){
   setOfflineQueue(remaining);
   if(submittedCount > 0){
     setStatus('✅ '+submittedCount+' ثبت آفلاین برای بررسی مدیر ارسال شد.', 'ok');
+  }
+  if(rejectedCount > 0){
+    setStatus('⛔ ثبتِ آفلاینِ شما توسطِ مدیر رد شد. اگر فکر می‌کنید اشتباه شده، از مدیریت پیگیری کنید.', 'err');
+  } else if(alreadyThereCount > 0){
+    setStatus('ℹ️ ثبتِ آفلاینِ شما قبلاً به سرور رسیده بود و دوباره ارسال نشد.', 'ok');
   }
   if(waitingOnApproval){
     setStatus('⏳ یک ثبتِ آفلاینِ قبلیِ شما هنوز منتظرِ بررسیِ مدیره — این ثبتِ جدید رو نگه داشتیم و به‌محض تاییدِ اون یکی، خودکار ارسال می‌شه.', 'wait');
