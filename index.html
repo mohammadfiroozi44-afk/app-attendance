@@ -2130,6 +2130,9 @@
       <div id="prDecreeList" style="margin-top:12px;"><div class="empty">یک پرسنل انتخاب کن</div></div>
       <div class="hr"></div>
       <div class="eyebrow" id="prDecreeFormTitle">افزودنِ حکمِ جدید</div>
+      <label>نامِ سیستمِ حقوقی</label>
+      <div class="hint" style="margin-top:-6px;">یه نامِ کوتاه برایِ شناختنِ این حکم — مثلاً «فیروزی-۱۴۰۵». رویِ خودِ فیش هم نشون داده می‌شه.</div>
+      <input type="text" id="prDecreeName" placeholder="مثلاً: فیروزی-۱۴۰۵">
       <div class="date-row">
         <div style="flex:1;"><label style="font-size:12px;">سالِ اجرا</label><input type="number" id="prDecreeYear" class="field-mono" placeholder="مثلاً 1405"></div>
         <div style="flex:1;"><label style="font-size:12px;">ماهِ اجرا</label><select id="prDecreeMonth"></select></div>
@@ -2143,6 +2146,10 @@
       <label>حق تاهل (ریال)</label><input type="text" inputmode="numeric" id="prDecreeMarriage" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
       <label>مبلغِ روزانه‌یِ ماموریت (ریال)</label><input type="text" inputmode="numeric" id="prDecreeMission" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
       <label>پاداش (ریال)</label><input type="text" inputmode="numeric" id="prDecreeBonus" class="field-mono" oninput="formatAmountInput(this)" placeholder="0">
+      <label class="chk-item" style="width:100%; box-sizing:border-box;">
+        <input type="checkbox" id="prDecreeTaxEnabled" checked> از این پرسنل مالیات کسر شود
+      </label>
+      <div class="hint" style="margin-top:-4px;">اگه برداشته بشه، تویِ فیشِ ماه‌هایی که این حکم براشون اجرا می‌شه مالیات صفر حساب می‌شه.</div>
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="prDecreeSaveBtn" onclick="savePayrollDecree()">💾 ثبتِ حکم</button>
         <button type="button" class="btn btn-ghost" id="prDecreeCancelBtn" style="display:none;" onclick="cancelPayrollDecreeEdit()">لغوِ ویرایش</button>
@@ -9302,14 +9309,19 @@ async function loadPayrollItemRules(){
   if(!res.ok){ document.getElementById('prInsList').innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
   document.getElementById('prInsEmployeeRate').value = res.employeeRate;
   document.getElementById('prInsEmployerRate').value = res.employerRate;
+  // همون جدولِ «انتخابِ آیتم‌هایِ مشمولِ بیمه و مالیات»ِ اکسل: هر ردیف یه آیتمِ فیش، با دو
+  // تیکِ مشمولِ مالیات و مشمولِ بیمه. هر تیک بلافاصله ذخیره می‌شه.
   var box = document.getElementById('prInsList');
-  box.innerHTML = (res.rows||[]).map(function(r){
-    return '<div class="list-item"><div><b>'+esc(r.itemLabel)+'</b>'+
-      '<div class="meta">'+
-        '<label class="chk-item" style="display:inline-flex; margin-inline-end:10px;"><input type="checkbox" '+(r.taxable==='بله'?'checked':'')+' onchange="savePayrollItemRule(\''+r.itemKey+'\')" id="prRuleTax-'+r.itemKey+'"> مشمولِ مالیات</label>'+
-        '<label class="chk-item" style="display:inline-flex;"><input type="checkbox" '+(r.insurable==='بله'?'checked':'')+' onchange="savePayrollItemRule(\''+r.itemKey+'\')" id="prRuleIns-'+r.itemKey+'"> مشمولِ بیمه</label>'+
-      '</div></div></div>';
-  }).join('');
+  box.innerHTML = '<div style="display:flex; gap:8px; padding:7px 4px; border-bottom:2px solid var(--navy-2); font-weight:800; font-size:12.5px;">'+
+      '<span style="flex:1;">آیتمِ پرداختی</span><span style="width:95px; text-align:center;">مشمولِ مالیات</span><span style="width:85px; text-align:center;">مشمولِ بیمه</span>'+
+    '</div>' +
+    (res.rows||[]).map(function(r){
+      return '<div style="display:flex; gap:8px; align-items:center; padding:6px 4px; border-bottom:1px solid var(--border-soft); font-size:12.5px;">'+
+        '<span style="flex:1;">'+esc(r.itemLabel)+'</span>'+
+        '<span style="width:95px; text-align:center;"><input type="checkbox" '+(r.taxable==='بله'?'checked':'')+' onchange="savePayrollItemRule(\''+r.itemKey+'\')" id="prRuleTax-'+r.itemKey+'"></span>'+
+        '<span style="width:85px; text-align:center;"><input type="checkbox" '+(r.insurable==='بله'?'checked':'')+' onchange="savePayrollItemRule(\''+r.itemKey+'\')" id="prRuleIns-'+r.itemKey+'"></span>'+
+      '</div>';
+    }).join('');
 }
 async function savePayrollItemRule(itemKey){
   var taxable = document.getElementById('prRuleTax-'+itemKey).checked ? 'بله' : 'خیر';
@@ -9338,7 +9350,8 @@ async function loadPayrollDecrees(){
   if(!_prDecrees.length){ box.innerHTML = '<div class="empty">برایِ این پرسنل هنوز حکمی ثبت نشده</div>'; return; }
   var sorted = _prDecrees.slice().sort(function(a,b){ return (Number(b.effectiveYear)*12+Number(b.effectiveMonth)) - (Number(a.effectiveYear)*12+Number(a.effectiveMonth)); });
   box.innerHTML = sorted.map(function(r){
-    return '<div class="list-item"><div><b>اجرا از '+esc(jMonths[Number(r.effectiveMonth)-1]||'')+' '+esc(r.effectiveYear)+'</b>'+
+    return '<div class="list-item"><div><b>'+esc(r.systemName || 'حکم')+'</b> — اجرا از '+esc(jMonths[Number(r.effectiveMonth)-1]||'')+' '+esc(r.effectiveYear)+
+      (String(r.taxEnabled||'بله')==='خیر' ? ' <span class="badge badge-unbound">بدونِ مالیات</span>' : '')+
       '<div class="meta mono">مسکن '+fmtRial(r.housingAllowance)+' · بن '+fmtRial(r.foodAllowance)+' · پاداش '+fmtRial(r.bonus)+'</div>'+
       '<div class="meta mono">ض.اضافه‌کاری '+esc(r.overtimePercent)+' · ض.شب‌کاری '+esc(r.nightPercent)+' · ض.تعطیل‌کاری '+esc(r.holidayPercent)+'</div></div>'+
       '<div class="actions">'+
@@ -9351,6 +9364,8 @@ function startEditPayrollDecree(id){
   var r = _prDecrees.filter(function(x){ return x.id === id; })[0];
   if(!r) return;
   _prEditDecreeId = id;
+  document.getElementById('prDecreeName').value = r.systemName || '';
+  document.getElementById('prDecreeTaxEnabled').checked = String(r.taxEnabled||'بله') !== 'خیر';
   document.getElementById('prDecreeYear').value = r.effectiveYear;
   document.getElementById('prDecreeMonth').value = r.effectiveMonth;
   syncCustomSelectDisplay('prDecreeMonth', 'prDecreeMonth_pickerBtn');
@@ -9369,9 +9384,10 @@ function startEditPayrollDecree(id){
 }
 function cancelPayrollDecreeEdit(){
   _prEditDecreeId = null;
-  ['prDecreeYear','prDecreeHousing','prDecreeFood','prDecreeOvertime','prDecreeNight','prDecreeShift','prDecreeHoliday','prDecreeMarriage','prDecreeMission','prDecreeBonus'].forEach(function(id){
+  ['prDecreeName','prDecreeYear','prDecreeHousing','prDecreeFood','prDecreeOvertime','prDecreeNight','prDecreeShift','prDecreeHoliday','prDecreeMarriage','prDecreeMission','prDecreeBonus'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.value = '';
   });
+  var taxChk = document.getElementById('prDecreeTaxEnabled'); if(taxChk) taxChk.checked = true;
   var msgEl = document.getElementById('prDecreeMsg'); if(msgEl) msgEl.textContent = '';
   var titleEl = document.getElementById('prDecreeFormTitle'); if(titleEl) titleEl.textContent = 'افزودنِ حکمِ جدید';
   var saveEl = document.getElementById('prDecreeSaveBtn'); if(saveEl) saveEl.textContent = '💾 ثبتِ حکم';
@@ -9383,6 +9399,8 @@ async function savePayrollDecree(){
   var emp = employees.filter(function(e){ return e.username === username; })[0];
   var payload = {
     pin: adminPin, username: username, employeeCode: emp ? (emp.employeeCode||'') : '',
+    systemName: document.getElementById('prDecreeName').value.trim(),
+    taxEnabled: document.getElementById('prDecreeTaxEnabled').checked ? 'بله' : 'خیر',
     effectiveYear: document.getElementById('prDecreeYear').value,
     effectiveMonth: document.getElementById('prDecreeMonth').value,
     housingAllowance: readAmountValue('prDecreeHousing') || 0,
@@ -9496,28 +9514,66 @@ async function deletePayrollDeductionSeriesBtn(loanId){
   await loadPayrollDeductions();
 }
 // ---------- فیشِ حقوقی ----------
+// چیدمانِ فیش عیناً مثلِ همون شیتِ «فیش حقوقی»ِ اکسل: سه ستونِ پرداخت‌ها، کسرها و سایر
+// اطلاعات، با همون ردیف‌ها و همون ترتیب.
+function payslipRow(label, valueHtml, bold){
+  return '<div style="display:flex; justify-content:space-between; gap:8px; padding:6px 4px; border-bottom:1px solid var(--border-soft);'+(bold?' font-weight:800;':'')+'">'+
+    '<span style="color:'+(bold?'var(--ink)':'var(--muted)')+'; font-size:12.5px;">'+label+'</span>'+
+    '<span class="mono" style="font-weight:'+(bold?'800':'700')+'; font-size:12.5px; white-space:nowrap;">'+valueHtml+'</span></div>';
+}
+function hoursText(h){
+  var total = Math.round((Number(h)||0) * 60);
+  var hh = Math.floor(total/60), mm = total%60;
+  return hh + ':' + (mm<10?'0':'') + mm;
+}
 function renderPayslipHtml(slip, monthName){
-  var payRows = slip.payments.filter(function(p){ return Math.round(p.amount) !== 0; }).map(function(p){
-    return '<div style="display:flex; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--border-soft);">'+
-      '<span style="color:var(--muted); font-size:13px;">'+esc(p.label)+'</span>'+
-      '<span class="mono" style="font-weight:700;">'+fmtRial(p.amount)+'</span></div>';
-  }).join('');
-  var dedRows = slip.deductions.filter(function(d){ return Math.round(d.amount) !== 0; }).map(function(d){
-    return '<div style="display:flex; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--border-soft);">'+
-      '<span style="color:var(--muted); font-size:13px;">'+esc(d.label)+'</span>'+
-      '<span class="mono" style="font-weight:700;">'+fmtRial(d.amount)+'</span></div>';
-  }).join('');
-  var warn = slip.decreeFound ? '' : '<div class="hint" style="color:#a32a2a;">⚠️ برایِ این پرسنل تا این ماه هیچ حکمِ حقوقی ثبت نشده — مبالغِ حکمی صفر حساب شده‌ان.</div>';
+  var e = slip.employee, a = slip.attendance, d = slip.dailyRates;
+  var payRows = slip.payments.map(function(p){ return payslipRow(esc(p.label), fmtRial(p.amount)); }).join('') +
+    payslipRow('جمعِ پرداخت‌ها', fmtRial(slip.grossPay), true);
+  var dedRows = slip.deductions.map(function(x){ return payslipRow(esc(x.label), fmtRial(x.amount)); }).join('') +
+    payslipRow('جمعِ کسرها', fmtRial(slip.deductionsTotal), true) +
+    payslipRow('خالصِ پرداختی', fmtRial(slip.netPay), true);
+  var infoRows =
+    payslipRow('کارکرد (روز)', esc(a.workedDays)) +
+    payslipRow('اضافه‌کاری (ساعت)', hoursText(a.overtimeHours)) +
+    payslipRow('جمعه‌کاری (ساعت)', hoursText(a.fridayHours)) +
+    payslipRow('تعطیل‌کاری (ساعت)', hoursText(a.holidayHours)) +
+    payslipRow('جمعِ کلِ اضافه‌کاری (ساعت)', hoursText(a.totalOvertimeHours)) +
+    payslipRow('شب‌کاری (ساعت)', hoursText(a.nightHours)) +
+    payslipRow('نوبت‌کاری', esc(a.shiftPercent)) +
+    payslipRow('تعدادِ اولاد', esc(e.childCount)) +
+    payslipRow('تعدادِ روزِ ماموریت', esc(a.missionDays)) +
+    payslipRow('گروهِ شغلی', esc(e.wageGroup || '—')) +
+    payslipRow('تاریخِ استخدام', esc(e.hireDate || '—')) +
+    payslipRow('سالِ سنواتی', esc(e.yearsOfService)) +
+    payslipRow('پایه حقوقِ روزانه', fmtRial(d.base)) +
+    payslipRow('پایه سنواتِ روزانه', fmtRial(d.seniority));
+  var insRows =
+    payslipRow('جمعِ مشمولِ بیمه', fmtRial(slip.insurance.base)) +
+    payslipRow('جمعِ مشمولِ مالیات', fmtRial(slip.taxableBase)) +
+    payslipRow('بیمه سهمِ کارمند ('+Math.round(slip.rates.employee*100)+'٪)', fmtRial(slip.insurance.employee)) +
+    payslipRow('سهمِ کارفرما ('+Math.round(slip.rates.employer*100)+'٪)', fmtRial(slip.insurance.employer)) +
+    payslipRow('کلِ حقِ بیمه', fmtRial(slip.insurance.total));
+  var decreeTxt = slip.decree
+    ? (esc(slip.decree.systemName || 'حکم') + ' — اجرا از ' + esc(jMonths[Number(slip.decree.effectiveMonth)-1]||'') + ' ' + esc(slip.decree.effectiveYear) + (slip.decree.taxEnabled === 'خیر' ? ' · بدونِ کسرِ مالیات' : ''))
+    : '<span style="color:#a32a2a;">حکمِ حقوقی وجود ندارد — مبالغِ حکمی صفر حساب شده</span>';
+  var col = 'flex:1; min-width:230px;';
   return '<div class="card" style="margin-bottom:0;">'+
-    '<div class="eyebrow">'+esc(slip.employee.fullName)+(slip.employee.employeeCode?(' <span class="mono" style="font-size:12px; color:var(--muted);">(کد '+esc(slip.employee.employeeCode)+')</span>'):'')+'</div>'+
-    '<div class="hint" style="margin-top:-4px;">'+esc(monthName||'')+' '+esc(slip.year)+' · گروهِ شغلی '+esc(slip.employee.wageGroup||'—')+' · سابقه '+esc(slip.employee.yearsOfService)+' سال · '+esc(slip.employee.childCount)+' فرزند</div>'+
-    warn+
-    '<div class="eyebrow" style="margin-top:10px;">پرداخت‌ها (ریال)</div>'+ payRows +
-    '<div style="display:flex; justify-content:space-between; padding:9px 4px; font-weight:800;"><span>جمعِ پرداخت‌ها</span><span class="mono">'+fmtRial(slip.grossPay)+'</span></div>'+
-    '<div class="eyebrow" style="margin-top:10px;">کسورات (ریال)</div>'+ (dedRows || '<div class="empty">کسوراتی نیست</div>') +
-    '<div style="display:flex; justify-content:space-between; padding:9px 4px; font-weight:800;"><span>جمعِ کسورات</span><span class="mono">'+fmtRial(slip.deductionsTotal)+'</span></div>'+
-    '<div style="display:flex; justify-content:space-between; padding:12px 4px; font-weight:800; font-size:16px; border-top:2px solid var(--navy-2); margin-top:6px;"><span>خالصِ پرداختی</span><span class="mono">'+fmtRial(slip.netPay)+'</span></div>'+
-    '<div class="hint" style="margin-top:8px;">کارکردِ محاسبه‌شده: اضافه‌کاری '+esc(slip.attendance.overtimeHours.toFixed(2))+' ساعت · شب‌کاری '+esc(slip.attendance.nightHours.toFixed(2))+' ساعت · جمعه/تعطیل '+esc(slip.attendance.fridayHolidayHours.toFixed(2))+' ساعت · ماموریت '+esc(slip.attendance.missionDays)+' روز</div>'+
+    '<div class="eyebrow">فیشِ حقوقی — '+esc(monthName||'')+' '+esc(slip.year)+'</div>'+
+    '<div style="display:flex; flex-wrap:wrap; gap:4px 18px; font-size:12.5px; margin:4px 0 10px;">'+
+      '<span><b>نام:</b> '+esc(e.fullName)+'</span>'+
+      '<span><b>شماره پرسنلی:</b> <span class="mono">'+esc(e.employeeCode||'—')+'</span></span>'+
+      (e.jobTitle ? '<span><b>سمت:</b> '+esc(e.jobTitle)+'</span>' : '')+
+      (e.unit ? '<span><b>واحد:</b> '+esc(e.unit)+'</span>' : '')+
+      '<span><b>وضعیتِ تاهل:</b> '+esc(e.maritalStatus||'—')+'</span>'+
+      '<span><b>سیستمِ حقوقی:</b> '+decreeTxt+'</span>'+
+    '</div>'+
+    '<div style="display:flex; flex-wrap:wrap; gap:14px;">'+
+      '<div style="'+col+'"><div class="eyebrow" style="margin-bottom:2px;">پرداخت‌ها (ریال)</div>'+payRows+'</div>'+
+      '<div style="'+col+'"><div class="eyebrow" style="margin-bottom:2px;">کسرها (ریال)</div>'+dedRows+'</div>'+
+      '<div style="'+col+'"><div class="eyebrow" style="margin-bottom:2px;">سایر اطلاعات</div>'+infoRows+'</div>'+
+    '</div>'+
+    '<div class="eyebrow" style="margin-top:12px;">محاسباتِ بیمه و مالیات (ریال)</div>'+insRows+
   '</div>';
 }
 async function loadAdminPayslip(){
