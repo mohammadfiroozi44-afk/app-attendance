@@ -10655,9 +10655,10 @@ async function loadMyPerf(){
     '</div>';
   }).join('');
 }
-// فقط همون کادری که بهش داده می‌شه چاپ می‌شه، نه کلِ صفحه. کلاس‌ها بعد از بسته‌شدنِ
-// پنجره‌یِ چاپ برداشته می‌شن (onafterprint رویِ بعضی مرورگرهایِ موبایل صدا زده نمی‌شه،
-// برایِ همین یه تایمر هم به‌عنوانِ پشتیبان هست).
+// فقط همون کادری که بهش داده می‌شه چاپ می‌شه، نه کلِ صفحه.
+// نکته‌یِ مهم: window.print() باید دقیقاً همون لحظه‌ی کلیک صدا زده بشه. اگه بندازیمش تویِ
+// setTimeout، مرورگرهایِ موبایل (کروم/سامسونگ) چون دیگه «اقدامِ کاربر» حسابش نمی‌کنن،
+// بی‌هیچ پیامی بلاکش می‌کنن و دکمه ظاهراً هیچ کاری نمی‌کنه.
 function printElement(boxId){
   var el = document.getElementById(boxId);
   if(!el){ window.print(); return; }
@@ -10669,8 +10670,11 @@ function printElement(boxId){
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);
-  setTimeout(function(){ window.print(); }, 30);
-  setTimeout(cleanup, 4000);
+  try{ window.print(); }
+  finally{
+    // روی موبایل afterprint همیشه صدا زده نمی‌شه — این پشتیبانه تا صفحه قفلِ حالتِ چاپ نمونه.
+    setTimeout(cleanup, 3000);
+  }
 }
 function printMyPerf(){ printElement('perfStatsCards'); }
 
