@@ -1355,19 +1355,11 @@
       <label>کد ملی (اختیاری)</label>
       <input type="text" id="empFormNationalId" class="field-mono" placeholder="۱۰ رقم">
       <label>وضعیتِ تاهل</label>
-      <div class="hint" style="margin-top:-6px;">مبنایِ پرداختِ «حق تاهل» تویِ فیشِ حقوقیه.</div>
+      <div class="hint" style="margin-top:-6px;">مبنایِ پرداختِ «حق تاهل» تویِ فیشِ حقوقیه. گروهِ شغلی و کسرِ مالیات تویِ «تعریف حقوق» مشخص می‌شن، نه اینجا.</div>
       <select id="empFormMaritalStatus">
         <option value="">— تعیین‌نشده —</option>
         <option value="مجرد">مجرد</option>
         <option value="متاهل">متاهل</option>
-      </select>
-      <label>گروهِ شغلیِ حقوق (۱ تا ۲۰)</label>
-      <div class="hint" style="margin-top:-6px;">شماره‌یِ گروهِ مزدی طبقِ جدولِ گروه‌هایِ شغلی — مبنایِ پایه حقوق و پایه سنوات.</div>
-      <input type="number" id="empFormWageGroup" class="field-mono" placeholder="مثلاً 15">
-      <label>مشمولِ مالیات</label>
-      <select id="empFormPayrollTaxable">
-        <option value="بله">بله</option>
-        <option value="خیر">خیر</option>
       </select>
       <label>عکس پرسنلی (اختیاری)</label>
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
@@ -3098,6 +3090,9 @@ function switchTab(which){
     if(loggedInEmployee){
       document.getElementById('empLoginGate').style.display='none';
       document.getElementById('empView').style.display='block';
+      // برگشت از پنلِ مدیریت = ورودِ دوباره به همون بخش، پس باید مثلِ بارِ اول از نو
+      // بارگذاری بشه — نه اینکه نتیجه‌یِ قبل از رفتن به پنلِ دیگه سرِ جاش مونده باشه.
+      if(_lastEmpSection) showEmpSection(_lastEmpSection);
     } else {
       document.getElementById('empLoginGate').style.display='block';
       document.getElementById('empView').style.display='none';
@@ -3110,6 +3105,7 @@ function switchTab(which){
     if(adminPin && adminUsername){
       document.getElementById('adminGate').style.display='none';
       document.getElementById('adminView').style.display='block';
+      if(_lastAdminSection) resetSectionResults('admin', _lastAdminSection);
       refreshAdminView();
       requestNotificationPermission();
       startAdminLogWatcher();
@@ -5131,6 +5127,40 @@ async function submitLeaveFromSheet(){
 var EMP_SECTION_LEAVE_RESET = {
   messages: ['cancelEmpMessageEdit']
 };
+// هر بخش — چه با کلیکِ منو باز بشه، چه با برگشتن از پنلِ دیگه — باید از صفر بالا بیاد، نه
+// با نتیجه‌یِ دفعه‌یِ قبل. اینجا برایِ هر بخش گفته شده کدوم کادرهاش «نتیجه»ان و با چه پیامی
+// خالی بشن. کادرهایی که بخش موقعِ باز شدن خودش دوباره پرشون می‌کنه، پیامِ «در حال
+// بارگذاری» می‌گیرن تا یک لحظه هم دادهٔ قدیمی دیده نشه.
+var SECTION_RESULT_BOXES = {
+  'emp:request': [['empUnifiedReqList', '']],
+  'emp:services': [['myServiceTripsList', '']],
+  'emp:history': [['myHistoryList', 'ماه و سال موردنظر را انتخاب کرده و «بارگذاری سوابق» را بزنید.']],
+  'emp:perf': [['perfStatsCards', 'ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.']],
+  'emp:daily': [['dailyStatsCards', 'ماه و سال را انتخاب کرده و «بارگذاری» را بزنید.']],
+  'emp:payslip': [['myPayslipBox', 'ماه و سال را انتخاب کرده و «نمایشِ فیش» را بزنید.']],
+  'emp:messages': [['myMessagesList', ''], ['mySentMessagesList', '']],
+  'admin:dashboard': [['dashAbsentList', ''], ['dashLeaveList', ''], ['dashMissionList', '']],
+  'admin:employees': [['empShiftAssignList', '']],
+  'admin:requests': [['reqAdminList', 'فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.']],
+  'admin:services': [['serviceAdminList', 'فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.']],
+  'admin:messages': [['receivedMessagesAdminList', ''], ['sentMessagesList', '']],
+  'admin:offline': [['pendingOfflineList', ''], ['openSessionsList', '']],
+  'admin:report': [['statusReportList', 'فیلترهای موردنظر را انتخاب کرده و «بارگذاری گزارش» را بزنید.']],
+  'admin:performance': [['perfReportCards', 'ماه و سال را انتخاب کرده و «بارگذاری گزارش کارکرد» را بزنید.']],
+  'admin:payroll': [
+    ['prSlipBox', 'پرسنل، ماه و سال را انتخاب کن.'],
+    ['prDecreeList', 'یک پرسنل انتخاب کن'],
+    ['prChildList', 'یک پرسنل انتخاب کن'],
+    ['prDedList', 'یک پرسنل انتخاب کن']
+  ]
+};
+function resetSectionResults(panel, name){
+  (SECTION_RESULT_BOXES[panel + ':' + name] || []).forEach(function(pair){
+    var el = document.getElementById(pair[0]);
+    if(!el) return;
+    el.innerHTML = '<div class="empty">' + (pair[1] || 'در حال بارگذاری...') + '</div>';
+  });
+}
 var _lastEmpSection = null;
 function showEmpSection(name){
   // اگه این منو توسطِ سوپرادمین مخفی شده، به اولین منویِ قابلِ دیدن می‌ریم — تا بخشِ مخفی‌شده
@@ -5151,6 +5181,7 @@ function showEmpSection(name){
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
     if(btn) btn.classList.toggle('active', s===name);
   });
+  resetSectionResults('emp', name);
   if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
   else if(name === 'services'){ autoWirePicker('serviceVehicleType','نوعِ وسیله'); cancelServiceEdit(); loadMyServiceTrips(); }
@@ -5196,7 +5227,8 @@ var ADMIN_SECTION_LEAVE_RESET = {
   shifts: ['cancelShiftEdit'],
   messages: ['cancelMessageEdit'],
   report: ['closeStatusMarkerEdit', 'cancelEditLog'],
-  offline: ['cancelOfflineEdit']
+  offline: ['cancelOfflineEdit'],
+  payroll: ['cancelPayrollDecreeEdit', 'cancelPayrollWageGroupEdit', 'cancelPayrollSeniorityEdit', 'cancelPayrollTaxEdit']
 };
 var _lastAdminSection = null;
 function showAdminSection(name){
@@ -5217,6 +5249,7 @@ function showAdminSection(name){
     if(btn) btn.classList.toggle('active', s===name);
   });
   if(name === 'projects') initProjMap();
+  resetSectionResults('admin', name);
   pushSectionHistory(name, name === 'dashboard');
   refreshAdminSection(name);
   closeDrawer();
@@ -5241,7 +5274,6 @@ async function refreshAdminSection(name){
     // کشوهایِ فرمِ پرسنل همیشه باید تمِ خودِ اپ رو داشته باشن — نه فقط وقتی فرم برایِ
     // ویرایشِ یه پرسنلِ موجود باز می‌شه (حالتِ «افزودنِ پرسنل» هم از همین فرم استفاده می‌کنه).
     autoWirePicker('empFormMaritalStatus', 'وضعیتِ تاهل');
-    autoWirePicker('empFormPayrollTaxable', 'مشمولِ مالیات');
     autoWirePicker('empFormCarryoverMode', 'قانونِ انتقال');
   }
   else if(name === 'projects') await loadProjectsAdmin();
@@ -5890,10 +5922,7 @@ function startEditEmp(id){
   document.getElementById('empFormJobGroup').value = emp.jobGroup || '';
   document.getElementById('empFormNationalId').value = emp.nationalId || '';
   document.getElementById('empFormMaritalStatus').value = emp.maritalStatus || '';
-  document.getElementById('empFormWageGroup').value = emp.payrollWageGroup || '';
-  document.getElementById('empFormPayrollTaxable').value = emp.payrollTaxable || 'بله';
   autoWirePicker('empFormMaritalStatus', 'وضعیتِ تاهل');
-  autoWirePicker('empFormPayrollTaxable', 'مشمولِ مالیات');
   initLeaveDateSelects();
   if(emp.hireDate) setDateSelectValue('empHireDate', emp.hireDate);
   document.getElementById('empFormLeaveBalance').value = (emp.leaveBalanceOverride !== undefined && emp.leaveBalanceOverride !== '') ? emp.leaveBalanceOverride : '';
@@ -5937,10 +5966,7 @@ function cancelEmpEdit(){
   document.getElementById('empFormJobGroup').value = '';
   document.getElementById('empFormNationalId').value = '';
   document.getElementById('empFormMaritalStatus').value = '';
-  document.getElementById('empFormWageGroup').value = '';
-  document.getElementById('empFormPayrollTaxable').value = 'بله';
   syncCustomSelectDisplay('empFormMaritalStatus', 'empFormMaritalStatus_pickerBtn');
-  syncCustomSelectDisplay('empFormPayrollTaxable', 'empFormPayrollTaxable_pickerBtn');
   document.getElementById('empFormPhoto').value = '';
   document.getElementById('empFormPhotoPreview').style.display = 'none';
   pendingPhotoDataUrl = null;
@@ -6047,9 +6073,7 @@ async function saveEmployee(){
     var leaveCarryoverMode = document.getElementById('empFormCarryoverMode').value;
     var leaveCarryoverCap = document.getElementById('empFormCarryoverCap').value.trim();
     var leavePayload = {hireDate:hireDate, leaveBalanceOverride:leaveBalanceOverride, leaveCarryoverMode:leaveCarryoverMode, leaveCarryoverCap:leaveCarryoverCap,
-      maritalStatus: document.getElementById('empFormMaritalStatus').value,
-      payrollWageGroup: document.getElementById('empFormWageGroup').value.trim(),
-      payrollTaxable: document.getElementById('empFormPayrollTaxable').value};
+      maritalStatus: document.getElementById('empFormMaritalStatus').value};
     var res;
     if(editingEmpId){
       res = await apiCall(function(){ return apiPost('updateEmployee', Object.assign({pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
@@ -9545,7 +9569,7 @@ function hoursText(h){
   var hh = Math.floor(total/60), mm = total%60;
   return hh + ':' + (mm<10?'0':'') + mm;
 }
-function renderPayslipHtml(slip, monthName){
+function renderPayslipHtml(slip, monthName, showWarnings){
   var e = slip.employee, a = slip.attendance, d = slip.dailyRates;
   var payRows = slip.payments.map(function(p){ return payslipRow(esc(p.label), fmtRial(p.amount), 'pay'); }).join('') +
     payslipRow('جمعِ پرداخت‌ها', fmtRial(slip.grossPay), 'pay', true);
@@ -9575,7 +9599,8 @@ function renderPayslipHtml(slip, monthName){
   var decreeTxt = slip.decree
     ? (esc(slip.decree.systemName || 'حکم') + ' — اجرا از ' + esc(jMonths[Number(slip.decree.effectiveMonth)-1]||'') + ' ' + esc(slip.decree.effectiveYear) + (slip.decree.taxEnabled === 'خیر' ? ' · بدونِ کسرِ مالیات' : ''))
     : '<span style="color:#b42318;">حکمی ثبت نشده</span>';
-  var warnHtml = (slip.warnings && slip.warnings.length)
+  // کادرِ هشدار فقط مالِ مدیره — کارمند نباید ببینه کدوم تعریف جا افتاده.
+  var warnHtml = (showWarnings && slip.warnings && slip.warnings.length)
     ? '<div style="background:#fffaeb; border:1px solid #fedf89; border-radius:10px; padding:9px 11px; margin-bottom:12px;">'+
         '<div style="font-weight:800; color:#b54708; font-size:12.5px; margin-bottom:4px;">⚠️ این موارد باعث شده بخشی از فیش صفر دربیاد:</div>'+
         '<ul style="margin:0; padding-inline-start:18px; color:#b54708; font-size:12px; line-height:1.9;">'+
@@ -9621,7 +9646,7 @@ async function loadAdminPayslip(){
   var monthIdx = jMonths.indexOf(monthName) + 1;
   var res = await apiCall(function(){ return apiPost('getPayslip', {pin:adminPin, username:username, year:year, month:monthIdx}); });
   if(!res.ok){ box.innerHTML = '<div class="empty">محاسبه ناموفق بود: '+esc(res.error||'')+'</div>'; return; }
-  box.innerHTML = renderPayslipHtml(res.slip, monthName) +
+  box.innerHTML = renderPayslipHtml(res.slip, monthName, true) +
     '<button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="window.print()">🖨 چاپ</button>';
 }
 async function loadMyPayslip(){
