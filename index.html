@@ -1354,6 +1354,8 @@
       <input type="text" id="empFormJobGroup" placeholder="مثلاً: اجرایی، فنی، اداری">
       <label>کد ملی (اختیاری)</label>
       <input type="text" id="empFormNationalId" class="field-mono" placeholder="۱۰ رقم">
+      <label>نامِ پدر (اختیاری)</label>
+      <input type="text" id="empFormFatherName" placeholder="رویِ فیشِ حقوقی چاپ می‌شه">
       <label>وضعیتِ تاهل</label>
       <div class="hint" style="margin-top:-6px;">مبنایِ پرداختِ «حق تاهل» تویِ فیشِ حقوقیه. گروهِ شغلی و کسرِ مالیات تویِ «تعریف حقوق» مشخص می‌شن، نه اینجا.</div>
       <select id="empFormMaritalStatus">
@@ -5926,6 +5928,7 @@ function startEditEmp(id){
   document.getElementById('empFormJobTitle').value = emp.jobTitle || '';
   document.getElementById('empFormJobGroup').value = emp.jobGroup || '';
   document.getElementById('empFormNationalId').value = emp.nationalId || '';
+  document.getElementById('empFormFatherName').value = emp.fatherName || '';
   document.getElementById('empFormMaritalStatus').value = emp.maritalStatus || '';
   autoWirePicker('empFormMaritalStatus', 'وضعیتِ تاهل');
   initLeaveDateSelects();
@@ -5970,6 +5973,7 @@ function cancelEmpEdit(){
   document.getElementById('empFormJobTitle').value = '';
   document.getElementById('empFormJobGroup').value = '';
   document.getElementById('empFormNationalId').value = '';
+  document.getElementById('empFormFatherName').value = '';
   document.getElementById('empFormMaritalStatus').value = '';
   syncCustomSelectDisplay('empFormMaritalStatus', 'empFormMaritalStatus_pickerBtn');
   document.getElementById('empFormPhoto').value = '';
@@ -6074,6 +6078,7 @@ async function saveEmployee(){
     var jobTitle = document.getElementById('empFormJobTitle').value.trim();
     var jobGroup = document.getElementById('empFormJobGroup').value.trim();
     var nationalId = document.getElementById('empFormNationalId').value.trim();
+    var fatherName = document.getElementById('empFormFatherName').value.trim();
     var leaveBalanceOverride = document.getElementById('empFormLeaveBalance').value.trim();
     var leaveCarryoverMode = document.getElementById('empFormCarryoverMode').value;
     var leaveCarryoverCap = document.getElementById('empFormCarryoverCap').value.trim();
@@ -6081,9 +6086,9 @@ async function saveEmployee(){
       maritalStatus: document.getElementById('empFormMaritalStatus').value};
     var res;
     if(editingEmpId){
-      res = await apiCall(function(){ return apiPost('updateEmployee', Object.assign({pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
+      res = await apiCall(function(){ return apiPost('updateEmployee', Object.assign({pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, fatherName:fatherName, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
     } else {
-      res = await apiCall(function(){ return apiPost('addEmployee', Object.assign({pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
+      res = await apiCall(function(){ return apiPost('addEmployee', Object.assign({pin:adminPin, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, fatherName:fatherName, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
     }
     btn.disabled = false;
     if(!res.ok){
@@ -10677,13 +10682,13 @@ function loadPdfLibs(){
 // داخلِ خودِ مرورگر رندر می‌شه، فارسی و راست‌به‌چپ بدونِ دردسرِ فونت درست درمیان.
 function pdfCell(label, value, labelW){
   return '<tr>'+
-    '<td style="border:0.2mm solid #000; padding:0.9mm 1.4mm; font-size:7pt; color:#333; white-space:nowrap;'+(labelW?(' width:'+labelW+';'):'')+'">'+label+'</td>'+
-    '<td style="border:0.2mm solid #000; padding:0.9mm 1.4mm; font-size:7.5pt; font-weight:700; text-align:left; direction:ltr;">'+value+'</td>'+
+    '<td style="border:0.2mm solid #000; padding:0.6mm 1.2mm; font-size:6.8pt; color:#333; white-space:nowrap;'+(labelW?(' width:'+labelW+';'):'')+'">'+label+'</td>'+
+    '<td style="border:0.2mm solid #000; padding:0.6mm 1.2mm; font-size:7pt; font-weight:700; text-align:left; direction:ltr;">'+value+'</td>'+
   '</tr>';
 }
 function pdfSubTable(title, rowsHtml){
   return '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">'+
-    '<tr><td colspan="2" style="border:0.2mm solid #000; background:#f0f0f0; padding:1mm; font-size:8pt; font-weight:800; text-align:center;">'+title+'</td></tr>'+
+    '<tr><td colspan="2" style="border:0.2mm solid #000; background:#f0f0f0; padding:0.8mm; font-size:7.5pt; font-weight:800; text-align:center;">'+title+'</td></tr>'+
     rowsHtml+
   '</table>';
 }
@@ -10708,16 +10713,17 @@ function buildPayslipDocNode(slip, monthName){
     pdfCell('مشمولِ مالیات', fmtRial(slip.taxableBase)) +
     pdfCell('سهمِ کارفرما', fmtRial(slip.insurance.employer));
   function head(label, value){
-    return '<td style="border:0.2mm solid #000; padding:1mm 1.5mm; font-size:7.5pt;"><span style="color:#444;">'+label+':</span> <b>'+value+'</b></td>';
+    return '<td style="border:0.2mm solid #000; padding:0.8mm 1.4mm; font-size:7pt;"><span style="color:#444;">'+label+':</span> <b>'+value+'</b></td>';
   }
   var node = document.createElement('div');
   node.setAttribute('dir', 'rtl');
   node.style.cssText = 'position:fixed; left:-20000px; top:0; width:210mm; height:148mm; box-sizing:border-box;'+
-    ' padding:6mm; background:#ffffff; color:#000000;';
+    ' padding:5mm; background:#ffffff; color:#000000; overflow:hidden;';
   node.innerHTML =
+    '<div id="payslipPdfInner" style="transform-origin:top right;">'+
     '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">'+
-      '<tr><td style="border:0.3mm solid #000; padding:2mm; text-align:center;">'+
-        '<div style="font-size:14pt; font-weight:800;">فیشِ حقوقی</div>'+
+      '<tr><td style="border:0.3mm solid #000; padding:1.5mm; text-align:center;">'+
+        '<div style="font-size:13pt; font-weight:800;">فیشِ حقوقی</div>'+
         '<div style="font-size:10pt; font-weight:700; margin-top:1mm;">'+esc(_companyBrandName || '')+'</div>'+
         '<div style="font-size:7.5pt; color:#555; margin-top:0.5mm;">'+esc(OWN_BRAND_NAME)+'</div>'+
       '</td></tr>'+
@@ -10725,6 +10731,7 @@ function buildPayslipDocNode(slip, monthName){
     '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2mm;">'+
       '<tr>'+
         head('نام و نام خانوادگی', esc(e.fullName)) +
+        head('نامِ پدر', esc(e.fatherName || '—')) +
         head('شماره پرسنلی', esc(e.employeeCode || '—')) +
         head('مربوط به', esc(monthName || '') + ' ' + esc(slip.year)) +
       '</tr>'+
@@ -10732,6 +10739,7 @@ function buildPayslipDocNode(slip, monthName){
         head('گروهِ شغلی', esc(e.wageGroup || '—')) +
         head('تاریخِ استخدام', esc(e.hireDate || '—')) +
         head('سالِ سنواتی', esc(e.yearsOfService)) +
+        head('وضعیتِ تاهل', esc(e.maritalStatus || '—')) +
       '</tr>'+
     '</table>'+
     '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2mm;">'+
@@ -10743,13 +10751,23 @@ function buildPayslipDocNode(slip, monthName){
     '</table>'+
     '<table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:2mm;">'+
       '<tr>'+
-        '<td style="border:0.3mm solid #000; padding:2mm; font-size:10pt; font-weight:800; text-align:center; width:60%;">'+
+        '<td style="border:0.3mm solid #000; padding:1.5mm; font-size:10pt; font-weight:800; text-align:center; width:60%;">'+
           'خالصِ پرداختی: '+fmtRial(slip.netPay)+' ریال</td>'+
         '<td style="border:0.3mm solid #000; padding:2mm 3mm; font-size:7.5pt; text-align:center;">'+
-          'مهر و امضایِ مدیریت<div style="height:11mm;"></div></td>'+
+          'مهر و امضایِ مدیریت<div style="height:9mm;"></div></td>'+
       '</tr>'+
-    '</table>';
+    '</table>'+
+    '</div>';
   document.body.appendChild(node);
+  // اگه تعدادِ ردیف‌ها زیاد بود و از ارتفاعِ A5 رد شد، کلِ برگه کمی کوچک می‌شه تا همیشه
+  // داخلِ یک صفحه کامل جا بشه — وگرنه ردیفِ خالص و امضا از پایین بریده می‌شد.
+  var inner = node.querySelector('#payslipPdfInner');
+  var availableH = node.clientHeight - 10 * 3.7795; // 5mm پدینگ از بالا و پایین، به پیکسل
+  if(inner && inner.scrollHeight > availableH){
+    var k = availableH / inner.scrollHeight;
+    inner.style.transform = 'scale(' + k + ')';
+    inner.style.width = (100 / k) + '%';
+  }
   return node;
 }
 // برگه‌یِ ساخته‌شده رو به یک صفحه‌یِ A5ِ افقی تبدیل و دانلود می‌کنه.
