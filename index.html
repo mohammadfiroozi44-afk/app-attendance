@@ -288,10 +288,15 @@
      همه‌یِ فهرست‌هایِ گزارشی (داشبورد، گزارش‌ها، سوابقِ پرسنل) از همین یک استایل استفاده
      می‌کنن تا همه‌جا یک‌شکل باشه. رویِ گوشی هم جدول می‌مونه، فقط اگه ستون‌ها جا نشدن
      افقی اسکرول می‌شه — نه اینکه به ردیف‌هایِ زیرِ هم تبدیل بشه. */
-  .data-table-wrap{ width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  /* قاب و گردیِ گوشه‌ها رویِ خودِ wrapper است، نه رویِ table. با overflow رویِ table، خودِ
+     جدول تبدیل به ظرفِ اسکرول می‌شد و position:sticky داخلش (سرستون و ستون‌هایِ ثابت)
+     از کار می‌افتاد. */
+  .data-table-wrap{
+    width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    border:1px solid var(--border-soft); border-radius:var(--r-md); background:var(--paper);
+  }
   table.data-table{
     width:100%; border-collapse:collapse; font-size:12.5px; background:var(--paper);
-    border:1px solid var(--border-soft); border-radius:var(--r-md); overflow:hidden;
   }
   table.data-table th, table.data-table td{
     padding:8px 10px; text-align:right; border-bottom:1px solid var(--border-soft);
@@ -305,6 +310,38 @@
   table.data-table tbody tr:hover{ background:var(--paper-2); }
   table.data-table td.dt-wrap{ white-space:normal; min-width:150px; }
   table.data-table .dt-muted{ color:var(--muted); }
+  /* ردیفِ غیرفعال عقب می‌شینه. عمداً با رنگ، نه با opacity — چون opacity یک stacking
+     context می‌سازه و ستون‌هایِ ثابتِ پایین از زیرِ ستون‌هایِ اسکرول‌شونده بیرون می‌زدن. */
+  table.data-table tr.dt-dim td{ color:var(--muted); }
+  /* ستونِ اول (هویتِ ردیف) و ستونِ آخر (دکمه‌ها) سرِ جاشون می‌مونن و بقیه زیرشون اسکرول
+     می‌شن — وگرنه رویِ گوشی برایِ زدنِ دکمه‌یِ ویرایش باید کلِ جدول رو افقی کشید. */
+  table.data-table th.dt-freeze-start, table.data-table td.dt-freeze-start,
+  table.data-table th.dt-freeze-end,   table.data-table td.dt-freeze-end{
+    position:sticky; z-index:2; background:var(--paper);
+  }
+  table.data-table th.dt-freeze-start, table.data-table td.dt-freeze-start{
+    inset-inline-start:0; border-inline-end:1px solid var(--border-soft);
+  }
+  table.data-table th.dt-freeze-end, table.data-table td.dt-freeze-end{
+    inset-inline-end:0; border-inline-start:1px solid var(--border-soft);
+  }
+  table.data-table th.dt-freeze-start, table.data-table th.dt-freeze-end{ background:var(--paper-2); z-index:3; }
+  table.data-table tbody tr:hover td.dt-freeze-start,
+  table.data-table tbody tr:hover td.dt-freeze-end{ background:var(--paper-2); }
+  /* رویِ صفحه‌یِ باریک، ستون‌هایِ کم‌اهمیت‌تر کنار می‌رن تا جدول بدونِ اسکرولِ افقی جا بشه؛
+     اطلاعاتشون به‌صورتِ یک خطِ فشرده زیرِ نامِ همون ردیف می‌آد (dt-sm-only). */
+  .dt-sm-only{ display:none; }
+  @media (max-width: 760px){
+    table.data-table .dt-hide-sm{ display:none; }
+    .dt-sm-only{ display:block; }
+    /* رویِ گوشی هر پیکسل مهمه — ستونِ نام و دکمه‌ها کمی جمع‌تر می‌شن تا جدول بدونِ
+       اسکرولِ افقی تویِ عرضِ صفحه جا بشه. */
+    table.data-table td.dt-wrap{ min-width:120px; }
+    table.data-table th, table.data-table td{ padding:8px 6px; }
+    table.data-table .icon-btn{ width:28px; height:28px; font-size:13px; }
+  }
+  /* یوزرنیمِ بلند نباید ستون رو پهن کنه */
+  table.data-table .dt-ellipsis{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   @media (min-width: 1024px){
     table.data-table{ font-size:13px; }
   }
@@ -2463,7 +2500,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-07-decree-per-year";
+const FRONTEND_VERSION = "v-2026-10-09-employee-table";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
 const BACKEND_EXPECTED_VERSION = "v-2026-10-07-decree-per-year";
@@ -5955,30 +5992,65 @@ function renderEmpList(){
            String(emp.username||'').toLowerCase().indexOf(q)!==-1 ||
            String(emp.employeeCode||'').toLowerCase().indexOf(q)!==-1;
   });
-  if(list.length===0){ box.innerHTML = '<div class="empty">پرسنلی با این مشخصات یافت نشد</div>'; return; }
-  box.innerHTML = list.map(function(emp){
-    var deviceBadge = emp.deviceId
-      ? '<span class="badge badge-bound">📱 دستگاه ثبت‌شده</span>'
-      : '<span class="badge badge-unbound">📱 دستگاه ثبت‌نشده</span>';
-    var freeZoneBadge = emp.freeZone ? '<span class="badge badge-bound">🌍 منطقه آزاد</span>' : '';
-    var fpBadge = emp.fingerprintRequired ? '<span class="badge badge-bound">👆 اثر انگشت</span>' : '';
-    var isActive = String(emp.active) !== 'false';
-    var activeBadge = isActive ? '' : '<span class="badge badge-unbound" style="background:#fdeaea; color:#a32a2a;">⛔ غیرفعال</span>';
-    var scopeText = (!emp.allowedProjects || emp.allowedProjects==='ALL') ? 'همه پروژه‌ها' : (emp.allowedProjects.split(',').length + ' پروژه محدود');
-    var codeText = emp.employeeCode ? (' · کد: '+esc(emp.employeeCode)) : '';
-    var jobText = emp.jobTitle ? (' · '+esc(emp.jobTitle)) : '';
-    var groupText = emp.jobGroup ? (' · '+esc(emp.jobGroup)) : '';
-    var balanceText = _leaveBalances[emp.username] !== undefined ? (' · مانده‌یِ مرخصی: '+esc(_leaveBalances[emp.username])+' روز') : '';
-    var photoHtml = emp.photoUrl ? '<img src="'+emp.photoUrl+'" style="width:34px; height:34px; border-radius:50%; object-fit:cover; margin-inline-end:8px; vertical-align:middle;'+(isActive?'':' opacity:0.5;')+'">' : '';
-    return '<div class="list-item" style="'+(isActive?'':'opacity:0.6;')+'"><div style="display:flex; align-items:center;">'+photoHtml+'<div><b>'+esc(emp.fullName)+'</b>'+deviceBadge+freeZoneBadge+fpBadge+activeBadge+
-      '<div class="meta">username: '+esc(emp.username)+' · '+scopeText+codeText+jobText+groupText+balanceText+'</div></div></div>'+
-      '<div class="actions">'+
+  function isActiveEmp(emp){ return String(emp.active) !== 'false'; }
+  function scopeText(emp){
+    return (!emp.allowedProjects || emp.allowedProjects==='ALL')
+      ? 'همه پروژه‌ها'
+      : (emp.allowedProjects.split(',').length + ' پروژه محدود');
+  }
+  function balanceText(emp){
+    var b = _leaveBalances[emp.username];
+    return b === undefined ? '' : esc(b) + ' روز';
+  }
+  // نشان‌ها: .badge خودش margin-inline-start داره که اولین نشانِ هر خونه رو بی‌خود تورفته
+  // می‌کنه، پس اینجا با flex می‌چینیمشون و حاشیه‌شون رو صفر می‌کنیم.
+  function badges(emp){
+    var out = '';
+    if(!isActiveEmp(emp)) out += '<span class="badge badge-unbound" style="margin:0; background:#fdeaea; color:#a32a2a; border-color:#f3cfcf;">⛔ غیرفعال</span>';
+    out += emp.deviceId
+      ? '<span class="badge badge-bound" style="margin:0;" title="دستگاه ثبت‌شده">📱 ثبت‌شده</span>'
+      : '<span class="badge badge-unbound" style="margin:0;" title="دستگاه ثبت‌نشده">📱 ثبت‌نشده</span>';
+    if(emp.freeZone) out += '<span class="badge badge-bound" style="margin:0;" title="منطقه آزاد">🌍</span>';
+    if(emp.fingerprintRequired) out += '<span class="badge badge-bound" style="margin:0;" title="اثر انگشت">👆</span>';
+    return '<span style="display:inline-flex; gap:4px; flex-wrap:wrap;">' + out + '</span>';
+  }
+  box.innerHTML = renderDataTable(list, [
+    {title:'پرسنل', wrap:true, cls:'dt-freeze-start', cell:function(emp){
+      var photo = emp.photoUrl
+        ? '<img src="'+emp.photoUrl+'" style="width:30px; height:30px; border-radius:50%; object-fit:cover; flex-shrink:0;">'
+        : '<span style="width:30px; height:30px; border-radius:50%; flex-shrink:0; background:var(--paper-2); border:1px solid var(--border-soft); display:inline-flex; align-items:center; justify-content:center; font-size:13px;">👤</span>';
+      // رویِ گوشی که ستون‌هایِ دیگه مخفی‌ان، خلاصه‌شون همین‌جا زیرِ نام می‌آد.
+      var compact = [
+        emp.employeeCode ? 'کد ' + esc(emp.employeeCode) : '',
+        esc(emp.jobTitle||''),
+        scopeText(emp),
+        balanceText(emp) ? 'مرخصی ' + balanceText(emp) : ''
+      ].filter(Boolean).join(' · ');
+      return '<div style="display:flex; align-items:center; gap:8px;">'+photo+
+        '<div style="min-width:0;"><b'+(isActiveEmp(emp)?'':' style="text-decoration:line-through;"')+'>'+esc(emp.fullName)+'</b>'+
+        '<div class="dt-muted mono dt-ellipsis" style="font-size:10.5px; direction:ltr; text-align:left;" title="'+esc(emp.username)+'">'+esc(emp.username)+'</div>'+
+        '<div class="dt-sm-only dt-muted" style="font-size:10.5px; margin-top:2px;">'+compact+'</div>'+
+        '<div class="dt-sm-only" style="margin-top:4px;">'+badges(emp)+'</div>'+
+        '</div></div>';
+    }},
+    {title:'کد پرسنلی', cls:'dt-hide-sm', cell:function(emp){ return emp.employeeCode ? '<span class="mono">'+esc(emp.employeeCode)+'</span>' : ''; }},
+    {title:'سمت', cls:'dt-hide-sm', cell:function(emp){ return esc(emp.jobTitle||''); }},
+    {title:'واحد', cls:'dt-hide-sm', cell:function(emp){ return esc(emp.jobGroup||''); }},
+    {title:'پروژه‌ها', cls:'dt-hide-sm', cell:function(emp){ return scopeText(emp); }},
+    {title:'ماندهٔ مرخصی', cls:'dt-hide-sm', cell:function(emp){ return balanceText(emp); }},
+    {title:'وضعیت', cls:'dt-hide-sm', cell:function(emp){ return badges(emp); }},
+    {title:'', cls:'dt-freeze-end', cell:function(emp){
+      var isActive = isActiveEmp(emp);
+      return '<span style="display:inline-flex; gap:4px;">'+
         (emp.deviceId ? '<button class="icon-btn" title="ریست دستگاه" onclick="resetDevice(\''+emp.id+'\')">📱↺</button>' : '')+
         '<button class="icon-btn" title="'+(isActive?'غیرفعال کردن':'فعال کردن')+'" onclick="toggleEmployeeActive(\''+emp.id+'\', '+(!isActive)+')">'+(isActive?'⛔':'✅')+'</button>'+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditEmp(\''+emp.id+'\')">✏️</button>'+
         '<button class="icon-btn del" title="حذف" onclick="deleteEmployee(\''+emp.id+'\')">✕</button>'+
-      '</div></div>';
-  }).join('');
+      '</span>';
+    }}
+  ], 'پرسنلی با این مشخصات یافت نشد', function(emp){
+    return isActiveEmp(emp) ? '' : 'dt-dim';
+  });
 }
 function renderEmpProjChecks(selectedIds){
   var box = document.getElementById('empProjChecks');
@@ -8579,15 +8651,22 @@ function setDateSelectValue(prefix, dateStr){
 // تنها جایی که HTMLِ جدول ساخته می‌شه. هر گزارشی فقط ستون‌هاش و ردیف‌هاش رو می‌ده.
 // columns: [{title:'نام', cell:function(row){ return 'HTML' }, wrap:true}]
 // مقدارِ برگشتیِ cell به‌عنوانِ HTML درج می‌شه، پس هر جا متنِ خام داری خودت esc کن.
-function renderDataTable(rows, columns, emptyText){
+// rowClass اختیاریه — یه تابع که برایِ هر ردیف کلاسِ CSS برمی‌گردونه (مثلاً کم‌رنگ‌کردنِ
+// ردیفِ پرسنلِ غیرفعال). فراخوان‌هایِ قدیمی که ندنش، مثلِ قبل کار می‌کنن.
+function renderDataTable(rows, columns, emptyText, rowClass){
   if(!rows || rows.length === 0){
     return '<div class="empty">' + (emptyText || 'موردی یافت نشد') + '</div>';
   }
-  var head = '<thead><tr>' + columns.map(function(c){ return '<th>' + c.title + '</th>'; }).join('') + '</tr></thead>';
+  function colCls(c, extra){
+    var cls = [c.cls || '', extra || ''].filter(Boolean).join(' ');
+    return cls ? ' class="' + cls + '"' : '';
+  }
+  var head = '<thead><tr>' + columns.map(function(c){ return '<th' + colCls(c) + '>' + c.title + '</th>'; }).join('') + '</tr></thead>';
   var body = '<tbody>' + rows.map(function(r, i){
-    return '<tr>' + columns.map(function(c){
+    var cls = rowClass ? rowClass(r, i) : '';
+    return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>' + columns.map(function(c){
       var v = c.cell(r, i);
-      return '<td' + (c.wrap ? ' class="dt-wrap"' : '') + '>' + (v === '' || v === null || v === undefined ? '<span class="dt-muted">—</span>' : v) + '</td>';
+      return '<td' + colCls(c, c.wrap ? 'dt-wrap' : '') + '>' + (v === '' || v === null || v === undefined ? '<span class="dt-muted">—</span>' : v) + '</td>';
     }).join('') + '</tr>';
   }).join('') + '</tbody>';
   return '<div class="data-table-wrap"><table class="data-table">' + head + body + '</table></div>';
