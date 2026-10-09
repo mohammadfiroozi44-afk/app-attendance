@@ -2500,10 +2500,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-09-projects-table";
+const FRONTEND_VERSION = "v-2026-10-09-self-edit-logout";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-07-decree-per-year";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-09-self-edit-logout";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -3143,7 +3143,11 @@ var editingProjId = null;
 var editingEntry = null; // {pairKey, side} where side is 'in' or 'out' — edits ONE side of a pair independently
 
 // ---------- Tabs ----------
+// کدوم تبْ رویِ صفحه‌ست. خروج از هر پنل باید به این نگاه کنه: اگه صفحه‌یِ ورودِ یک پنل رو
+// بی‌قید نشون بدیم، وقتی کاربر تویِ تبِ اون‌یکیه، هر دو با هم رویِ صفحه می‌مونن.
+var _activeTab = 'emp';
 function switchTab(which){
+  _activeTab = which;
   document.getElementById('tabEmpBtn').classList.toggle('active', which==='emp');
   document.getElementById('tabAdminBtn').classList.toggle('active', which==='admin');
   if(which==='emp'){
@@ -3259,7 +3263,10 @@ function employeeLogout(){
   loggedInEmployee = null;
   localStorage.removeItem('loggedInEmployee');
   clearEmployeeViewState();
-  document.getElementById('empLoginGate').style.display='block';
+  // صفحه‌یِ ورودِ پرسنل فقط وقتی باید دیده بشه که خودِ تبِ کارمند رویِ صفحه باشه. وگرنه
+  // (مثلاً وقتی مدیر تویِ پنلِ مدیریت حسابِ خودش رو ویرایش می‌کنه و همین خروجِ خودکار
+  // اتفاق می‌افته) کارتِ ورود زیرِ پنلِ مدیریت ظاهر می‌شد و هر دو با هم رویِ صفحه بودن.
+  document.getElementById('empLoginGate').style.display = (_activeTab === 'emp') ? 'block' : 'none';
   document.getElementById('empView').style.display='none';
   updateFpQuickLoginVisibility();
   stopEmployeeMessageWatcher();
@@ -5435,7 +5442,7 @@ function adminLogout(){
   sessionStorage.removeItem('adminPin');
   sessionStorage.removeItem('adminUsername');
   document.getElementById('adminView').style.display='none';
-  document.getElementById('adminGate').style.display='block';
+  document.getElementById('adminGate').style.display = (_activeTab === 'admin') ? 'block' : 'none';
   document.getElementById('pinInput').value='';
   document.getElementById('adminUsernameInput').value='';
   updateAdminFpQuickLoginVisibility();
@@ -6268,6 +6275,8 @@ async function saveEmployee(){
     var leaveCarryoverCap = document.getElementById('empFormCarryoverCap').value.trim();
     var leavePayload = {hireDate:hireDate, leaveBalanceOverride:leaveBalanceOverride, leaveCarryoverMode:leaveCarryoverMode, leaveCarryoverCap:leaveCarryoverCap,
       maritalStatus: document.getElementById('empFormMaritalStatus').value};
+    // قبل از ذخیره نگه می‌داریم، چون بعدش لیست دوباره بارگذاری می‌شه و ردیفِ قبلی از بین می‌ره.
+    var editingRowBefore = editingEmpId ? employees.filter(function(e){ return e.id === editingEmpId; })[0] : null;
     var res;
     if(editingEmpId){
       res = await apiCall(function(){ return apiPost('updateEmployee', Object.assign({pin:adminPin, id:editingEmpId, fullName:fullName, username:username, password:password, allowedProjects:allowedProjects, employeeCode:employeeCode, freeZone:freeZone, fingerprintRequired:fingerprintReq, noDeviceLimit:noDeviceLimit, jobTitle:jobTitle, jobGroup:jobGroup, nationalId:nationalId, fatherName:fatherName, photoUrl:pendingPhotoDataUrl}, leavePayload)); });
@@ -6285,6 +6294,17 @@ async function saveEmployee(){
       return;
     }
     clearAdminNotice();
+    // هر ویرایشی نسخه‌یِ نشستِ اون پرسنل رو عوض می‌کنه تا گوشیِ باز‌مونده‌اش دوباره لاگین
+    // بخواد. ولی وقتی مدیر رویِ همین دستگاه داره حسابِ خودش رو ویرایش می‌کنه، این یعنی
+    // پنلِ کارمندِ خودش چند ثانیه بعد بی‌دلیل بسته می‌شه. پس نسخه‌یِ تازه رو همین‌جا
+    // می‌گیریم. اگه نامِ کاربری عوض شده باشه این کار رو نمی‌کنیم — اون‌وقت نشستِ فعلی
+    // واقعاً به یک نامِ کاربریِ دیگه اشاره می‌کنه و بستنش درسته.
+    if(res.sessionVersion && loggedInEmployee && editingRowBefore &&
+       editingRowBefore.username === loggedInEmployee.username &&
+       username === editingRowBefore.username){
+      loggedInEmployee.sessionVersion = res.sessionVersion;
+      try{ localStorage.setItem('loggedInEmployee', JSON.stringify(loggedInEmployee)); }catch(e){}
+    }
     var wasNewEmployee = !editingEmpId;
     var newEmployeeId = res.id;
     await loadEmployeesAdmin();
