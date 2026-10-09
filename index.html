@@ -2500,7 +2500,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-09-employee-table";
+const FRONTEND_VERSION = "v-2026-10-09-projects-table";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
 const BACKEND_EXPECTED_VERSION = "v-2026-10-07-decree-per-year";
@@ -7625,19 +7625,45 @@ function renderProjectList(){
   if(projects.length===0){ box.innerHTML = '<div class="empty">هنوز پروژه‌ای اضافه نشده</div>'; return; }
   var q = (document.getElementById('projFilterSearch').value||'').trim().toLowerCase();
   var list = !q ? projects : projects.filter(function(p){ return String(p.name||'').toLowerCase().indexOf(q)!==-1; });
-  if(list.length===0){ box.innerHTML = '<div class="empty">پروژه‌ای با این نام یافت نشد</div>'; return; }
-  box.innerHTML = list.map(function(p){
-    var isActive = String(p.active||'yes') !== 'no';
-    var cityLine = (p.city || p.province) ? (esc([p.province, p.city].filter(Boolean).join(' — ')) + ' · ') : '';
-    var geoLine = (p.restricted === 'no') ? 'بدون محدودیتِ مختصات (کل شهر)' : (Number(p.lat).toFixed(5)+', '+Number(p.lng).toFixed(5)+' · شعاع '+p.radius+' م');
-    var inactiveBadge = isActive ? '' : ' <span class="badge-off">غیرفعال</span>';
-    return '<div class="list-item" style="'+(isActive?'':'opacity:0.6;')+'"><div><b>'+esc(p.name)+'</b>'+inactiveBadge+'<div class="meta">'+cityLine+geoLine+'</div></div>'+
-      '<div class="actions">'+
+  // پروژه‌هایی که پیش از افزوده‌شدنِ این فیلد ساخته شدن، restricted خالی دارن — یعنی
+  // «محدود»، و فقط مقدارِ صریحِ 'no' یعنی بی‌محدودیت.
+  function isRestricted(p){ return p.restricted !== 'no'; }
+  function isActiveProj(p){ return String(p.active||'yes') !== 'no'; }
+  function coordsText(p){
+    if(!isRestricted(p)) return 'بدونِ محدودیتِ مختصات';
+    return '<span class="mono" style="direction:ltr; display:inline-block;">'+Number(p.lat).toFixed(5)+', '+Number(p.lng).toFixed(5)+'</span>';
+  }
+  function radiusText(p){ return isRestricted(p) ? ('<span class="mono">'+esc(p.radius)+'</span> متر') : ''; }
+  box.innerHTML = renderDataTable(list, [
+    {title:'پروژه', wrap:true, cls:'dt-freeze-start', cell:function(p){
+      // رویِ گوشی که ستون‌هایِ دیگه مخفی‌ان، خلاصه‌شون همین‌جا زیرِ نام می‌آد.
+      var place = [p.province, p.city].filter(Boolean).map(esc).join(' — ');
+      var compact = [place, isRestricted(p) ? ('شعاع '+esc(p.radius)+' متر') : 'کلِ شهر'].filter(Boolean).join(' · ');
+      return '<div><b>'+esc(p.name)+'</b>'+
+        '<div class="dt-sm-only dt-muted" style="font-size:10.5px; margin-top:2px;">'+compact+'</div>'+
+        (isActiveProj(p) ? '' : '<div class="dt-sm-only" style="margin-top:4px;"><span class="badge-off">غیرفعال</span></div>')+
+        '</div>';
+    }},
+    {title:'استان', cls:'dt-hide-sm', cell:function(p){ return esc(p.province||''); }},
+    {title:'شهر', cls:'dt-hide-sm', cell:function(p){ return esc(p.city||''); }},
+    {title:'محدوده', cls:'dt-hide-sm', cell:function(p){ return coordsText(p); }},
+    {title:'شعاع', cls:'dt-hide-sm', cell:function(p){ return radiusText(p); }},
+    {title:'وضعیت', cls:'dt-hide-sm', cell:function(p){
+      return isActiveProj(p)
+        ? '<span class="badge badge-bound" style="margin:0;">فعال</span>'
+        : '<span class="badge-off">غیرفعال</span>';
+    }},
+    {title:'', cls:'dt-freeze-end', cell:function(p){
+      var isActive = isActiveProj(p);
+      return '<span style="display:inline-flex; gap:4px;">'+
         '<button class="icon-btn" title="'+(isActive?'غیرفعال کردن':'فعال کردن')+'" onclick="toggleProjectActive(\''+p.id+'\', '+(!isActive)+')">'+(isActive?'⛔':'✅')+'</button>'+
         '<button class="icon-btn edit" title="ویرایش" onclick="startEditProj(\''+p.id+'\')">✏️</button>'+
         '<button class="icon-btn del" title="حذف" onclick="deleteProject(\''+p.id+'\')">✕</button>'+
-      '</div></div>';
-  }).join('');
+      '</span>';
+    }}
+  ], 'پروژه‌ای با این نام یافت نشد', function(p){
+    return isActiveProj(p) ? '' : 'dt-dim';
+  });
 }
 async function toggleProjectActive(id, makeActive){
   var res = await apiCall(function(){ return apiPost('setProjectActive', {pin:adminPin, id:id, active:makeActive}); });
