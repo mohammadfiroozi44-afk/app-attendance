@@ -1473,6 +1473,10 @@
         <div style="flex:1;"><label>شهر</label><input type="text" id="projFormCity" placeholder="مثلاً: مشهد"></div>
       </div>
 
+      <label>کدِ پروژه (اختیاری)</label>
+      <div class="hint" style="margin-top:-6px;">همان کدی که دستگاهِ ساعت‌زن در ستونِ «کدِ کار» می‌فرستد. اگر اینجا پرش کنی، بعداً می‌شود ترددهایِ واردشده از فایلِ دستگاه را خودکار به همین پروژه نسبت داد. خالی گذاشتنش مشکلی ایجاد نمی‌کند.</div>
+      <input type="text" id="projFormCode" class="field-mono" inputmode="numeric" placeholder="مثلاً: 1">
+
       <label class="chk-item" style="width:100%; box-sizing:border-box; justify-content:space-between; margin-bottom:14px;">
         <span>📍 این پروژه محدوده‌ی جغرافیاییِ مشخصی دارد</span>
         <input type="checkbox" id="projFormRestricted" checked onchange="onProjRestrictedChange()">
@@ -2136,6 +2140,42 @@
     </div>
     </div><!-- /admSec-performance -->
 
+    <div class="admin-section" id="admSec-import" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">ورودِ تردد از فایل</div>
+      <div class="hint" style="margin-top:-4px;">فایلِ خروجیِ دستگاهِ ساعت‌زن (<span class="mono">attlog.dat</span>) یا فایلِ دستیِ اکسل/CSV را اینجا بده. فایل همین‌جا روی گوشیِ خودت خوانده می‌شود، گزارشش را می‌بینی، انتخاب می‌کنی چه چیزی ثبت شود، و تا وقتی تایید نکنی هیچ چیزی در سیستم نوشته نمی‌شود.</div>
+
+      <label>پروژه‌یِ پیش‌فرض</label>
+      <div class="hint" style="margin-top:-6px;">دستگاهِ ساعت‌زن پروژه نمی‌فرستد، ولی هر ترددِ سیستم به یک پروژه نیاز دارد. اگر فایل ستونِ پروژه داشته باشد همان ملاک است و این فقط برایِ ردیف‌هایِ بدونِ پروژه به‌کار می‌رود.</div>
+      <select id="impProject"></select>
+
+      <div class="btn-row" style="margin-top:12px;">
+        <button type="button" class="btn btn-ghost" onclick="downloadImportTemplate()">⬇️ دانلودِ فایلِ نمونه</button>
+      </div>
+      <div class="hint" style="margin-top:2px;">اگر کسی می‌خواهد ساعت‌ها را دستی وارد کند، این فایلِ نمونه را بهش بده — ستون‌هایش همانی است که سایت می‌خواند.</div>
+
+      <div class="divider"></div>
+      <label>انتخابِ فایل</label>
+      <input type="file" id="impFile" accept=".dat,.txt,.csv,.xlsx,.xls" onchange="handleImportFile(event)">
+      <div class="hint" id="impFileMsg" style="margin-top:6px;"></div>
+
+      <div id="impSummaryBox" style="display:none; margin-top:14px;"></div>
+      <div id="impPreviewBox" style="margin-top:12px;"></div>
+
+      <div class="btn-row" id="impConfirmRow" style="display:none; margin-top:14px;">
+        <button type="button" class="btn btn-primary" id="impConfirmBtn" onclick="runAttendanceImport()">✅ ثبتِ موارد انتخاب‌شده</button>
+        <button type="button" class="btn btn-ghost" onclick="resetImportState()">لغو</button>
+      </div>
+      <div class="hint" id="impProgressMsg" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">آپلودهایِ قبلی</div>
+      <div class="hint" style="margin-top:-4px;">هر آپلود یک شناسه دارد و همه‌یِ ردیف‌هایش با هم قابلِ برگرداندن است. فقط ردیف‌هایی که از همان آپلود آمده‌اند حذف می‌شوند — ترددی که کارمند با گوشی زده دست نمی‌خورد.</div>
+      <div id="impBatchList"><div class="empty">در حال بارگذاری...</div></div>
+    </div>
+    </div><!-- /admSec-import -->
+
     <div class="admin-section" id="admSec-payroll" style="display:none;">
     <div class="card">
       <div class="eyebrow">حقوق و دستمزد</div>
@@ -2465,6 +2505,7 @@
     <div class="drawer-item" id="admMenu-offline" onclick="showAdminSection('offline')"><span class="dicon dicon-red"><i class="fa-solid fa-triangle-exclamation"></i></span> تردد ناقص<span class="menu-badge" id="badge-admMenu-offline"></span></div>
     <div class="drawer-item" id="admMenu-report" onclick="showAdminSection('report')"><span class="dicon dicon-navy"><i class="fa-solid fa-chart-column"></i></span> گزارش</div>
     <div class="drawer-item" id="admMenu-performance" onclick="showAdminSection('performance')"><span class="dicon dicon-purple"><i class="fa-solid fa-gauge-high"></i></span> کارکردها</div>
+    <div class="drawer-item" id="admMenu-import" onclick="showAdminSection('import')"><span class="dicon dicon-blue"><i class="fa-solid fa-file-import"></i></span> ورودِ تردد از فایل</div>
     <div class="drawer-item" id="admMenu-payroll" onclick="showAdminSection('payroll')"><span class="dicon dicon-teal"><i class="fa-solid fa-money-check-dollar"></i></span> حقوق و دستمزد</div>
     <div class="drawer-nav-group-title">سیستم</div>
     <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon dicon-gray"><i class="fa-solid fa-gear"></i></span> تنظیمات</div>
@@ -2500,10 +2541,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-09-self-edit-logout";
+const FRONTEND_VERSION = "v-2026-10-13-attendance-import";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-09-self-edit-logout";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-13-attendance-import";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -5295,6 +5336,7 @@ var ADMIN_SECTION_LEAVE_RESET = {
   messages: ['cancelMessageEdit'],
   report: ['closeStatusMarkerEdit', 'cancelEditLog'],
   offline: ['cancelOfflineEdit'],
+  'import': ['resetImportState'],
   payroll: ['cancelPayrollDecreeEdit', 'cancelPayrollWageGroupEdit', 'cancelPayrollSeniorityEdit', 'cancelPayrollTaxEdit']
 };
 var _lastAdminSection = null;
@@ -5309,7 +5351,7 @@ function showAdminSection(name){
     });
   }
   _lastAdminSection = name;
-  ['dashboard','employees','projects','shifts','requests','services','messages','offline','report','performance','payroll','settings'].forEach(function(s){
+  ['dashboard','employees','projects','shifts','requests','services','messages','offline','report','performance','import','payroll','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -5344,6 +5386,11 @@ async function refreshAdminSection(name){
     autoWirePicker('empFormCarryoverMode', 'قانونِ انتقال');
   }
   else if(name === 'projects') await loadProjectsAdmin();
+  else if(name === 'import'){
+    await Promise.all([ensureEmployeesFresh(), loadProjectsAdmin()]);
+    populateImportProjectSelect();
+    await loadImportBatches();
+  }
   else if(name === 'shifts') await loadShiftsAdmin();
   else if(name === 'requests'){
     await ensureEmployeesFresh();
@@ -7626,6 +7673,408 @@ function getEmployeeAllowedProjects(){
   var ids = String(ap).split(',').map(function(s){ return s.trim(); });
   return projects.filter(function(p){ return ids.indexOf(p.id) !== -1; });
 }
+// ---------- ورودِ دسته‌ایِ تردد از فایل ----------
+// فایل همین‌جا در مرورگر خوانده و دسته‌بندی می‌شود و تا وقتی مدیر تایید نکند هیچ چیزی به
+// سرور نمی‌رود. دلیلش فقط سرعت نیست: Apps Script سقفِ زمانِ اجرا دارد، و پیش‌نمایشِ آنی
+// تنها راهی است که مدیر بفهمد فایلِ دستگاه چه چیزِ ناقصی دارد پیش از آنکه وارد آمار شود.
+var _impState = null;          // {events, days, unknownCodes, fileName}
+var _sheetJsPromise = null;
+
+function loadSheetJs(){
+  if(window.XLSX) return Promise.resolve();
+  if(_sheetJsPromise) return _sheetJsPromise;
+  _sheetJsPromise = new Promise(function(resolve, reject){
+    var sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = resolve;
+    sc.onerror = function(){ reject(new Error('load_failed')); };
+    document.head.appendChild(sc);
+  }).catch(function(e){ _sheetJsPromise = null; throw e; });
+  return _sheetJsPromise;
+}
+
+function populateImportProjectSelect(){
+  var sel = document.getElementById('impProject');
+  if(!sel) return;
+  var active = projects.filter(function(p){ return String(p.active||'yes') !== 'no'; });
+  sel.innerHTML = '<option value="">— انتخابِ پروژه —</option>' + active.map(function(p){
+    return '<option value="'+esc(p.name)+'">'+esc(p.name)+(p.projectCode ? ' (کد '+esc(p.projectCode)+')' : '')+'</option>';
+  }).join('');
+  autoWirePicker('impProject', 'انتخابِ پروژه');
+}
+
+// تاریخ در فایلِ دستگاه به شکلِ 1405-03-05 است و در سیستم به شکلِ «۵ خرداد ۱۴۰۵».
+// فایلِ دستی ممکن است هر کدام را داشته باشد، پس هر دو پذیرفته می‌شود.
+function importDateToAppFormat(raw){
+  var v = normalizeDigits(String(raw||'')).trim();
+  if(!v) return '';
+  var m = v.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+  if(m){
+    var mo = parseInt(m[2],10);
+    if(mo < 1 || mo > 12) return '';
+    return parseInt(m[3],10) + ' ' + jMonths[mo-1] + ' ' + parseInt(m[1],10);
+  }
+  // «۵ خرداد ۱۴۰۵»
+  var parts = v.split(/\s+/);
+  if(parts.length === 3 && jMonths.indexOf(parts[1]) !== -1) return parseInt(parts[0],10) + ' ' + parts[1] + ' ' + parseInt(parts[2],10);
+  return '';
+}
+function importTimeToAppFormat(raw){
+  var v = normalizeDigits(String(raw||'')).trim();
+  if(!v) return '';
+  var m = v.match(/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
+  if(!m) return '';
+  var hh = parseInt(m[1],10), mm = parseInt(m[2],10), ss = m[3] ? parseInt(m[3],10) : 0;
+  if(hh > 23 || mm > 59 || ss > 59) return '';
+  return pad2Front(hh)+':'+pad2Front(mm)+':'+pad2Front(ss);
+}
+function pad2Front(n){ return (String(n).length < 2 ? '0' : '') + n; }
+
+// فایلِ دستگاهِ ساعت‌زن (ZKTeco attlog.dat): ستون‌ها با tab جدا شده‌اند —
+// کد پرسنلی · تاریخ و ساعت · نوعِ تایید · ۰=ورود/۱=خروج · کدِ کار · رزرو
+function parseDeviceAttlog(text){
+  var out = [];
+  text.split(/\r?\n/).forEach(function(line, i){
+    if(!line.trim()) return;
+    var c = line.split('\t').map(function(x){ return x.trim(); });
+    if(c.length < 4) return;
+    var dt = normalizeDigits(c[1]).trim().split(/\s+/);
+    out.push({
+      lineNo: i+1,
+      employeeCode: normalizeDigits(c[0]).trim(),
+      jalaliDate: importDateToAppFormat(dt[0]),
+      time: importTimeToAppFormat(dt[1]),
+      type: String(c[3]).trim() === '1' ? 'out' : 'in',
+      projectCode: c.length > 4 ? normalizeDigits(c[4]).trim() : '',
+      project: ''
+    });
+  });
+  return out;
+}
+
+// فایلِ دستی: یک ردیف برایِ هر روزِ هر نفر، با ستون‌هایِ ورود و خروج.
+// سرستون‌ها از رویِ نامشان پیدا می‌شوند، پس ترتیبِ ستون‌ها مهم نیست.
+function parseManualRows(rows){
+  var head = null, idx = {}, out = [];
+  function findCol(names){
+    for(var k in idx){ if(names.indexOf(k) !== -1) return idx[k]; }
+    return -1;
+  }
+  for(var i=0; i<rows.length; i++){
+    var r = rows[i].map(function(x){ return String(x === undefined || x === null ? '' : x).trim(); });
+    if(!head){
+      var joined = r.join('|');
+      if(joined.indexOf('کد پرسنلی') !== -1 || joined.indexOf('کدِ پرسنلی') !== -1){
+        head = r;
+        r.forEach(function(h, c){ idx[h.replace(/ِ/g,'')] = c; });
+      }
+      continue;
+    }
+    var cCode = findCol(['کد پرسنلی']), cDate = findCol(['تاریخ']),
+        cIn = findCol(['ورود','ورود اول']), cOut = findCol(['خروج','خروج اول']),
+        cIn2 = findCol(['ورود دوم']), cOut2 = findCol(['خروج دوم']),
+        cProj = findCol(['پروژه']);
+    var code = cCode >= 0 ? normalizeDigits(r[cCode]).trim() : '';
+    var date = cDate >= 0 ? importDateToAppFormat(r[cDate]) : '';
+    if(!code && !date) continue;
+    var proj = cProj >= 0 ? r[cProj] : '';
+    [[cIn,'in'],[cOut,'out'],[cIn2,'in'],[cOut2,'out']].forEach(function(pair){
+      if(pair[0] < 0) return;
+      var t = importTimeToAppFormat(r[pair[0]]);
+      if(!t) return;
+      out.push({lineNo: i+1, employeeCode: code, jalaliDate: date, time: t, type: pair[1], projectCode:'', project: proj});
+    });
+  }
+  return out;
+}
+
+function splitDelimited(text){
+  // هم CSV (کاما) هم فایلِ tab-جدا را می‌خواند، و نقلِ‌قول‌هایِ اکسل را هم باز می‌کند.
+  var delim = (text.split('\n')[0].split('\t').length > text.split('\n')[0].split(',').length) ? '\t' : ',';
+  return text.split(/\r?\n/).map(function(line){
+    var cells = [], cur = '', inQ = false;
+    for(var i=0; i<line.length; i++){
+      var ch = line[i];
+      if(inQ){
+        if(ch === '"' && line[i+1] === '"'){ cur += '"'; i++; }
+        else if(ch === '"') inQ = false;
+        else cur += ch;
+      } else if(ch === '"') inQ = true;
+      else if(ch === delim){ cells.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    cells.push(cur);
+    return cells;
+  });
+}
+
+// رویدادها را به تفکیکِ نفر و روز دسته‌بندی می‌کند. دسته‌ها همان‌هایی‌اند که مدیر
+// می‌تواند جدا‌جدا انتخاب کند که وارد شوند یا نه.
+function groupImportDays(events){
+  var byDay = {};
+  events.forEach(function(e){
+    var k = e.employeeCode + '|' + e.jalaliDate;
+    (byDay[k] = byDay[k] || []).push(e);
+  });
+  return Object.keys(byDay).map(function(k){
+    var list = byDay[k].slice().sort(function(a,b){ return a.time.localeCompare(b.time); });
+    var ins = list.filter(function(e){ return e.type === 'in'; }).length;
+    var outs = list.length - ins;
+    var kind;
+    if(!ins && outs) kind = 'outOnly';
+    else if(ins && !outs) kind = 'inOnly';
+    else {
+      // متوازن و به‌ترتیب ورود→خروج→ورود→خروج یعنی روزِ سالم؛ هر چیزِ دیگری بازبینی می‌خواهد.
+      var tidy = list.length % 2 === 0;
+      for(var i=0; tidy && i<list.length; i++) if(list[i].type !== (i % 2 === 0 ? 'in' : 'out')) tidy = false;
+      kind = tidy ? 'complete' : 'messy';
+    }
+    return {
+      employeeCode: list[0].employeeCode, jalaliDate: list[0].jalaliDate,
+      events: list, kind: kind, ins: ins, outs: outs
+    };
+  }).sort(function(a,b){
+    var d = jalaliDateSortKeyClient(a.jalaliDate) - jalaliDateSortKeyClient(b.jalaliDate);
+    return d !== 0 ? d : a.employeeCode.localeCompare(b.employeeCode);
+  });
+}
+
+var IMPORT_KINDS = [
+  {key:'complete', label:'روزهایِ کامل (ورود و خروج)', hint:'بی‌مشکل — معمولاً همین کافی است'},
+  {key:'inOnly',   label:'فقط ورود (خروج ثبت نشده)',   hint:'جلسه‌یِ باز می‌سازد تا خروجش دستی ثبت شود'},
+  {key:'outOnly',  label:'فقط خروج (ورود ثبت نشده)',   hint:'خروجِ بی‌ورود — کارکردِ آن روز حساب نمی‌شود'},
+  {key:'messy',    label:'ترتیبِ نامرتب',               hint:'مثلاً دو خروج پشتِ هم — بهتر است اول در فایل اصلاح شود'}
+];
+
+function resetImportState(){
+  _impState = null;
+  var f = document.getElementById('impFile'); if(f) f.value = '';
+  ['impSummaryBox','impConfirmRow'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.style.display = 'none';
+  });
+  ['impPreviewBox','impFileMsg','impProgressMsg'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.innerHTML = '';
+  });
+}
+
+async function handleImportFile(event){
+  var file = event.target.files && event.target.files[0];
+  if(!file) return;
+  var msg = document.getElementById('impFileMsg');
+  msg.textContent = 'در حال خواندنِ فایل...';
+  try{
+    var events;
+    var lower = file.name.toLowerCase();
+    if(/\.xlsx?$/.test(lower)){
+      await loadSheetJs();
+      var buf = await file.arrayBuffer();
+      var wb = XLSX.read(buf, {type:'array'});
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      events = parseManualRows(XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, defval:''}));
+    } else {
+      var text = await file.text();
+      // فایلِ دستگاه ستونِ سرنام ندارد و همیشه ۶ ستونِ tab-جداست.
+      var firstLine = (text.split(/\r?\n/).filter(function(l){ return l.trim(); })[0] || '');
+      if(firstLine.split('\t').length >= 4 && !/[آ-ی]/.test(firstLine)){
+        events = parseDeviceAttlog(text);
+      } else {
+        events = parseManualRows(splitDelimited(text));
+      }
+    }
+    var bad = events.filter(function(e){ return !e.employeeCode || !e.jalaliDate || !e.time; });
+    events = events.filter(function(e){ return e.employeeCode && e.jalaliDate && e.time; });
+    if(!events.length){
+      msg.innerHTML = '⛔ هیچ ردیفِ معتبری در این فایل پیدا نشد. اگر فایلِ دستی است، از «دانلودِ فایلِ نمونه» شروع کن.';
+      _impState = null;
+      document.getElementById('impSummaryBox').style.display = 'none';
+      document.getElementById('impConfirmRow').style.display = 'none';
+      document.getElementById('impPreviewBox').innerHTML = '';
+      return;
+    }
+    var knownCodes = {};
+    employees.forEach(function(e){ if(e.employeeCode) knownCodes[String(e.employeeCode).trim()] = e; });
+    var days = groupImportDays(events);
+    days.forEach(function(d){ d.known = !!knownCodes[d.employeeCode]; d.fullName = d.known ? knownCodes[d.employeeCode].fullName : ''; });
+    _impState = {fileName: file.name, days: days, badRows: bad.length};
+    msg.innerHTML = '✅ فایل خوانده شد: <b>'+esc(file.name)+'</b> — '+events.length+' رویداد'+(bad.length ? ' ('+bad.length+' ردیفِ ناخوانا نادیده گرفته شد)' : '');
+    renderImportSummary();
+  }catch(e){
+    _impState = null;
+    msg.innerHTML = '⛔ خواندنِ فایل ناموفق بود: ' + esc(String(e && e.message || e)) + (/\.xlsx?$/.test(file.name.toLowerCase()) ? '<br>برایِ فایلِ اکسل بارِ اول به اینترنت نیاز است.' : '');
+  }
+}
+
+function renderImportSummary(){
+  if(!_impState) return;
+  var days = _impState.days;
+  var counts = {}, dayCounts = {};
+  IMPORT_KINDS.forEach(function(k){ counts[k.key] = 0; dayCounts[k.key] = 0; });
+  var unknownDays = 0, unknownCodes = {};
+  days.forEach(function(d){
+    if(!d.known){ unknownDays++; unknownCodes[d.employeeCode] = true; return; }
+    counts[d.kind] += d.events.length;
+    dayCounts[d.kind]++;
+  });
+  var people = {}; days.forEach(function(d){ if(d.known) people[d.employeeCode] = true; });
+  var dates = days.map(function(d){ return d.jalaliDate; });
+
+  var html = '<div class="card" style="margin:0; background:var(--paper-2);">'+
+    '<div class="eyebrow" style="margin-bottom:6px;">خلاصه‌یِ فایل</div>'+
+    '<div style="font-size:13px; line-height:2;">'+
+      '👥 '+Object.keys(people).length+' پرسنلِ شناخته‌شده · 📅 '+days.length+' روز · از <b>'+esc(dates[0]||'')+'</b> تا <b>'+esc(dates[dates.length-1]||'')+'</b>'+
+    '</div>';
+  if(unknownDays){
+    html += '<div style="margin-top:8px; background:#fef3f2; border:1px solid #fda29b; border-radius:8px; padding:8px 10px; font-size:12.5px; color:#b42318;">'+
+      '⛔ این کدهایِ پرسنلی در سیستم تعریف نشده‌اند و ردیف‌هایشان وارد نمی‌شود: <b class="mono">'+esc(Object.keys(unknownCodes).join('، '))+'</b></div>';
+  }
+  html += '<div class="divider" style="margin:12px 0;"></div>'+
+    '<div class="eyebrow" style="margin-bottom:4px;">چه چیزی ثبت شود؟</div>'+
+    '<div class="hint" style="margin:0 0 8px;">هر دسته را جدا می‌توانی انتخاب کنی. پیش‌فرض فقط روزهایِ کامل تیک خورده‌اند.</div>';
+  IMPORT_KINDS.forEach(function(k){
+    var n = dayCounts[k.key];
+    html += '<label class="chk-item" style="width:100%; box-sizing:border-box; '+(n ? '' : 'opacity:.45;')+'">'+
+      '<input type="checkbox" class="imp-kind" value="'+k.key+'" '+(k.key==='complete' && n ? 'checked' : '')+' '+(n ? '' : 'disabled')+' onchange="renderImportPreview()">'+
+      '<span style="flex:1;">'+k.label+' — <b>'+n+'</b> روز'+
+      '<div class="hint" style="margin:0; font-size:11px;">'+k.hint+'</div></span></label>';
+  });
+  html += '</div>';
+  document.getElementById('impSummaryBox').innerHTML = html;
+  document.getElementById('impSummaryBox').style.display = 'block';
+  document.getElementById('impConfirmRow').style.display = 'flex';
+  renderImportPreview();
+}
+
+function selectedImportKinds(){
+  return Array.from(document.querySelectorAll('.imp-kind:checked')).map(function(c){ return c.value; });
+}
+function selectedImportDays(){
+  if(!_impState) return [];
+  var kinds = selectedImportKinds();
+  return _impState.days.filter(function(d){ return d.known && kinds.indexOf(d.kind) !== -1; });
+}
+
+function renderImportPreview(){
+  var box = document.getElementById('impPreviewBox');
+  var chosen = selectedImportDays();
+  if(!chosen.length){ box.innerHTML = '<div class="empty">هیچ دسته‌ای انتخاب نشده</div>'; return; }
+  var kindLabel = {};
+  IMPORT_KINDS.forEach(function(k){ kindLabel[k.key] = k.label.split(' (')[0]; });
+  box.innerHTML = '<div class="hint" style="margin:0 0 6px;">پیش‌نمایشِ '+chosen.length+' روزی که ثبت می‌شود:</div>' +
+    renderDataTable(chosen.slice(0, 200), [
+      {title:'پرسنل', wrap:true, cls:'dt-freeze-start', cell:function(d){
+        return '<b>'+esc(d.fullName)+'</b><div class="dt-muted mono" style="font-size:10.5px;">'+esc(d.employeeCode)+'</div>';
+      }},
+      {title:'تاریخ', cell:function(d){ return esc(d.jalaliDate); }},
+      {title:'ساعت‌ها', wrap:true, cell:function(d){
+        return d.events.map(function(e){
+          return '<span class="badge '+(e.type==='in'?'badge-bound':'badge-unbound')+'" style="margin:0 2px 2px 0;">'+(e.type==='in'?'ورود':'خروج')+' '+esc(e.time.slice(0,5))+'</span>';
+        }).join('');
+      }},
+      {title:'دسته', cell:function(d){ return esc(kindLabel[d.kind]||''); }}
+    ], 'موردی نیست') +
+    (chosen.length > 200 ? '<div class="hint" style="margin-top:6px;">فقط ۲۰۰ ردیفِ اول نشان داده شد؛ همه‌یِ '+chosen.length+' روز ثبت می‌شود.</div>' : '');
+}
+
+async function runAttendanceImport(){
+  var chosen = selectedImportDays();
+  var prog = document.getElementById('impProgressMsg');
+  if(!chosen.length){ prog.textContent = '⛔ اول انتخاب کن چه چیزی ثبت شود.'; return; }
+  var defaultProject = document.getElementById('impProject').value;
+  var needsProject = chosen.some(function(d){ return d.events.some(function(e){ return !e.project; }); });
+  if(needsProject && !defaultProject){ prog.textContent = '⛔ پروژه‌یِ پیش‌فرض را انتخاب کن — ردیف‌هایِ این فایل پروژه ندارند.'; return; }
+
+  var totalEvents = chosen.reduce(function(n,d){ return n + d.events.length; }, 0);
+  if(!(await showAppConfirm(totalEvents+' تردد برایِ '+chosen.length+' روز ثبت شود؟ اگر برایِ این روزها «غیبت» یا «آف» ثبت شده بود، برداشته می‌شود.'))) return;
+
+  var rows = [];
+  chosen.forEach(function(d){
+    d.events.forEach(function(e){
+      rows.push({employeeCode: d.employeeCode, jalaliDate: d.jalaliDate, time: e.time,
+                 type: e.type, project: e.project || defaultProject, note: 'ورود از فایل'});
+    });
+  });
+
+  var batchId = 'IMP-' + new Date().toISOString().replace(/[^0-9]/g,'').slice(0,14) + '-' + Math.random().toString(36).slice(2,6);
+  var btn = document.getElementById('impConfirmBtn');
+  btn.disabled = true;
+  // تکه‌تکه فرستادن: یک درخواستِ چندهزارردیفی از سقفِ زمانِ اجرایِ Apps Script رد می‌شود.
+  var CHUNK = 300, added = 0, skipped = [];
+  try{
+    for(var i=0; i<rows.length; i+=CHUNK){
+      prog.textContent = 'در حال ثبت... ' + Math.min(i+CHUNK, rows.length) + ' از ' + rows.length;
+      var res = await apiCall((function(slice){
+        return function(){ return apiPost('importAttendanceLogs', {pin:adminPin, batchId:batchId, sourceLabel:'فایل', rows:slice}); };
+      })(rows.slice(i, i+CHUNK)));
+      if(!res.ok){ prog.textContent = '⛔ ثبت ناموفق بود: ' + (res.error||''); btn.disabled = false; return; }
+      added += res.added || 0;
+      skipped = skipped.concat(res.skipped || []);
+    }
+    var doneMsg = '✅ ثبت شد — <b>'+added+'</b> تردد با شناسه‌یِ <span class="mono">'+esc(batchId)+'</span>' +
+      (skipped.length ? '<br>⚠️ '+skipped.length+' ردیف ثبت نشد.' : '');
+    resetImportState();
+    document.getElementById('impProgressMsg').innerHTML = doneMsg;
+    await loadImportBatches();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadImportBatches(){
+  var box = document.getElementById('impBatchList');
+  if(!box) return;
+  var res = await apiCall(function(){ return apiPost('listImportBatches', {pin:adminPin}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  box.innerHTML = renderDataTable(res.batches || [], [
+    {title:'شناسه', wrap:true, cls:'dt-freeze-start', cell:function(b){ return '<span class="mono" style="font-size:11px;">'+esc(b.batchId)+'</span>'; }},
+    {title:'تعداد', cell:function(b){ return '<span class="mono">'+esc(b.count)+'</span>'; }},
+    {title:'از تاریخ', cls:'dt-hide-sm', cell:function(b){ return esc(b.firstDate); }},
+    {title:'تا تاریخ', cls:'dt-hide-sm', cell:function(b){ return esc(b.lastDate); }},
+    {title:'', cls:'dt-freeze-end', cell:function(b){
+      return '<button class="icon-btn del" title="برگرداندنِ این آپلود" onclick="undoImportBatchBtn(\'' + b.batchId + '\')">↺</button>';
+    }}
+  ], 'هنوز هیچ فایلی وارد نشده');
+}
+
+async function undoImportBatchBtn(batchId){
+  if(!(await showAppConfirm('همه‌یِ ترددهایی که با این آپلود ثبت شده‌اند حذف شوند؟ ترددی که خودِ کارمند زده دست نمی‌خورد.'))) return;
+  var res = await apiCall(function(){ return apiPost('undoImportBatch', {pin:adminPin, batchId:batchId}); });
+  if(!res.ok){ showAdminNotice('برگرداندن ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  document.getElementById('impProgressMsg').textContent = '✅ ' + (res.removed||0) + ' تردد حذف شد.';
+  await loadImportBatches();
+}
+
+// فایلِ نمونه برایِ واردکردنِ دستی — همان ستون‌هایی که parseManualRows می‌خواند، به‌علاوه‌یِ
+// چند ردیفِ راهنما تا شکلِ درستِ تاریخ و ساعت معلوم باشد.
+function downloadImportTemplate(){
+  var today = new Date();
+  var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+  var sample = tj[0] + '-' + pad2Front(tj[1]) + '-' + pad2Front(tj[2]);
+  var rows = [
+    ['کد پرسنلی','تاریخ','ورود','خروج','ورود دوم','خروج دوم','پروژه','توضیحات'],
+    ['5508', sample, '07:30', '14:50', '', '', '', 'نمونه — این ردیف را پاک کنید'],
+    ['5756', sample, '08:00', '12:00', '13:00', '17:00', '', 'نمونه — روزِ دو نوبته'],
+    ['', '', '', '', '', '', '', ''],
+    ['راهنما:'],
+    ['۱) «کد پرسنلی» باید دقیقاً همان کدی باشد که در سایت برایِ آن شخص ثبت شده.'],
+    ['۲) تاریخ شمسی است، به شکلِ 1405-07-21 یا «۲۱ مهر ۱۴۰۵».'],
+    ['۳) ساعت به شکلِ 07:30 — خانه‌یِ خالی یعنی آن تردد ثبت نشده.'],
+    ['۴) ستونِ «پروژه» را می‌شود خالی گذاشت؛ آن‌وقت پروژه‌یِ پیش‌فرضِ موقعِ آپلود به‌کار می‌رود.'],
+    ['۵) ستون‌هایِ «ورود دوم» و «خروج دوم» فقط برایِ روزهایِ دو نوبته لازم است.']
+  ];
+  var csv = rows.map(function(r){
+    return r.map(function(c){ return '"' + String(c===undefined?'':c).replace(/"/g,'""') + '"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'نمونه-ورود-تردد-ترددیار.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(function(){ URL.revokeObjectURL(link.href); }, 1000);
+}
+
 function renderProjectSelect(){
   var sel = document.getElementById('empProject');
   var reqSel = document.getElementById('reqProject');
@@ -7664,6 +8113,7 @@ function renderProjectList(){
         (isActiveProj(p) ? '' : '<div class="dt-sm-only" style="margin-top:4px;"><span class="badge-off">غیرفعال</span></div>')+
         '</div>';
     }},
+    {title:'کدِ پروژه', cls:'dt-hide-sm', cell:function(p){ return p.projectCode ? '<span class="mono">'+esc(p.projectCode)+'</span>' : ''; }},
     {title:'استان', cls:'dt-hide-sm', cell:function(p){ return esc(p.province||''); }},
     {title:'شهر', cls:'dt-hide-sm', cell:function(p){ return esc(p.city||''); }},
     {title:'محدوده', cls:'dt-hide-sm', cell:function(p){ return coordsText(p); }},
@@ -7697,6 +8147,7 @@ function startEditProj(id){
   editingProjId = id;
   document.getElementById('projFormName').value = p.name;
   document.getElementById('projFormCity').value = p.city || '';
+  document.getElementById('projFormCode').value = p.projectCode || '';
   document.getElementById('projFormProvince').value = p.province || '';
   // Existing projects (saved before this field existed) have an empty "restricted" value,
   // which means "restricted" by default — only the literal 'no' means unrestricted.
@@ -7718,6 +8169,7 @@ function cancelProjEdit(){
   editingProjId = null;
   document.getElementById('projFormName').value='';
   document.getElementById('projFormCity').value='';
+  document.getElementById('projFormCode').value='';
   document.getElementById('projFormProvince').value='';
   document.getElementById('projFormRestricted').checked = true;
   onProjRestrictedChange();
@@ -7731,6 +8183,7 @@ function cancelProjEdit(){
 async function saveProject(){
   var name = document.getElementById('projFormName').value.trim();
   var city = document.getElementById('projFormCity').value.trim();
+  var projectCode = normalizeDigits(document.getElementById('projFormCode').value).trim();
   var province = document.getElementById('projFormProvince').value.trim();
   var restricted = document.getElementById('projFormRestricted').checked;
   var lat = parseFloat(document.getElementById('projFormLat').value);
@@ -7744,9 +8197,9 @@ async function saveProject(){
   btn.disabled = true;
   var res;
   if(editingProjId){
-    res = await apiCall(function(){ return apiPost('updateProject', {pin:adminPin, id:editingProjId, name:name, lat:lat, lng:lng, radius:radius, city:city, province:province, restricted:restricted}); });
+    res = await apiCall(function(){ return apiPost('updateProject', {pin:adminPin, id:editingProjId, name:name, lat:lat, lng:lng, radius:radius, city:city, province:province, restricted:restricted, projectCode:projectCode}); });
   } else {
-    res = await apiCall(function(){ return apiPost('addProject', {pin:adminPin, name:name, lat:lat, lng:lng, radius:radius, city:city, province:province, restricted:restricted}); });
+    res = await apiCall(function(){ return apiPost('addProject', {pin:adminPin, name:name, lat:lat, lng:lng, radius:radius, city:city, province:province, restricted:restricted, projectCode:projectCode}); });
   }
   btn.disabled = false;
   if(!res.ok){ showAdminNotice('ذخیره پروژه ناموفق بود: ' + (res.error||'')); return; }
