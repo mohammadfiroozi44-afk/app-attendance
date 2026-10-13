@@ -973,6 +973,22 @@
     </div>
     </div><!-- /empSec-daily -->
 
+    <div class="emp-section" id="empSec-import" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">ارسالِ فایلِ تردد</div>
+      <div class="hint" style="margin-top:-4px;">اگر ساعت‌هایِ ترددتان را در فایل دارید، می‌توانید همین‌جا بفرستید. فایل مستقیم ثبت نمی‌شود — مدیر آن را می‌بیند و اگر تایید کرد، ساعت‌ها ثبت می‌شوند.</div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost" onclick="downloadImportTemplate(this)">⬇️ دانلودِ فایلِ نمونه (اکسل)</button>
+      </div>
+      <div class="hint" style="margin-top:2px;">فایلِ نمونه را دانلود کنید، ساعت‌هایِ خودتان را پر کنید و همین‌جا بفرستید. راهنمایِ کامل در شیتِ دومِ همان فایل است.</div>
+      <div class="divider"></div>
+      <label>فایلِ تکمیل‌شده</label>
+      <input type="file" id="empImpFile" accept=".dat,.txt,.csv,.xlsx,.xls" onchange="empSubmitImportFile(event)">
+      <div class="hint" id="empImpMsg" style="margin-top:6px;"></div>
+      <div id="empImpStatus" style="margin-top:12px;"></div>
+    </div>
+    </div><!-- /empSec-import -->
+
     <div class="emp-section" id="empSec-myshift" style="display:none;">
     <div class="card">
       <div class="eyebrow">شیفت‌هایِ من</div>
@@ -2150,7 +2166,7 @@
       <select id="impProject"></select>
 
       <div class="btn-row" style="margin-top:12px;">
-        <button type="button" class="btn btn-ghost" onclick="downloadImportTemplate()">⬇️ دانلودِ فایلِ نمونه</button>
+        <button type="button" class="btn btn-ghost" onclick="downloadImportTemplate(this)">⬇️ دانلودِ فایلِ نمونه (اکسل)</button>
       </div>
       <div class="hint" style="margin-top:2px;">اگر کسی می‌خواهد ساعت‌ها را دستی وارد کند، این فایلِ نمونه را بهش بده — ستون‌هایش همانی است که سایت می‌خواند.</div>
 
@@ -2167,6 +2183,12 @@
         <button type="button" class="btn btn-ghost" onclick="resetImportState()">لغو</button>
       </div>
       <div class="hint" id="impProgressMsg" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">فایل‌هایِ فرستاده‌شده‌یِ پرسنل</div>
+      <div class="hint" style="margin-top:-4px;">پرسنل می‌توانند فایلِ ترددِ خودشان را بفرستند. تا شما بررسی و ثبت نکنید، هیچ ترددی ثبت نمی‌شود. با دکمه‌یِ 👁 محتوایش در همین صفحه‌یِ بالا باز می‌شود تا مثلِ هر فایلِ دیگری بررسی و ثبتش کنید.</div>
+      <div id="impRequestList"><div class="empty">در حال بارگذاری...</div></div>
     </div>
 
     <div class="card">
@@ -2524,6 +2546,7 @@
     <div class="drawer-item" id="empMenu-payslip" onclick="showEmpSection('payslip')"><span class="dicon dicon-teal"><i class="fa-solid fa-receipt"></i></span> فیشِ حقوقی</div>
     <div class="drawer-item" id="empMenu-daily" onclick="showEmpSection('daily')"><span class="dicon dicon-orange"><i class="fa-solid fa-calendar-day"></i></span> عملکرد روزانه</div>
     <div class="drawer-item" id="empMenu-myshift" onclick="showEmpSection('myshift')"><span class="dicon dicon-purple"><i class="fa-solid fa-calendar-week"></i></span> شیفت‌هایِ من</div>
+    <div class="drawer-item" id="empMenu-import" onclick="showEmpSection('import')"><span class="dicon dicon-blue"><i class="fa-solid fa-file-arrow-up"></i></span> ارسالِ فایلِ تردد</div>
     <div class="drawer-item" id="empMenu-messages" onclick="showEmpSection('messages')"><span class="dicon dicon-pink"><i class="fa-solid fa-comment-dots"></i></span> پیام‌ها<span class="menu-badge" id="badge-empMenu-messages"></span></div>
     <div class="drawer-item" onclick="refreshCurrentEmpSection(); closeDrawer();"><span class="dicon dicon-blue"><i class="fa-solid fa-arrows-rotate"></i></span> بروزرسانی</div>
     <div class="drawer-item" onclick="employeeLogout()"><span class="dicon dicon-red"><i class="fa-solid fa-right-from-bracket"></i></span> خروج از حساب</div>
@@ -2541,10 +2564,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-13-attendance-import";
+const FRONTEND_VERSION = "v-2026-10-13-import-status-and-employee";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-13-attendance-import";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-13-import-status-and-employee";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -5283,7 +5306,7 @@ function showEmpSection(name){
     });
   }
   _lastEmpSection = name;
-  ['checkin','request','services','history','perf','payslip','daily','myshift','messages'].forEach(function(s){
+  ['checkin','request','services','history','perf','payslip','daily','myshift','import','messages'].forEach(function(s){
     var sec = document.getElementById('empSec-'+s);
     var btn = document.getElementById('empMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -5292,6 +5315,7 @@ function showEmpSection(name){
   resetSectionResults('emp', name);
   if(name === 'checkin'){ loadMyLogs(); initCheckinMap(); if(window.refreshSwipeState) refreshSwipeState(); checkGpsPermissionHint(); }
   else if(name === 'request') loadUnifiedRequests('emp');
+  else if(name === 'import') loadMyImportRequest();
   else if(name === 'services'){ autoWirePicker('serviceVehicleType','نوعِ وسیله'); cancelServiceEdit(); loadMyServiceTrips(); }
   else if(name === 'history'){
     populateMonthYearFilter('myHistFilterMonth','myHistFilterYear', true);
@@ -5389,7 +5413,7 @@ async function refreshAdminSection(name){
   else if(name === 'import'){
     await Promise.all([ensureEmployeesFresh(), loadProjectsAdmin()]);
     populateImportProjectSelect();
-    await loadImportBatches();
+    await Promise.all([loadImportRequests(), loadImportBatches()]);
   }
   else if(name === 'shifts') await loadShiftsAdmin();
   else if(name === 'requests'){
@@ -7740,16 +7764,40 @@ function parseDeviceAttlog(text){
     if(c.length < 4) return;
     var dt = normalizeDigits(c[1]).trim().split(/\s+/);
     out.push({
+      kind: 'punch',
       lineNo: i+1,
       employeeCode: normalizeDigits(c[0]).trim(),
       jalaliDate: importDateToAppFormat(dt[0]),
       time: importTimeToAppFormat(dt[1]),
       type: String(c[3]).trim() === '1' ? 'out' : 'in',
       projectCode: c.length > 4 ? normalizeDigits(c[4]).trim() : '',
-      project: ''
+      project: '', mission: false
     });
   });
   return out;
+}
+
+// واژه‌هایی که به‌جایِ ساعت نوشته می‌شوند. کسی که فرم را پر می‌کند، در خانه‌یِ ورود یا
+// خروج به‌جایِ عدد می‌نویسد «غیبت» یا «مرخصی» یا «آف»، و همان وضعیت برایِ آن روز ثبت
+// می‌شود. ماموریت عمداً اینجا نیست: روزِ ماموریت ساعتِ واقعی دارد، پس از ستونِ توضیحات
+// خوانده می‌شود و تردد‌ش هم ثبت می‌شود.
+var IMPORT_STATUS_WORDS = [
+  {status:'غیبت',  words:['غیبت','غایب','absent']},
+  {status:'مرخصی', words:['مرخصی','مرخصي','leave']},
+  {status:'Off',   words:['off','آف','اف','تعطیل','استراحت']}
+];
+function importStatusFromText(raw){
+  var v = String(raw||'').replace(/\u200c/g,'').trim().toLowerCase();
+  if(!v) return '';
+  for(var i=0;i<IMPORT_STATUS_WORDS.length;i++){
+    var w = IMPORT_STATUS_WORDS[i];
+    for(var j=0;j<w.words.length;j++) if(v.indexOf(w.words[j]) !== -1) return w.status;
+  }
+  return '';
+}
+function importIsMissionNote(raw){
+  var v = String(raw||'').replace(/\u200c/g,'').trim();
+  return v.indexOf('ماموریت') !== -1 || v.indexOf('مأموریت') !== -1;
 }
 
 // فایلِ دستی: یک ردیف برایِ هر روزِ هر نفر، با ستون‌هایِ ورود و خروج.
@@ -7773,17 +7821,32 @@ function parseManualRows(rows){
     var cCode = findCol(['کد پرسنلی']), cDate = findCol(['تاریخ']),
         cIn = findCol(['ورود','ورود اول']), cOut = findCol(['خروج','خروج اول']),
         cIn2 = findCol(['ورود دوم']), cOut2 = findCol(['خروج دوم']),
-        cProj = findCol(['پروژه']);
+        cProj = findCol(['پروژه']), cNote = findCol(['توضیحات']);
     var code = cCode >= 0 ? normalizeDigits(r[cCode]).trim() : '';
     var date = cDate >= 0 ? importDateToAppFormat(r[cDate]) : '';
-    if(!code && !date) continue;
+    if(!code || !date) continue;
     var proj = cProj >= 0 ? r[cProj] : '';
+    var note = cNote >= 0 ? r[cNote] : '';
+    var mission = importIsMissionNote(note);
+
+    // اگر در هر کدام از خانه‌هایِ ساعت واژه‌یِ وضعیت نوشته شده باشد، همان وضعیتِ کلِ روز است.
+    var status = '';
+    [cIn, cOut, cIn2, cOut2].forEach(function(c){
+      if(c >= 0 && !status) status = importStatusFromText(r[c]);
+    });
+    if(status){
+      out.push({kind:'status', lineNo:i+1, employeeCode:code, jalaliDate:date, status:status, mission:false, project:proj});
+      continue;
+    }
+    var before = out.length;
     [[cIn,'in'],[cOut,'out'],[cIn2,'in'],[cOut2,'out']].forEach(function(pair){
       if(pair[0] < 0) return;
       var t = importTimeToAppFormat(r[pair[0]]);
       if(!t) return;
-      out.push({lineNo: i+1, employeeCode: code, jalaliDate: date, time: t, type: pair[1], projectCode:'', project: proj});
+      out.push({kind:'punch', lineNo:i+1, employeeCode:code, jalaliDate:date, time:t, type:pair[1], projectCode:'', project:proj, mission:mission});
     });
+    // ردیفی که هست ولی نه ساعت دارد نه وضعیت — جدا نگه داشته می‌شود تا مدیر تصمیم بگیرد.
+    if(out.length === before) out.push({kind:'empty', lineNo:i+1, employeeCode:code, jalaliDate:date, mission:false, project:proj});
   }
   return out;
 }
@@ -7810,28 +7873,37 @@ function splitDelimited(text){
 
 // رویدادها را به تفکیکِ نفر و روز دسته‌بندی می‌کند. دسته‌ها همان‌هایی‌اند که مدیر
 // می‌تواند جدا‌جدا انتخاب کند که وارد شوند یا نه.
-function groupImportDays(events){
+function groupImportDays(items){
   var byDay = {};
-  events.forEach(function(e){
+  items.forEach(function(e){
     var k = e.employeeCode + '|' + e.jalaliDate;
     (byDay[k] = byDay[k] || []).push(e);
   });
   return Object.keys(byDay).map(function(k){
-    var list = byDay[k].slice().sort(function(a,b){ return a.time.localeCompare(b.time); });
-    var ins = list.filter(function(e){ return e.type === 'in'; }).length;
-    var outs = list.length - ins;
-    var kind;
-    if(!ins && outs) kind = 'outOnly';
-    else if(ins && !outs) kind = 'inOnly';
+    var all = byDay[k];
+    var punches = all.filter(function(e){ return e.kind === 'punch'; })
+      .sort(function(a,b){ return a.time.localeCompare(b.time); });
+    var statusItem = all.filter(function(e){ return e.kind === 'status'; })[0];
+    var mission = all.some(function(e){ return e.mission; });
+    var kind, status = '';
+    if(statusItem){ kind = 'status'; status = statusItem.status; }
+    else if(!punches.length) kind = 'empty';
     else {
-      // متوازن و به‌ترتیب ورود→خروج→ورود→خروج یعنی روزِ سالم؛ هر چیزِ دیگری بازبینی می‌خواهد.
-      var tidy = list.length % 2 === 0;
-      for(var i=0; tidy && i<list.length; i++) if(list[i].type !== (i % 2 === 0 ? 'in' : 'out')) tidy = false;
-      kind = tidy ? 'complete' : 'messy';
+      var ins = punches.filter(function(e){ return e.type === 'in'; }).length;
+      var outs = punches.length - ins;
+      if(!ins && outs) kind = 'outOnly';
+      else if(ins && !outs) kind = 'inOnly';
+      else {
+        // متوازن و به‌ترتیب ورود→خروج→ورود→خروج یعنی روزِ سالم؛ هر چیزِ دیگری بازبینی می‌خواهد.
+        var tidy = punches.length % 2 === 0;
+        for(var i=0; tidy && i<punches.length; i++) if(punches[i].type !== (i % 2 === 0 ? 'in' : 'out')) tidy = false;
+        kind = tidy ? 'complete' : 'messy';
+      }
     }
     return {
-      employeeCode: list[0].employeeCode, jalaliDate: list[0].jalaliDate,
-      events: list, kind: kind, ins: ins, outs: outs
+      employeeCode: all[0].employeeCode, jalaliDate: all[0].jalaliDate,
+      events: punches, kind: kind, status: status, mission: mission,
+      project: (all[0].project || '')
     };
   }).sort(function(a,b){
     var d = jalaliDateSortKeyClient(a.jalaliDate) - jalaliDateSortKeyClient(b.jalaliDate);
@@ -7840,10 +7912,12 @@ function groupImportDays(events){
 }
 
 var IMPORT_KINDS = [
-  {key:'complete', label:'روزهایِ کامل (ورود و خروج)', hint:'بی‌مشکل — معمولاً همین کافی است'},
-  {key:'inOnly',   label:'فقط ورود (خروج ثبت نشده)',   hint:'جلسه‌یِ باز می‌سازد تا خروجش دستی ثبت شود'},
-  {key:'outOnly',  label:'فقط خروج (ورود ثبت نشده)',   hint:'خروجِ بی‌ورود — کارکردِ آن روز حساب نمی‌شود'},
-  {key:'messy',    label:'ترتیبِ نامرتب',               hint:'مثلاً دو خروج پشتِ هم — بهتر است اول در فایل اصلاح شود'}
+  {key:'complete', label:'روزهایِ کامل (ورود و خروج)', hint:'بی‌مشکل — معمولاً همین کافی است', on:true},
+  {key:'status',   label:'روزهایِ وضعیت‌دار (غیبت / مرخصی / آف)', hint:'در فایل به‌جایِ ساعت، واژه‌اش نوشته شده', on:true},
+  {key:'inOnly',   label:'فقط ورود (خروج ثبت نشده)',   hint:'جلسه‌یِ باز می‌سازد تا خروجش دستی ثبت شود', on:false},
+  {key:'outOnly',  label:'فقط خروج (ورود ثبت نشده)',   hint:'خروجِ بی‌ورود — کارکردِ آن روز حساب نمی‌شود', on:false},
+  {key:'messy',    label:'ترتیبِ نامرتب',               hint:'مثلاً دو خروج پشتِ هم — بهتر است اول در فایل اصلاح شود', on:false},
+  {key:'empty',    label:'روزهایِ خالی (نه ساعت، نه وضعیت)', hint:'اگر انتخاب شود، بر اساسِ تقویمِ همان شخص «آف» یا «غیبت» ثبت می‌شود', on:false}
 ];
 
 function resetImportState(){
@@ -7857,32 +7931,39 @@ function resetImportState(){
   });
 }
 
+// تشخیصِ قالب و تجزیه‌یِ فایل. هم پنلِ مدیر از این استفاده می‌کند هم پنلِ کارمند.
+async function parseImportFile(file){
+  var lower = file.name.toLowerCase();
+  if(/\.xlsx?$/.test(lower)){
+    await loadSheetJs();
+    var buf = await file.arrayBuffer();
+    var wb = XLSX.read(buf, {type:'array'});
+    // فایلِ نمونه دو شیت دارد؛ شیتِ داده همانی است که سرستونِ «کد پرسنلی» داشته باشد.
+    var best = [];
+    wb.SheetNames.forEach(function(nm){
+      var rows = XLSX.utils.sheet_to_json(wb.Sheets[nm], {header:1, raw:false, defval:''});
+      var got = parseManualRows(rows);
+      if(got.length > best.length) best = got;
+    });
+    return best;
+  }
+  var text = await file.text();
+  // فایلِ دستگاه سرستون ندارد و همیشه چند ستونِ tab-جدا و بدونِ حرفِ فارسی است.
+  var firstLine = (text.split(/\r?\n/).filter(function(l){ return l.trim(); })[0] || '');
+  if(firstLine.split('\t').length >= 4 && !/[آ-ی]/.test(firstLine)) return parseDeviceAttlog(text);
+  return parseManualRows(splitDelimited(text));
+}
+
 async function handleImportFile(event){
   var file = event.target.files && event.target.files[0];
   if(!file) return;
   var msg = document.getElementById('impFileMsg');
   msg.textContent = 'در حال خواندنِ فایل...';
+  _impPendingRequestId = null;
   try{
-    var events;
-    var lower = file.name.toLowerCase();
-    if(/\.xlsx?$/.test(lower)){
-      await loadSheetJs();
-      var buf = await file.arrayBuffer();
-      var wb = XLSX.read(buf, {type:'array'});
-      var sheet = wb.Sheets[wb.SheetNames[0]];
-      events = parseManualRows(XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, defval:''}));
-    } else {
-      var text = await file.text();
-      // فایلِ دستگاه ستونِ سرنام ندارد و همیشه ۶ ستونِ tab-جداست.
-      var firstLine = (text.split(/\r?\n/).filter(function(l){ return l.trim(); })[0] || '');
-      if(firstLine.split('\t').length >= 4 && !/[آ-ی]/.test(firstLine)){
-        events = parseDeviceAttlog(text);
-      } else {
-        events = parseManualRows(splitDelimited(text));
-      }
-    }
-    var bad = events.filter(function(e){ return !e.employeeCode || !e.jalaliDate || !e.time; });
-    events = events.filter(function(e){ return e.employeeCode && e.jalaliDate && e.time; });
+    var events = await parseImportFile(file);
+    var bad = events.filter(function(e){ return !e.employeeCode || !e.jalaliDate || (e.kind === 'punch' && !e.time); });
+    events = events.filter(function(e){ return e.employeeCode && e.jalaliDate && (e.kind !== 'punch' || e.time); });
     if(!events.length){
       msg.innerHTML = '⛔ هیچ ردیفِ معتبری در این فایل پیدا نشد. اگر فایلِ دستی است، از «دانلودِ فایلِ نمونه» شروع کن.';
       _impState = null;
@@ -7896,7 +7977,7 @@ async function handleImportFile(event){
     var days = groupImportDays(events);
     days.forEach(function(d){ d.known = !!knownCodes[d.employeeCode]; d.fullName = d.known ? knownCodes[d.employeeCode].fullName : ''; });
     _impState = {fileName: file.name, days: days, badRows: bad.length};
-    msg.innerHTML = '✅ فایل خوانده شد: <b>'+esc(file.name)+'</b> — '+events.length+' رویداد'+(bad.length ? ' ('+bad.length+' ردیفِ ناخوانا نادیده گرفته شد)' : '');
+    msg.innerHTML = '✅ فایل خوانده شد: <b>'+esc(file.name)+'</b> — '+events.length+' ردیف'+(bad.length ? ' ('+bad.length+' ردیفِ ناخوانا نادیده گرفته شد)' : '');
     renderImportSummary();
   }catch(e){
     _impState = null;
@@ -7907,33 +7988,50 @@ async function handleImportFile(event){
 function renderImportSummary(){
   if(!_impState) return;
   var days = _impState.days;
-  var counts = {}, dayCounts = {};
-  IMPORT_KINDS.forEach(function(k){ counts[k.key] = 0; dayCounts[k.key] = 0; });
-  var unknownDays = 0, unknownCodes = {};
+  var dayCounts = {};
+  IMPORT_KINDS.forEach(function(k){ dayCounts[k.key] = 0; });
+  var unknownCodes = {}, knownCodes = {};
   days.forEach(function(d){
-    if(!d.known){ unknownDays++; unknownCodes[d.employeeCode] = true; return; }
-    counts[d.kind] += d.events.length;
+    if(!d.known){ unknownCodes[d.employeeCode] = true; return; }
     dayCounts[d.kind]++;
+    knownCodes[d.employeeCode] = d.fullName;
   });
-  var people = {}; days.forEach(function(d){ if(d.known) people[d.employeeCode] = true; });
   var dates = days.map(function(d){ return d.jalaliDate; });
 
   var html = '<div class="card" style="margin:0; background:var(--paper-2);">'+
     '<div class="eyebrow" style="margin-bottom:6px;">خلاصه‌یِ فایل</div>'+
     '<div style="font-size:13px; line-height:2;">'+
-      '👥 '+Object.keys(people).length+' پرسنلِ شناخته‌شده · 📅 '+days.length+' روز · از <b>'+esc(dates[0]||'')+'</b> تا <b>'+esc(dates[dates.length-1]||'')+'</b>'+
+      '👥 '+Object.keys(knownCodes).length+' پرسنلِ شناخته‌شده · 📅 '+days.length+' روز · از <b>'+esc(dates[0]||'')+'</b> تا <b>'+esc(dates[dates.length-1]||'')+'</b>'+
     '</div>';
-  if(unknownDays){
+  if(Object.keys(unknownCodes).length){
     html += '<div style="margin-top:8px; background:#fef3f2; border:1px solid #fda29b; border-radius:8px; padding:8px 10px; font-size:12.5px; color:#b42318;">'+
       '⛔ این کدهایِ پرسنلی در سیستم تعریف نشده‌اند و ردیف‌هایشان وارد نمی‌شود: <b class="mono">'+esc(Object.keys(unknownCodes).join('، '))+'</b></div>';
   }
+
+  // وقتی یک فایل چند پرسنل دارد، مدیر باید بتواند فقط بعضی‌شان را ثبت کند.
+  var codes = Object.keys(knownCodes);
+  if(codes.length > 1){
+    html += '<div class="divider" style="margin:12px 0;"></div>'+
+      '<div class="eyebrow" style="margin-bottom:4px;">کدامین پرسنل؟</div>'+
+      '<div class="btn-row" style="gap:6px; margin-bottom:6px;">'+
+        '<button type="button" class="btn btn-ghost btn-small" onclick="setAllImportEmployees(true)">انتخابِ همه</button>'+
+        '<button type="button" class="btn btn-ghost btn-small" onclick="setAllImportEmployees(false)">برداشتنِ همه</button>'+
+      '</div>';
+    codes.forEach(function(c){
+      var n = days.filter(function(d){ return d.known && d.employeeCode === c; }).length;
+      html += '<label class="chk-item" style="width:100%; box-sizing:border-box;">'+
+        '<input type="checkbox" class="imp-emp" value="'+esc(c)+'" checked onchange="renderImportPreview()">'+
+        '<span style="flex:1;">'+esc(knownCodes[c])+' <span class="mono dt-muted">('+esc(c)+')</span> — <b>'+n+'</b> روز</span></label>';
+    });
+  }
+
   html += '<div class="divider" style="margin:12px 0;"></div>'+
     '<div class="eyebrow" style="margin-bottom:4px;">چه چیزی ثبت شود؟</div>'+
-    '<div class="hint" style="margin:0 0 8px;">هر دسته را جدا می‌توانی انتخاب کنی. پیش‌فرض فقط روزهایِ کامل تیک خورده‌اند.</div>';
+    '<div class="hint" style="margin:0 0 8px;">هر دسته را جدا می‌توانی انتخاب کنی.</div>';
   IMPORT_KINDS.forEach(function(k){
     var n = dayCounts[k.key];
     html += '<label class="chk-item" style="width:100%; box-sizing:border-box; '+(n ? '' : 'opacity:.45;')+'">'+
-      '<input type="checkbox" class="imp-kind" value="'+k.key+'" '+(k.key==='complete' && n ? 'checked' : '')+' '+(n ? '' : 'disabled')+' onchange="renderImportPreview()">'+
+      '<input type="checkbox" class="imp-kind" value="'+k.key+'" '+(k.on && n ? 'checked' : '')+' '+(n ? '' : 'disabled')+' onchange="renderImportPreview()">'+
       '<span style="flex:1;">'+k.label+' — <b>'+n+'</b> روز'+
       '<div class="hint" style="margin:0; font-size:11px;">'+k.hint+'</div></span></label>';
   });
@@ -7944,19 +8042,40 @@ function renderImportSummary(){
   renderImportPreview();
 }
 
+function setAllImportEmployees(on){
+  document.querySelectorAll('.imp-emp').forEach(function(c){ c.checked = on; });
+  renderImportPreview();
+}
 function selectedImportKinds(){
   return Array.from(document.querySelectorAll('.imp-kind:checked')).map(function(c){ return c.value; });
+}
+function selectedImportCodes(){
+  var boxes = document.querySelectorAll('.imp-emp');
+  if(!boxes.length) return null; // تک‌پرسنل: فیلتری در کار نیست
+  return Array.from(document.querySelectorAll('.imp-emp:checked')).map(function(c){ return c.value; });
 }
 function selectedImportDays(){
   if(!_impState) return [];
   var kinds = selectedImportKinds();
-  return _impState.days.filter(function(d){ return d.known && kinds.indexOf(d.kind) !== -1; });
+  var codes = selectedImportCodes();
+  return _impState.days.filter(function(d){
+    if(!d.known || kinds.indexOf(d.kind) === -1) return false;
+    return !codes || codes.indexOf(d.employeeCode) !== -1;
+  });
+}
+
+function importDayWhatText(d){
+  if(d.kind === 'status') return '<span class="badge badge-unbound" style="margin:0;">'+esc(d.status)+'</span>';
+  if(d.kind === 'empty') return '<span class="dt-muted">بر اساسِ تقویم</span>';
+  return d.events.map(function(e){
+    return '<span class="badge '+(e.type==='in'?'badge-bound':'badge-unbound')+'" style="margin:0 2px 2px 0;">'+(e.type==='in'?'ورود':'خروج')+' '+esc(e.time.slice(0,5))+'</span>';
+  }).join('') + (d.mission ? ' <span class="badge badge-bound" style="margin:0;">ماموریت</span>' : '');
 }
 
 function renderImportPreview(){
   var box = document.getElementById('impPreviewBox');
   var chosen = selectedImportDays();
-  if(!chosen.length){ box.innerHTML = '<div class="empty">هیچ دسته‌ای انتخاب نشده</div>'; return; }
+  if(!chosen.length){ box.innerHTML = '<div class="empty">هیچ موردی انتخاب نشده</div>'; return; }
   var kindLabel = {};
   IMPORT_KINDS.forEach(function(k){ kindLabel[k.key] = k.label.split(' (')[0]; });
   box.innerHTML = '<div class="hint" style="margin:0 0 6px;">پیش‌نمایشِ '+chosen.length+' روزی که ثبت می‌شود:</div>' +
@@ -7965,12 +8084,8 @@ function renderImportPreview(){
         return '<b>'+esc(d.fullName)+'</b><div class="dt-muted mono" style="font-size:10.5px;">'+esc(d.employeeCode)+'</div>';
       }},
       {title:'تاریخ', cell:function(d){ return esc(d.jalaliDate); }},
-      {title:'ساعت‌ها', wrap:true, cell:function(d){
-        return d.events.map(function(e){
-          return '<span class="badge '+(e.type==='in'?'badge-bound':'badge-unbound')+'" style="margin:0 2px 2px 0;">'+(e.type==='in'?'ورود':'خروج')+' '+esc(e.time.slice(0,5))+'</span>';
-        }).join('');
-      }},
-      {title:'دسته', cell:function(d){ return esc(kindLabel[d.kind]||''); }}
+      {title:'چه چیزی ثبت می‌شود', wrap:true, cell:function(d){ return importDayWhatText(d); }},
+      {title:'دسته', cls:'dt-hide-sm', cell:function(d){ return esc(kindLabel[d.kind]||''); }}
     ], 'موردی نیست') +
     (chosen.length > 200 ? '<div class="hint" style="margin-top:6px;">فقط ۲۰۰ ردیفِ اول نشان داده شد؛ همه‌یِ '+chosen.length+' روز ثبت می‌شود.</div>' : '');
 }
@@ -7980,39 +8095,60 @@ async function runAttendanceImport(){
   var prog = document.getElementById('impProgressMsg');
   if(!chosen.length){ prog.textContent = '⛔ اول انتخاب کن چه چیزی ثبت شود.'; return; }
   var defaultProject = document.getElementById('impProject').value;
-  var needsProject = chosen.some(function(d){ return d.events.some(function(e){ return !e.project; }); });
+  var punchDays = chosen.filter(function(d){ return d.events.length; });
+  var needsProject = punchDays.some(function(d){ return d.events.some(function(e){ return !e.project; }); });
   if(needsProject && !defaultProject){ prog.textContent = '⛔ پروژه‌یِ پیش‌فرض را انتخاب کن — ردیف‌هایِ این فایل پروژه ندارند.'; return; }
 
-  var totalEvents = chosen.reduce(function(n,d){ return n + d.events.length; }, 0);
-  if(!(await showAppConfirm(totalEvents+' تردد برایِ '+chosen.length+' روز ثبت شود؟ اگر برایِ این روزها «غیبت» یا «آف» ثبت شده بود، برداشته می‌شود.'))) return;
-
-  var rows = [];
+  var rows = [], statusRows = [], emptyDays = [];
   chosen.forEach(function(d){
+    if(d.kind === 'status'){ statusRows.push({employeeCode:d.employeeCode, jalaliDate:d.jalaliDate, status:d.status}); return; }
+    if(d.kind === 'empty'){ emptyDays.push({employeeCode:d.employeeCode, jalaliDate:d.jalaliDate}); return; }
     d.events.forEach(function(e){
       rows.push({employeeCode: d.employeeCode, jalaliDate: d.jalaliDate, time: e.time,
-                 type: e.type, project: e.project || defaultProject, note: 'ورود از فایل'});
+                 type: e.type, project: e.project || defaultProject, note: d.mission ? 'ماموریت — ورود از فایل' : 'ورود از فایل'});
     });
+    // روزِ ماموریت هم تردد دارد هم نشانِ ماموریت.
+    if(d.mission) statusRows.push({employeeCode:d.employeeCode, jalaliDate:d.jalaliDate, status:'ماموریت'});
   });
+
+  var totalItems = rows.length + statusRows.length + emptyDays.length;
+  if(!(await showAppConfirm(chosen.length+' روز ('+totalItems+' مورد) ثبت شود؟ اگر برایِ این روزها «غیبت» یا «آف» ثبت شده بود، برداشته می‌شود.'))) return;
 
   var batchId = 'IMP-' + new Date().toISOString().replace(/[^0-9]/g,'').slice(0,14) + '-' + Math.random().toString(36).slice(2,6);
   var btn = document.getElementById('impConfirmBtn');
   btn.disabled = true;
   // تکه‌تکه فرستادن: یک درخواستِ چندهزارردیفی از سقفِ زمانِ اجرایِ Apps Script رد می‌شود.
-  var CHUNK = 300, added = 0, skipped = [];
+  var CHUNK = 300, added = 0, statusAdded = 0, emptyAdded = 0, skipped = [];
   try{
-    for(var i=0; i<rows.length; i+=CHUNK){
-      prog.textContent = 'در حال ثبت... ' + Math.min(i+CHUNK, rows.length) + ' از ' + rows.length;
-      var res = await apiCall((function(slice){
-        return function(){ return apiPost('importAttendanceLogs', {pin:adminPin, batchId:batchId, sourceLabel:'فایل', rows:slice}); };
-      })(rows.slice(i, i+CHUNK)));
+    var batches = [];
+    for(var i=0; i<rows.length; i+=CHUNK) batches.push({rows: rows.slice(i, i+CHUNK), statusRows: [], emptyDays: []});
+    if(!batches.length) batches.push({rows: [], statusRows: [], emptyDays: []});
+    batches[batches.length-1].statusRows = statusRows;
+    batches[batches.length-1].emptyDays = emptyDays;
+    for(var b=0; b<batches.length; b++){
+      prog.textContent = 'در حال ثبت... بخشِ ' + (b+1) + ' از ' + batches.length;
+      var res = await apiCall((function(part){
+        return function(){ return apiPost('importAttendanceLogs', {pin:adminPin, batchId:batchId, sourceLabel:'فایل',
+          rows:part.rows, statusRows:part.statusRows, emptyDays:part.emptyDays}); };
+      })(batches[b]));
       if(!res.ok){ prog.textContent = '⛔ ثبت ناموفق بود: ' + (res.error||''); btn.disabled = false; return; }
       added += res.added || 0;
+      statusAdded += res.statusAdded || 0;
+      emptyAdded += res.emptyAdded || 0;
       skipped = skipped.concat(res.skipped || []);
     }
-    var doneMsg = '✅ ثبت شد — <b>'+added+'</b> تردد با شناسه‌یِ <span class="mono">'+esc(batchId)+'</span>' +
+    var doneMsg = '✅ ثبت شد — <b>'+added+'</b> تردد' +
+      (statusAdded ? ' · <b>'+statusAdded+'</b> وضعیتِ روز' : '') +
+      (emptyAdded ? ' · <b>'+emptyAdded+'</b> روزِ خالی بر اساسِ تقویم' : '') +
+      '<br>شناسه: <span class="mono">'+esc(batchId)+'</span>' +
       (skipped.length ? '<br>⚠️ '+skipped.length+' ردیف ثبت نشد.' : '');
     resetImportState();
     document.getElementById('impProgressMsg').innerHTML = doneMsg;
+    if(_impPendingRequestId){
+      await apiCall(function(){ return apiPost('decideImportRequest', {pin:adminPin, id:_impPendingRequestId, approve:true, note:'ثبت شد'}); });
+      _impPendingRequestId = null;
+      await loadImportRequests();
+    }
     await loadImportBatches();
   } finally {
     btn.disabled = false;
@@ -8044,35 +8180,173 @@ async function undoImportBatchBtn(batchId){
   await loadImportBatches();
 }
 
-// فایلِ نمونه برایِ واردکردنِ دستی — همان ستون‌هایی که parseManualRows می‌خواند، به‌علاوه‌یِ
-// چند ردیفِ راهنما تا شکلِ درستِ تاریخ و ساعت معلوم باشد.
-function downloadImportTemplate(){
+// فایلِ نمونه برایِ واردکردنِ دستی — دقیقاً همان دو شیتی که در راهنما توضیح داده شده:
+// یکی برایِ پر کردن، یکی راهنما. با SheetJS ساخته می‌شود (همان کتابخانه‌ای که برایِ
+// خواندنِ xlsx هم لازم است)، پس فایلِ واقعیِ اکسل است نه CSVِ تک‌شیته.
+var IMPORT_TEMPLATE_HEAD = ['کد پرسنلی','تاریخ','ورود','خروج','ورود دوم','خروج دوم','پروژه','توضیحات'];
+function importTemplateSampleRows(){
   var today = new Date();
   var tj = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
-  var sample = tj[0] + '-' + pad2Front(tj[1]) + '-' + pad2Front(tj[2]);
-  var rows = [
-    ['کد پرسنلی','تاریخ','ورود','خروج','ورود دوم','خروج دوم','پروژه','توضیحات'],
-    ['5508', sample, '07:30', '14:50', '', '', '', 'نمونه — این ردیف را پاک کنید'],
-    ['5756', sample, '08:00', '12:00', '13:00', '17:00', '', 'نمونه — روزِ دو نوبته'],
-    ['', '', '', '', '', '', '', ''],
-    ['راهنما:'],
-    ['۱) «کد پرسنلی» باید دقیقاً همان کدی باشد که در سایت برایِ آن شخص ثبت شده.'],
-    ['۲) تاریخ شمسی است، به شکلِ 1405-07-21 یا «۲۱ مهر ۱۴۰۵».'],
-    ['۳) ساعت به شکلِ 07:30 — خانه‌یِ خالی یعنی آن تردد ثبت نشده.'],
-    ['۴) ستونِ «پروژه» را می‌شود خالی گذاشت؛ آن‌وقت پروژه‌یِ پیش‌فرضِ موقعِ آپلود به‌کار می‌رود.'],
-    ['۵) ستون‌هایِ «ورود دوم» و «خروج دوم» فقط برایِ روزهایِ دو نوبته لازم است.']
+  var d = tj[0] + '-' + pad2Front(tj[1]) + '-' + pad2Front(tj[2]);
+  return [
+    ['5508', d, '07:30', '14:50', '', '', '', 'نمونه — این ردیف را پاک کنید'],
+    ['5756', d, '08:00', '12:00', '13:00', '17:00', '', 'نمونه — روزِ دو نوبته'],
+    ['5756', d, 'مرخصی', '', '', '', '', 'نمونه — به‌جایِ ساعت، واژه‌اش را بنویسید'],
+    ['5508', d, '08:00', '16:00', '', '', '', 'ماموریت — نمونه']
   ];
-  var csv = rows.map(function(r){
-    return r.map(function(c){ return '"' + String(c===undefined?'':c).replace(/"/g,'""') + '"'; }).join(',');
-  }).join('\n');
-  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
-  var link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = 'نمونه-ورود-تردد-ترددیار.csv';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(function(){ URL.revokeObjectURL(link.href); }, 1000);
+}
+var IMPORT_TEMPLATE_GUIDE = [
+  ['راهنمایِ پر کردنِ فرم'],
+  [''],
+  ['این فایل را در سایت از «ورودِ تردد از فایل» بارگذاری کنید.'],
+  [''],
+  ['ستون‌ها'],
+  ['کد پرسنلی — باید دقیقاً همان کدی باشد که در سایت برایِ آن شخص ثبت شده. کدی که در سایت نباشد وارد نمی‌شود و به شما گزارش می‌شود.'],
+  ['تاریخ — شمسی، به شکلِ 1405-07-21 یا «۲۱ مهر ۱۴۰۵». هر دو پذیرفته است.'],
+  ['ورود / خروج — ساعت به شکلِ 07:30. یا به‌جایِ ساعت یکی از واژه‌هایِ «غیبت» / «مرخصی» / «آف» را بنویسید تا همان وضعیت برایِ آن روز ثبت شود.'],
+  ['ورود دوم / خروج دوم — فقط برایِ روزهایِ دو نوبته. در روزهایِ عادی خالی بماند.'],
+  ['پروژه — اختیاری. خالی باشد، پروژه‌یِ پیش‌فرضِ موقعِ بارگذاری به‌کار می‌رود.'],
+  ['توضیحات — اختیاری. اگر واژه‌یِ «ماموریت» در آن باشد، آن روز ماموریت ثبت می‌شود و ساعت‌هایش هم ثبت می‌شود (برعکسِ غیبت و مرخصی که ساعت ندارند).'],
+  [''],
+  ['نکته‌هایِ مهم'],
+  ['هر ردیف = یک روزِ یک نفر.'],
+  ['خانه‌یِ خالی یعنی چیزی ثبت نشود. سایت این روزها را جدا نشان می‌دهد و خودتان تصمیم می‌گیرید.'],
+  ['ترتیبِ ستون‌ها مهم نیست؛ سایت آن‌ها را از رویِ نامشان پیدا می‌کند. فقط نامِ سرستون‌ها را عوض نکنید.'],
+  ['ردیف‌هایِ نمونه را پاک کنید، وگرنه همان‌ها هم وارد می‌شوند.'],
+  ['روزی که تردد می‌گیرد، «غیبت» یا «آف»ِ خودکارِ همان روز برداشته می‌شود.'],
+  ['هر بارگذاری یک شناسه می‌گیرد و اگر اشتباه شد کاملاً قابلِ برگرداندن است.'],
+  [''],
+  ['ذخیره'],
+  ['با همین قالبِ xlsx. ذخیره کنید، یا در اکسل «Save As ← CSV UTF-8» بزنید. سایت هر دو را می‌خواند.']
+];
+
+async function downloadImportTemplate(btnEl){
+  var old = btnEl ? btnEl.textContent : null;
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = 'در حال ساخت...'; }
+  try{
+    await loadSheetJs();
+    var wb = XLSX.utils.book_new();
+    var ws = XLSX.utils.aoa_to_sheet([IMPORT_TEMPLATE_HEAD].concat(importTemplateSampleRows()));
+    ws['!cols'] = [{wch:14},{wch:16},{wch:12},{wch:12},{wch:13},{wch:13},{wch:22},{wch:34}];
+    ws['!views'] = [{RTL:true}];
+    XLSX.utils.book_append_sheet(wb, ws, 'تردد');
+    var wg = XLSX.utils.aoa_to_sheet(IMPORT_TEMPLATE_GUIDE);
+    wg['!cols'] = [{wch:110}];
+    wg['!views'] = [{RTL:true}];
+    XLSX.utils.book_append_sheet(wb, wg, 'راهنما');
+    XLSX.writeFile(wb, 'نمونه-ورود-تردد-ترددیار.xlsx');
+  }catch(e){
+    showAppAlert('ساختِ فایلِ نمونه ناموفق بود — بارِ اول به اینترنت نیاز دارد. دوباره تلاش کنید.');
+  }finally{
+    if(btnEl){ btnEl.disabled = false; if(old) btnEl.textContent = old; }
+  }
+}
+
+// ---------- فایل‌هایی که خودِ پرسنل فرستاده‌اند ----------
+var _impPendingRequestId = null;   // وقتی مدیر فایلِ یک کارمند را باز می‌کند، تاییدش به همین وصل است
+
+async function loadImportRequests(){
+  var box = document.getElementById('impRequestList');
+  if(!box) return;
+  var res = await apiCall(function(){ return apiPost('listImportRequests', {pin:adminPin}); });
+  if(!res.ok){ box.innerHTML = '<div class="empty">خطا: '+esc(res.error||'')+'</div>'; return; }
+  _impRequests = res.requests || [];
+  renderMenuBadge('admMenu-import', _impRequests.length);
+  box.innerHTML = renderDataTable(_impRequests, [
+    {title:'پرسنل', wrap:true, cls:'dt-freeze-start', cell:function(r){
+      return '<b>'+esc(r.employee)+'</b><div class="dt-muted mono" style="font-size:10.5px;">'+esc(r.employeeCode||'')+'</div>';
+    }},
+    {title:'فایل', wrap:true, cls:'dt-hide-sm', cell:function(r){ return esc(r.fileName||''); }},
+    {title:'تعداد', cell:function(r){ return '<span class="mono">'+esc(r.rowCount)+'</span>'; }},
+    {title:'زمان', cls:'dt-hide-sm', cell:function(r){ return esc(r.createdAt)+' '+esc(r.createdTime||''); }},
+    {title:'', cls:'dt-freeze-end', cell:function(r){
+      return '<span style="display:inline-flex; gap:4px;">'+
+        '<button class="icon-btn edit" title="بررسی" onclick="openImportRequest(\''+r.id+'\')">👁</button>'+
+        '<button class="icon-btn del" title="رد" onclick="rejectImportRequest(\''+r.id+'\')">✕</button>'+
+      '</span>';
+    }}
+  ], 'فایلی از پرسنل نیامده');
+}
+var _impRequests = [];
+
+// فایلِ کارمند را در همان صفحه‌یِ ورودِ فایل باز می‌کند، با همان پیش‌نمایش و همان انتخاب‌ها.
+function openImportRequest(id){
+  var req = _impRequests.filter(function(r){ return r.id === id; })[0];
+  if(!req) return;
+  var items;
+  try{ items = JSON.parse(req.payload); }
+  catch(e){ showAppAlert('محتوایِ این فایل خوانده نشد.'); return; }
+  var knownCodes = {};
+  employees.forEach(function(e){ if(e.employeeCode) knownCodes[String(e.employeeCode).trim()] = e; });
+  var days = groupImportDays(items);
+  days.forEach(function(d){ d.known = !!knownCodes[d.employeeCode]; d.fullName = d.known ? knownCodes[d.employeeCode].fullName : ''; });
+  _impState = {fileName: req.fileName, days: days, badRows: 0};
+  _impPendingRequestId = id;
+  document.getElementById('impFileMsg').innerHTML = '📨 فایلِ <b>'+esc(req.employee)+'</b>: '+esc(req.fileName||'')+' — '+items.length+' ردیف. پس از ثبت، درخواستش هم تایید می‌شود.';
+  renderImportSummary();
+  document.getElementById('impFileMsg').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+async function rejectImportRequest(id){
+  if(!(await showAppConfirm('این فایل رد شود؟ هیچ ترددی ثبت نمی‌شود.'))) return;
+  var res = await apiCall(function(){ return apiPost('decideImportRequest', {pin:adminPin, id:id, approve:false, note:'رد شد'}); });
+  if(!res.ok){ showAdminNotice('رد کردن ناموفق بود: ' + (res.error||'')); return; }
+  clearAdminNotice();
+  if(_impPendingRequestId === id){ _impPendingRequestId = null; resetImportState(); }
+  await loadImportRequests();
+}
+
+// ---------- سمتِ کارمند ----------
+async function empSubmitImportFile(event){
+  var file = event.target.files && event.target.files[0];
+  if(!file) return;
+  var msg = document.getElementById('empImpMsg');
+  msg.textContent = 'در حال خواندنِ فایل...';
+  try{
+    var items = await parseImportFile(file);
+    // کارمند فقط ترددِ خودش را می‌فرستد. فیلترِ واقعی سمتِ سرور هم هست، ولی اینجا هم
+    // فیلتر می‌کنیم تا اگر فایلِ چندنفره داد، همان‌جا بهش بگوییم.
+    var myCode = String(loggedInEmployee.employeeCode||'').trim();
+    var mine = items.filter(function(e){ return String(e.employeeCode).trim() === myCode; });
+    var others = items.length - mine.length;
+    if(!mine.length){
+      msg.innerHTML = '⛔ در این فایل هیچ ردیفی با کد پرسنلیِ شما (<span class="mono">'+esc(myCode||'—')+'</span>) نبود.';
+      return;
+    }
+    var payload = JSON.stringify(mine);
+    if(payload.length > 45000){ msg.innerHTML = '⛔ فایل خیلی بزرگ است. آن را به چند بازه‌یِ کوتاه‌تر تقسیم کنید.'; return; }
+    if(!(await showAppConfirm(mine.length + ' ردیف برایِ بررسیِ مدیر فرستاده شود؟' + (others ? ' (' + others + ' ردیفِ مربوط به بقیه نادیده گرفته می‌شود)' : '')))) return;
+    var res = await apiCall(function(){ return apiPost('submitImportRequest', {
+      username: loggedInEmployee.username, deviceId: DEVICE_ID, fileName: file.name,
+      rowCount: mine.length, payload: payload}); });
+    if(!res.ok){
+      var errMap = {payload_too_large:'فایل خیلی بزرگ است.', no_rows_for_you:'در این فایل ردیفی با کد پرسنلیِ شما نبود.',
+                    no_employee_code:'برایِ حسابِ شما کد پرسنلی ثبت نشده — از مدیریت پیگیری کنید.',
+                    device_mismatch:'این حساب روی گوشیِ دیگری فعال است.', bad_payload:'محتوایِ فایل خوانده نشد.'};
+      msg.innerHTML = '⛔ ارسال ناموفق بود: ' + (errMap[res.error] || esc(res.error||''));
+      return;
+    }
+    msg.innerHTML = '✅ فایل برایِ مدیر فرستاده شد. تا تاییدِ ایشان چیزی ثبت نمی‌شود.';
+    document.getElementById('empImpFile').value = '';
+    await loadMyImportRequest();
+  }catch(e){
+    msg.innerHTML = '⛔ خواندنِ فایل ناموفق بود: ' + esc(String(e && e.message || e));
+  }
+}
+
+async function loadMyImportRequest(){
+  var box = document.getElementById('empImpStatus');
+  if(!box || !loggedInEmployee) return;
+  var res = await apiCall(function(){ return apiPost('getMyImportRequest', {username: loggedInEmployee.username}, true); });
+  if(!res.ok || !res.request){ box.innerHTML = ''; return; }
+  var r = res.request;
+  var map = {pending:['⏳','در انتظارِ بررسیِ مدیر','#fff4e2','#8a5a10'],
+             approved:['✅','تایید و ثبت شد','#e5f6ec','#1f7a4d'],
+             rejected:['⛔','رد شد','#fdeaea','#a32a2a']};
+  var m = map[r.status] || map.pending;
+  box.innerHTML = '<div style="background:'+m[2]+'; color:'+m[3]+'; border-radius:10px; padding:10px 12px; font-size:12.5px; line-height:1.9;">'+
+    m[0]+' آخرین فایلِ شما: <b>'+esc(r.fileName||'')+'</b> ('+esc(r.rowCount)+' ردیف) — '+m[1]+
+    '<div style="font-size:11px; opacity:.85;">'+esc(r.createdAt||'')+' '+esc(r.createdTime||'')+'</div></div>';
 }
 
 function renderProjectSelect(){
