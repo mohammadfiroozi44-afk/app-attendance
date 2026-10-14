@@ -769,7 +769,7 @@
     <div id="appConfirmMessage" style="font-size:14.5px; line-height:1.9; color:var(--ink); margin-bottom:18px; white-space:pre-line;"></div>
     <div class="btn-row">
       <button type="button" class="btn btn-primary" onclick="resolveAppConfirm(true)">تایید</button>
-      <button type="button" class="btn btn-ghost" onclick="resolveAppConfirm(false)">لغو</button>
+      <button type="button" class="btn btn-ghost" id="appConfirmCancelBtn" onclick="resolveAppConfirm(false)">لغو</button>
     </div>
   </div>
 </div>
@@ -1951,18 +1951,48 @@
       <button type="button" class="btn btn-primary" onclick="loadAdminServiceTrips()">🔄 بارگذاری</button>
       <div id="serviceAdminList" style="margin-top:14px;"><div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div></div>
     </div>
+
+    <div class="card">
+      <div class="eyebrow">ثبتِ سرویس برایِ پرسنل</div>
+      <div class="hint" style="margin-top:-4px;">سرویسی که خودتان برایِ یک پرسنل ثبت می‌کنید، مستقیم «تاییدشده» ثبت می‌شود — چون تاییدکننده خودتان هستید. مبلغ و پرداختش مثلِ بقیه جداگانه تعیین می‌شود.</div>
+      <label>پرسنل</label>
+      <select id="admSvcEmp"></select>
+      <label>تاریخِ سرویس</label>
+      <div class="date-row" id="admSvcDateRow"></div>
+      <label>وسیله</label>
+      <select id="admSvcVehicle">
+        <option value="motor">موتور</option>
+        <option value="car">خودرو</option>
+      </select>
+      <div class="date-row">
+        <div style="flex:1;"><label>از</label><input type="text" id="admSvcFrom" placeholder="مبدأ"></div>
+        <div style="flex:1;"><label>به</label><input type="text" id="admSvcTo" placeholder="مقصد"></div>
+      </div>
+      <label class="chk-item" style="width:100%; box-sizing:border-box;"><input type="checkbox" id="admSvcRoundTrip"> رفت و برگشت</label>
+      <label>مبلغ (ریال) — اختیاری</label>
+      <div class="hint" style="margin-top:-6px;">می‌توانید همین حالا مبلغ را بزنید یا بعداً از فهرستِ بالا تعیینش کنید. ثبتِ مبلغ به‌معنیِ پرداخت‌شدن نیست.</div>
+      <input type="text" id="admSvcAmount" class="field-mono" inputmode="numeric" oninput="formatAmountInput(this)" placeholder="0">
+      <label>توضیحات</label>
+      <input type="text" id="admSvcReason" placeholder="اختیاری">
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="admSvcSaveBtn" onclick="submitAdminServiceTrip()">➕ ثبتِ سرویس</button>
+        <button type="button" class="btn btn-ghost" onclick="resetAdminServiceForm()">پاک‌کردنِ فرم</button>
+      </div>
+      <div class="hint" id="admSvcMsg" style="margin-top:6px;"></div>
+    </div>
     </div><!-- /admSec-services -->
 
     <div class="sheet-overlay" id="serviceAmountOverlay" onclick="closeServiceAmountModal()"></div>
     <div class="bottom-sheet-modal" id="serviceAmountSheet">
       <div class="sheet-close-btn"><button type="button" class="icon-btn" title="بستن" onclick="closeServiceAmountModal()">✕</button></div>
       <div class="sheet-handle"></div>
-      <div class="eyebrow">ثبتِ مبلغِ پرداختی</div>
+      <div class="eyebrow">تعیینِ مبلغِ سرویس</div>
       <div class="hint" id="serviceAmountHint" style="margin-top:-8px;"></div>
+      <div class="hint" style="margin-top:2px;">این فقط مبلغ را ثبت می‌کند؛ وضعیتِ «پرداخت شد» جداگانه و با تیکِ خودش تعیین می‌شود.</div>
       <label>مبلغ (ریال)</label>
       <input type="text" inputmode="numeric" id="serviceAmountInput" class="field-mono" style="width:100%; box-sizing:border-box; font-size:26px; font-weight:800; text-align:center; letter-spacing:1px;" placeholder="0" oninput="formatServiceAmountInput(this)">
       <div class="btn-row" style="margin-top:10px;">
-        <button type="button" class="btn btn-primary" onclick="confirmServiceAmount()">✅ تایید و ثبتِ پرداخت</button>
+        <button type="button" class="btn btn-primary" onclick="confirmServiceAmount()">✅ ثبتِ مبلغ</button>
         <button type="button" class="btn btn-ghost" onclick="closeServiceAmountModal()">انصراف</button>
       </div>
       <div class="hint" id="serviceAmountMsg" style="margin-top:8px;"></div>
@@ -2564,10 +2594,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-13-import-status-and-employee";
+const FRONTEND_VERSION = "v-2026-10-14-services-admin-and-amount";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-13-import-status-and-employee";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-14-services-admin-and-amount";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -2610,9 +2640,13 @@ window.alert = showAppAlert; // every existing alert(...) call in this file now 
 // Used explicitly instead, as "if(!(await showAppConfirm('...'))) return;", one call site at
 // a time.
 var _appConfirmResolve = null;
-function showAppConfirm(message){
+// cancelLabel اختیاریه — جایی مثلِ «شما در حالِ ثبتِ ... هستید» کلمه‌یِ «انصراف» طبیعی‌تر
+// از «لغو»ه. اگه داده نشه، همون «لغو»ِ همیشگی می‌مونه.
+function showAppConfirm(message, cancelLabel){
   return new Promise(function(resolve){
     document.getElementById('appConfirmMessage').textContent = message;
+    var cb = document.getElementById('appConfirmCancelBtn');
+    if(cb) cb.textContent = cancelLabel || 'لغو';
     document.getElementById('appConfirmOverlay').style.display = 'flex';
     _appConfirmResolve = resolve;
   });
@@ -5122,6 +5156,7 @@ async function submitAdminLog(){
       alert('تاریخِ پایان نمی‌تواند قبل از تاریخِ شروع باشد'); return;
     }
     var newLabelAL = (type === 'mission') ? 'ماموریت' : 'مرخصی';
+    if(!(await confirmAdminAction(isHourlyAL ? 'مرخصیِ ساعتی' : newLabelAL, username))) return;
     var conflictAL = await checkDayStatusConflict(username, jalaliDate, newLabelAL, false);
     if(!conflictAL.proceed) return;
     // adminAddLeaveBatch خودش (از طریقِ syncLeaveDayStatus) هر مارکرِ قدیمیِ همون روز رو
@@ -5138,6 +5173,7 @@ async function submitAdminLog(){
 
   if(type === 'absence' || type === 'off'){
     var newLabelAO = (type === 'off') ? 'Off' : 'غیبت';
+    if(!(await confirmAdminAction(newLabelAO === 'Off' ? 'آف (تعطیل)' : newLabelAO, username))) return;
     var conflictAO = await checkDayStatusConflict(username, jalaliDate, newLabelAO, false);
     if(!conflictAO.proceed) return;
     if(conflictAO.hadMarker){
@@ -5163,6 +5199,7 @@ async function submitAdminLog(){
   // type === 'in' or 'out' — an actual attendance log entry, needs a time
   var timeVal = document.getElementById('adminLogTime').value;
   if(!timeVal){ alert('ساعت را وارد کن'); return; }
+  if(!(await confirmAdminAction(type === 'in' ? 'ورود' : 'خروج', username))) return;
   var conflictIO = await checkDayStatusConflict(username, jalaliDate, 'ثبتِ تردد (ورود/خروج)', true);
   if(!conflictIO.proceed) return;
   if(conflictIO.hadMarker){
@@ -5426,6 +5463,7 @@ async function refreshAdminSection(name){
     await ensureEmployeesFresh();
     populateMonthYearFilter('serviceFilterMonth','serviceFilterYear', true);
     autoWirePicker('serviceFilterStatus', 'وضعیت');
+    populateAdminServiceForm();
     document.getElementById('serviceAdminList').innerHTML = '<div class="empty">فیلترهای موردنظر را انتخاب کرده و «بارگذاری» را بزنید.</div>';
   }
   else if(name === 'messages'){
@@ -6771,8 +6809,11 @@ function renderServiceTripsAdmin(){
           '<button type="button" class="btn btn-in btn-small" onclick="decideServiceTripBtn(\''+r.id+'\',true)">✅ تایید</button>'+
           '<button type="button" class="btn btn-out btn-small" onclick="decideServiceTripBtn(\''+r.id+'\',false)">❌ رد</button>'+
         '</div>'
-      : '<div class="btn-row" style="margin-top:6px; align-items:center;">'+
-          (r.status === 'approved' ? '<label class="chk-item"><input type="checkbox" '+(r.paid==='yes'?'checked':'')+' onchange="onServiceTripPaidToggle(this, \''+r.id+'\')"> پرداخت شد</label>' : '')+
+      : '<div class="btn-row" style="margin-top:6px; align-items:center; flex-wrap:wrap;">'+
+          // مبلغ و پرداخت دو کارِ جدا هستند: تعیینِ مبلغ چیزی را پرداخت‌شده نمی‌کند، و
+          // تیکِ پرداخت هم مبلغ را عوض نمی‌کند.
+          (r.status === 'approved' ? '<button type="button" class="btn btn-ghost btn-small" style="white-space:nowrap;" onclick="openServiceAmountModal(\''+r.id+'\')">💰 '+(r.amount ? 'ویرایشِ مبلغ' : 'تعیینِ مبلغ')+'</button>' : '')+
+          (r.status === 'approved' ? '<label class="chk-item" style="margin:0;"><input type="checkbox" '+(r.paid==='yes'?'checked':'')+' onchange="onServiceTripPaidToggle(this, \''+r.id+'\')"> پرداخت شد</label>' : '')+
           '<button type="button" class="btn btn-out btn-small" onclick="deleteServiceTripBtn(\''+r.id+'\')">🗑 حذف</button>'+
         '</div>';
     return '<div class="req-item">'+
@@ -6787,6 +6828,76 @@ function renderServiceTripsAdmin(){
     '</div>';
   }).join('');
 }
+// پیشِ هر ثبتِ تکیِ مدیر برایِ یک پرسنل، خودِ عملیات و نامِ طرف را تکرار می‌کند — چون
+// انتخابِ پرسنل از یک کشو انجام می‌شود و اشتباه‌گرفتنِ یک نفر با نفرِ بعدی خیلی ساده است.
+function employeeDisplayName(username){
+  var e = employees.filter(function(x){ return x.username === username; })[0];
+  return e ? (e.fullName + (e.employeeCode ? ' (کد ' + e.employeeCode + ')' : '')) : username;
+}
+function confirmAdminAction(operationLabel, username){
+  return showAppConfirm('شما در حالِ ثبتِ «' + operationLabel + '» برایِ ' + employeeDisplayName(username) + ' هستید.', 'انصراف');
+}
+
+// ---------- ثبتِ سرویس توسطِ مدیر ----------
+function resetAdminServiceForm(){
+  var row = document.getElementById('admSvcDateRow');
+  if(row && !document.getElementById('admSvcDay')){
+    row.innerHTML = buildDateSelects('admSvc', serverTodayStr || jalaliString(new Date()));
+    autoWirePicker('admSvcDay', 'روز');
+    autoWirePicker('admSvcMonth', 'ماه');
+    autoWirePicker('admSvcYear', 'سال');
+  } else {
+    setDateSelectValue('admSvc', serverTodayStr || jalaliString(new Date()));
+  }
+  document.getElementById('admSvcVehicle').value = 'motor';
+  syncCustomSelectDisplay('admSvcVehicle', 'admSvcVehicle_pickerBtn');
+  document.getElementById('admSvcFrom').value = '';
+  document.getElementById('admSvcTo').value = '';
+  document.getElementById('admSvcRoundTrip').checked = false;
+  document.getElementById('admSvcAmount').value = '';
+  document.getElementById('admSvcReason').value = '';
+  document.getElementById('admSvcMsg').textContent = '';
+}
+function populateAdminServiceForm(){
+  var sel = document.getElementById('admSvcEmp');
+  if(!sel) return;
+  var active = employees.filter(function(e){ return String(e.active) !== 'false'; });
+  sel.innerHTML = '<option value="">— انتخابِ پرسنل —</option>' + active.map(function(e){
+    return '<option value="'+esc(e.username)+'">'+esc(e.fullName)+(e.employeeCode ? ' (کد '+esc(e.employeeCode)+')' : '')+'</option>';
+  }).join('');
+  autoWirePicker('admSvcEmp', 'انتخابِ پرسنل');
+  autoWirePicker('admSvcVehicle', 'نوعِ وسیله');
+  resetAdminServiceForm();
+}
+async function submitAdminServiceTrip(){
+  var msg = document.getElementById('admSvcMsg');
+  var username = document.getElementById('admSvcEmp').value;
+  if(!username){ msg.textContent = '⛔ اول یک پرسنل انتخاب کن.'; return; }
+  var from = document.getElementById('admSvcFrom').value.trim();
+  var to = document.getElementById('admSvcTo').value.trim();
+  if(!from || !to){ msg.textContent = '⛔ مبدأ و مقصد را وارد کن.'; return; }
+  var serviceDate = readDateSelect('admSvc');
+  if(!(await confirmAdminAction('سرویس ' + from + ' ← ' + to, username))) return;
+  var btn = document.getElementById('admSvcSaveBtn');
+  btn.disabled = true;
+  try{
+    var res = await apiCall(function(){ return apiPost('addServiceTripAdmin', {
+      pin: adminPin, username: username, serviceDate: serviceDate,
+      vehicleType: document.getElementById('admSvcVehicle').value,
+      fromLocation: from, toLocation: to,
+      roundTrip: document.getElementById('admSvcRoundTrip').checked,
+      amount: readAmountValue('admSvcAmount'),
+      reason: document.getElementById('admSvcReason').value.trim()
+    }); });
+    if(!res.ok){ msg.textContent = '⛔ ثبت ناموفق بود: ' + (res.error||''); return; }
+    msg.textContent = '✅ سرویس ثبت شد.';
+    resetAdminServiceForm();
+    await loadAdminServiceTrips();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function decideServiceTripBtn(id, approve){
   var res = await apiCall(function(){ return apiPost('decideServiceTrip', {pin:adminPin, id:id, approve:approve}); });
   if(!res.ok){ showAdminNotice('ثبت تصمیم ناموفق بود: ' + (res.error||'')); return; }
@@ -6800,21 +6911,19 @@ async function deleteServiceTripBtn(id){
   clearAdminNotice();
   await loadAdminServiceTrips();
 }
-// تیک‌زدنِ «پرداخت شد» مستقیماً چیزی رو ثبت نمی‌کنه — اول چک‌باکس رو به حالتِ قبل برمی‌گردونه و
-// کادرِ مبلغ رو باز می‌کنه؛ فقط با تاییدِ نهاییِ همون کادره که واقعاً ثبت می‌شه. برداشتنِ تیک
-// (کارمندی که قبلاً پرداخت‌شده بود) نیازی به مبلغ نداره و مستقیم ثبت می‌شه.
-function onServiceTripPaidToggle(checkbox, id){
-  if(checkbox.checked){
-    checkbox.checked = false;
-    openServiceAmountModal(id);
-  } else {
-    uncheckServiceTripPaidBtn(id);
+// تیکِ «پرداخت شد» فقط همان پرچم را عوض می‌کند و دیگر کادرِ مبلغ را باز نمی‌کند — مبلغ
+// دکمه‌یِ خودش را دارد. پس می‌شود مبلغ را تعیین کرد و هفته‌یِ بعد پرداختش را تیک زد.
+async function onServiceTripPaidToggle(checkbox, id){
+  var want = checkbox.checked;
+  checkbox.disabled = true;
+  var res = await apiCall(function(){ return apiPost('setServiceTripPaid', {pin:adminPin, id:id, paid:want}); });
+  checkbox.disabled = false;
+  if(!res.ok){
+    checkbox.checked = !want;
+    showAdminNotice('ثبتِ وضعیتِ پرداخت ناموفق بود: ' + (res.error||''));
+    return;
   }
-}
-async function uncheckServiceTripPaidBtn(id){
-  var res = await apiCall(function(){ return apiPost('setServiceTripPaid', {pin:adminPin, id:id, paid:false}); });
-  if(!res.ok){ showAdminNotice('ثبتِ وضعیتِ پرداخت ناموفق بود: ' + (res.error||'')); }
-  else clearAdminNotice();
+  clearAdminNotice();
   await loadAdminServiceTrips();
 }
 var _serviceAmountTargetId = null;
@@ -6857,7 +6966,8 @@ async function confirmServiceAmount(){
   var raw = document.getElementById('serviceAmountInput').value.replace(/[^0-9]/g,'');
   var msgBox = document.getElementById('serviceAmountMsg');
   if(!raw || Number(raw) <= 0){ msgBox.textContent = 'مبلغ را وارد کن'; return; }
-  var res = await apiCall(function(){ return apiPost('setServiceTripPaid', {pin:adminPin, id:_serviceAmountTargetId, paid:true, amount:raw}); });
+  // فقط مبلغ. وضعیتِ پرداخت هرچه بوده همان می‌ماند.
+  var res = await apiCall(function(){ return apiPost('setServiceTripAmount', {pin:adminPin, id:_serviceAmountTargetId, amount:raw}); });
   if(!res.ok){ msgBox.textContent = 'ثبت ناموفق بود: ' + (res.error||''); return; }
   closeServiceAmountModal();
   clearAdminNotice();
