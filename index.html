@@ -2594,10 +2594,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-14-services-admin-and-amount";
+const FRONTEND_VERSION = "v-2026-10-15-import-overnight-holiday";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-14-services-admin-and-amount";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-15-import-overnight-holiday";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -7853,6 +7853,19 @@ function importDateToAppFormat(raw){
   if(parts.length === 3 && jMonths.indexOf(parts[1]) !== -1) return parseInt(parts[0],10) + ' ' + parts[1] + ' ' + parseInt(parts[2],10);
   return '';
 }
+// یک روز به تاریخِ شمسی اضافه می‌کند — از راهِ تبدیل به میلادی، تا مرزِ ماه و سالِ کبیسه
+// خودبه‌خود درست دربیاید.
+function importNextJalaliDay(dateStr){
+  var p = parseJalaliDateStr(dateStr);
+  if(!p) return dateStr;
+  var mIdx = jMonths.indexOf(p.month) + 1;
+  if(!mIdx) return dateStr;
+  var g = jalaliToGregorian(parseInt(p.year,10), mIdx, parseInt(p.day,10));
+  var d = new Date(g[0], g[1]-1, g[2]);
+  d.setDate(d.getDate() + 1);
+  var nj = toJalaali(d.getFullYear(), d.getMonth()+1, d.getDate());
+  return nj[2] + ' ' + jMonths[nj[1]-1] + ' ' + nj[0];
+}
 function importTimeToAppFormat(raw){
   var v = normalizeDigits(String(raw||'')).trim();
   if(!v) return '';
@@ -7949,11 +7962,20 @@ function parseManualRows(rows){
       continue;
     }
     var before = out.length;
-    [[cIn,'in'],[cOut,'out'],[cIn2,'in'],[cOut2,'out']].forEach(function(pair){
-      if(pair[0] < 0) return;
-      var t = importTimeToAppFormat(r[pair[0]]);
-      if(!t) return;
-      out.push({kind:'punch', lineNo:i+1, employeeCode:code, jalaliDate:date, time:t, type:pair[1], projectCode:'', project:proj, mission:mission});
+    // شیفتِ شب: یک ردیفِ فایل همیشه یک «نوبت» است، نه یک روزِ تقویمی. اگر ساعتِ خروج از
+    // ساعتِ ورودِ همان نوبت کمتر (یا مساوی) باشد، آن خروج مالِ بامدادِ روزِ بعد است —
+    // مثلاً ورود ۱۹:۰۰ و خروج ۰۷:۰۰. بدونِ این، خروج روی خودِ همان روز و *قبل* از ورودش
+    // می‌نشست و موقعِ جفت‌کردن به نوبتِ شبِ قبلی می‌چسبید؛ یعنی کلِ ستون یک روز جابه‌جا
+    // می‌شد و آخرین نوبت بی‌خروج می‌ماند.
+    [[cIn, cOut], [cIn2, cOut2]].forEach(function(pairCols){
+      var tIn = pairCols[0] >= 0 ? importTimeToAppFormat(r[pairCols[0]]) : '';
+      var tOut = pairCols[1] >= 0 ? importTimeToAppFormat(r[pairCols[1]]) : '';
+      if(tIn) out.push({kind:'punch', lineNo:i+1, employeeCode:code, jalaliDate:date, time:tIn, type:'in', projectCode:'', project:proj, mission:mission});
+      if(tOut){
+        var outDate = (tIn && tOut <= tIn) ? importNextJalaliDay(date) : date;
+        out.push({kind:'punch', lineNo:i+1, employeeCode:code, jalaliDate:outDate, time:tOut, type:'out',
+                  projectCode:'', project:proj, mission:mission, overnight: outDate !== date, shiftDate: date});
+      }
     });
     // ردیفی که هست ولی نه ساعت دارد نه وضعیت — جدا نگه داشته می‌شود تا مدیر تصمیم بگیرد.
     if(out.length === before) out.push({kind:'empty', lineNo:i+1, employeeCode:code, jalaliDate:date, mission:false, project:proj});
@@ -7986,13 +8008,20 @@ function splitDelimited(text){
 function groupImportDays(items){
   var byDay = {};
   items.forEach(function(e){
-    var k = e.employeeCode + '|' + e.jalaliDate;
+    // گروه بر اساسِ «روزِ نوبت» است نه تاریخِ خودِ ثبت: خروجِ بامدادِ یک شیفتِ شب روی روزِ
+    // بعد ثبت می‌شود ولی همچنان بخشی از نوبتِ دیشب است، و باید با ورودش یک‌جا دیده شود.
+    var k = e.employeeCode + '|' + (e.shiftDate || e.jalaliDate);
     (byDay[k] = byDay[k] || []).push(e);
   });
   return Object.keys(byDay).map(function(k){
     var all = byDay[k];
+    // ترتیب بر اساسِ تاریخ *و* ساعت — وگرنه خروجِ ۰۷:۰۰ِ فردا قبل از ورودِ ۱۹:۰۰ِ امشب
+    // می‌افتاد و نوبت «نامرتب» دسته‌بندی می‌شد.
     var punches = all.filter(function(e){ return e.kind === 'punch'; })
-      .sort(function(a,b){ return a.time.localeCompare(b.time); });
+      .sort(function(a,b){
+        var d = jalaliDateSortKeyClient(a.jalaliDate) - jalaliDateSortKeyClient(b.jalaliDate);
+        return d !== 0 ? d : a.time.localeCompare(b.time);
+      });
     var statusItem = all.filter(function(e){ return e.kind === 'status'; })[0];
     var mission = all.some(function(e){ return e.mission; });
     var kind, status = '';
@@ -8011,8 +8040,9 @@ function groupImportDays(items){
       }
     }
     return {
-      employeeCode: all[0].employeeCode, jalaliDate: all[0].jalaliDate,
+      employeeCode: all[0].employeeCode, jalaliDate: (all[0].shiftDate || all[0].jalaliDate),
       events: punches, kind: kind, status: status, mission: mission,
+      overnight: punches.some(function(e){ return e.overnight; }),
       project: (all[0].project || '')
     };
   }).sort(function(a,b){
@@ -8178,8 +8208,10 @@ function importDayWhatText(d){
   if(d.kind === 'status') return '<span class="badge badge-unbound" style="margin:0;">'+esc(d.status)+'</span>';
   if(d.kind === 'empty') return '<span class="dt-muted">بر اساسِ تقویم</span>';
   return d.events.map(function(e){
-    return '<span class="badge '+(e.type==='in'?'badge-bound':'badge-unbound')+'" style="margin:0 2px 2px 0;">'+(e.type==='in'?'ورود':'خروج')+' '+esc(e.time.slice(0,5))+'</span>';
-  }).join('') + (d.mission ? ' <span class="badge badge-bound" style="margin:0;">ماموریت</span>' : '');
+    return '<span class="badge '+(e.type==='in'?'badge-bound':'badge-unbound')+'" style="margin:0 2px 2px 0;">'+(e.type==='in'?'ورود':'خروج')+' '+esc(e.time.slice(0,5))+
+      (e.overnight ? ' <span style="opacity:.75;">(فردا)</span>' : '')+'</span>';
+  }).join('') + (d.mission ? ' <span class="badge badge-bound" style="margin:0;">ماموریت</span>' : '')
+    + (d.overnight ? ' <span class="badge badge-unbound" style="margin:0;">🌙 شیفت شبانه</span>' : '');
 }
 
 function renderImportPreview(){
@@ -8214,7 +8246,8 @@ async function runAttendanceImport(){
     if(d.kind === 'status'){ statusRows.push({employeeCode:d.employeeCode, jalaliDate:d.jalaliDate, status:d.status}); return; }
     if(d.kind === 'empty'){ emptyDays.push({employeeCode:d.employeeCode, jalaliDate:d.jalaliDate}); return; }
     d.events.forEach(function(e){
-      rows.push({employeeCode: d.employeeCode, jalaliDate: d.jalaliDate, time: e.time,
+      // e.jalaliDate است نه d.jalaliDate — خروجِ شیفتِ شب باید با تاریخِ خودش (روزِ بعد) ثبت شود.
+      rows.push({employeeCode: d.employeeCode, jalaliDate: e.jalaliDate, shiftDate: d.jalaliDate, time: e.time,
                  type: e.type, project: e.project || defaultProject, note: d.mission ? 'ماموریت — ورود از فایل' : 'ورود از فایل'});
     });
     // روزِ ماموریت هم تردد دارد هم نشانِ ماموریت.
