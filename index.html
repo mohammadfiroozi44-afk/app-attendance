@@ -2600,10 +2600,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-15-holiday-break";
+const FRONTEND_VERSION = "v-2026-10-15-shift-guards";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-15-holiday-break";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-15-shift-guards";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -6352,7 +6352,19 @@ async function assignShiftToEmployee(){
     }
   }
   var res = await apiCall(function(){ return apiPost('assignEmployeeShift', payload); });
-  if(!res.ok){ showAdminNotice('ثبتِ اختصاصِ شیفت ناموفق بود: ' + (res.error||'')); return; }
+  if(!res.ok){
+    if(res.error === 'assignment_overlap'){
+      var cRange = res.conflictEnd
+        ? ('از ' + res.conflictStart + ' تا ' + res.conflictEnd)
+        : ('کلی، از ' + res.conflictStart + ' به بعد');
+      showAdminNotice('این بازه با شیفتِ «' + (res.conflictShiftName||'') + '» (' + cRange + ') تداخل داره، پس ثبت نشد. اول اون رو حذف کن یا بازه‌یِ دیگه‌ای انتخاب کن.');
+    } else if(res.error === 'end_before_start'){
+      showAdminNotice('تاریخِ پایان نمی‌تونه قبل از تاریخِ شروع باشه.');
+    } else {
+      showAdminNotice('ثبتِ اختصاصِ شیفت ناموفق بود: ' + (res.error||''));
+    }
+    return;
+  }
   clearAdminNotice();
   await loadEmployeeShiftAssignments(emp.username);
 }
@@ -7613,7 +7625,15 @@ async function finishShiftCalendarEditing(){
     var res = shiftIdToUse
       ? await apiCall(function(){ return apiPost('updateShift', Object.assign({id:shiftIdToUse}, pendingShiftPayload)); })
       : await apiCall(function(){ return apiPost('addShift', pendingShiftPayload); });
-    if(!res.ok){ if(btn) btn.disabled = false; showAdminNotice('ذخیره‌یِ شیفت ناموفق بود: ' + (res.error||'')); return; }
+    if(!res.ok){
+      if(btn) btn.disabled = false;
+      // سرور هم اسمِ تکراری رو رد می‌کنه (نه فقط فرم) — اگه بینِ بازکردنِ فرم و «ثبتِ نهایی»
+      // کسِ دیگه‌ای شیفتی با همین اسم ساخته باشه، همین‌جا گرفته می‌شه.
+      showAdminNotice(res.error === 'duplicate_shift_name'
+        ? ('شیفتی با نامِ «' + (res.existingName || '') + '» از قبل تعریف شده — به تبِ «تعریفِ شیفت» برگرد و نامِ دیگه‌ای بذار.')
+        : ('ذخیره‌یِ شیفت ناموفق بود: ' + (res.error||'')));
+      return;
+    }
     shiftIdToUse = shiftIdToUse || res.id;
   }
   if(!shiftIdToUse){ if(btn) btn.disabled = false; showAdminNotice('خطا: شیفتی برایِ ثبت مشخص نیست.'); return; }
@@ -7744,9 +7764,31 @@ function cancelShiftEdit(){
   document.getElementById('shiftFormBtn').textContent = '✅ ورود به تقویم';
   document.getElementById('shiftFormCancel').style.display = 'none';
 }
+
+// باید مو‌به‌مو مثلِ normalizedShiftName در Code.gs رفتار کنه: نیم‌فاصله حذف، ي/ى→ی، ك→ک،
+// فاصله‌هایِ پشتِ‌هم یکی، و بدونِ حساسیت به بزرگی/کوچکیِ حروفِ لاتین.
+function normalizedShiftNameClient(name){
+  return String(name || '')
+    .replace(/\u200c/g, '')
+    .replace(/[\u064A\u0649]/g, '\u06CC')
+    .replace(/\u0643/g, '\u06A9')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 function saveShift(){
   var name = document.getElementById('shiftFormName').value.trim();
   if(!name){ showAdminNotice('نامِ شیفت را وارد کن.'); return; }
+  // اسمِ تکراری همین‌جا گرفته می‌شه، نه بعد از ساختنِ کلِ تقویم — سرور هم جداگانه همین
+  // قاعده رو داره، این فقط برایِ اینه که مدیر زودتر بفهمه.
+  var dupShift = shifts.filter(function(x){
+    return x.id !== editingShiftId && normalizedShiftNameClient(x.name) === normalizedShiftNameClient(name);
+  })[0];
+  if(dupShift){
+    showAdminNotice('شیفتی با نامِ «' + dupShift.name + '» از قبل تعریف شده — یک نامِ دیگه انتخاب کن.');
+    return;
+  }
   var yearVal = document.getElementById('shiftFormYear').value;
   if(!yearVal){ showAdminNotice('سالِ شیفت را انتخاب کن.'); return; }
   var isCustom = document.getElementById('shiftTopTypeCustom').checked;
