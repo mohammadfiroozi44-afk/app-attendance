@@ -2594,10 +2594,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-15-import-overnight-holiday";
+const FRONTEND_VERSION = "v-2026-10-15-bulk-writes";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-15-import-overnight-holiday";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-15-bulk-writes";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -10840,9 +10840,8 @@ async function loadMyPayslip(){
     box.innerHTML = '<div class="empty">'+(res.error === 'payroll_disabled' ? 'این بخش فعال نیست.' : ('دریافتِ فیش ناموفق بود: '+esc(res.error||'')))+'</div>';
     return;
   }
-  box.innerHTML = renderPayslipHtml(res.slip, monthName) +
-    '<button type="button" class="btn btn-ghost" id="myPayslipPdfBtn" style="margin-top:10px;">⬇️ دانلودِ PDF</button>';
-  wirePayslipPdfButton('myPayslipPdfBtn', 'myPayslipBox', res.slip, monthName);
+  // کارمند فیش را فقط می‌بیند — گرفتنِ نسخه‌یِ PDF کارِ مدیریت است.
+  box.innerHTML = renderPayslipHtml(res.slip, monthName);
 }
 // ---------- Official print-form PDF export (admin only, one employee at a time) ----------
 // ---------- فرمِ رسمیِ تایم‌شیت (اکسل + PDF) ----------
