@@ -1577,7 +1577,7 @@
           <label>مدتِ استراحت (دقیقه)</label>
           <input type="number" id="shiftFormBreakMinutes" min="0" placeholder="خالی = مقدارِ پیش‌فرضِ شیفتِ عادی">
         </div>
-        <div class="hint" style="margin-top:-8px;">اگه تیک برداشته بشه، هیچ‌وقت استراحت از کارکردِ پرسنلِ این شیفت کم نمی‌شه — مثلاً برایِ شیفت‌هایِ شناورِ طولانی‌مدت که استراحتِ ثابت معنی نداره. (روزهایی که خودشون تیکِ استراحت دارن، همون تنظیمِ روز اولویت داره.)</div>
+        <div class="hint" style="margin-top:-8px;">اگه تیک برداشته بشه، هیچ‌وقت استراحت از کارکردِ پرسنلِ این شیفت کم نمی‌شه — مثلاً برایِ شیفت‌هایِ شناورِ طولانی‌مدت که استراحتِ ثابت معنی نداره. تغییرِ همین تیک رویِ همه‌یِ روزهایِ تقویمِ این شیفت اعمال می‌شه؛ فقط روزی که عمداً برعکسِ این تنظیم شده باشه، استثنایِ خودش رو نگه می‌داره.</div>
         <div class="divider"></div>
 
         <div id="shiftSimpleTopFieldsWrap">
@@ -2600,10 +2600,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-15-import-background";
+const FRONTEND_VERSION = "v-2026-10-15-shift-break-inherit";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-15-bulk-writes";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-15-shift-break-inherit";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -7486,6 +7486,15 @@ function closeShiftDayEditModal(){
 }
 function saveShiftDayModal(){
   var isFloating = document.getElementById('shiftDayTypeFloating').checked;
+  // استراحتِ این روز فقط وقتی به‌صورتِ «مقدارِ صریحِ روز» ذخیره می‌شه که با تنظیمِ خودِ شیفت
+  // تفاوت داشته باشه؛ وگرنه خالی می‌مونه، یعنی «از شیفت ارث ببر». قبلاً این فرم همیشه 'yes' یا
+  // 'no' می‌نوشت، پس هر روزی که وقتِ روشن‌بودنِ استراحتِ شیفت ساخته می‌شد 'yes' رو تو خودش حبس
+  // می‌کرد — و بعد از اون، برداشتنِ تیکِ استراحتِ شیفت هیچ‌وقت تو کارکردِ پرسنل اعمال نمی‌شد،
+  // چون مقدارِ روز همیشه بر تنظیمِ شیفت اولویت داره.
+  var dayBreakOnSD = document.getElementById('shiftDayBreakEnabled').checked;
+  var shiftBreakOnSD = document.getElementById('shiftFormBreakEnabled').checked;
+  var dayBreakMinsSD = dayBreakOnSD ? String(document.getElementById('shiftDayBreakMinutes').value||'').trim() : '';
+  var shiftBreakMinsSD = String(document.getElementById('shiftFormBreakMinutes').value||'').trim();
   var dayObj = {
     jalaliDate: shiftDayEditDate,
     dayType: isFloating ? 'floating' : 'simple',
@@ -7503,8 +7512,8 @@ function saveShiftDayModal(){
     nightShiftStart: document.getElementById('shiftDayNightStart').value,
     nightShiftDuration: document.getElementById('shiftDayNightDuration').value,
     isNightShift: !!(document.getElementById('shiftDayNightStart').value || document.getElementById('shiftDayNightDuration').value),
-    dayBreakEnabled: document.getElementById('shiftDayBreakEnabled').checked ? 'yes' : 'no',
-    dayBreakMinutes: document.getElementById('shiftDayBreakEnabled').checked ? document.getElementById('shiftDayBreakMinutes').value : ''
+    dayBreakEnabled: (dayBreakOnSD === shiftBreakOnSD) ? '' : (dayBreakOnSD ? 'yes' : 'no'),
+    dayBreakMinutes: (dayBreakMinsSD && dayBreakMinsSD !== shiftBreakMinsSD) ? dayBreakMinsSD : ''
   };
   if(isFloating){
     var dailyRequired = document.getElementById('shiftDayDailyRequired').value;
