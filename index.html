@@ -743,6 +743,12 @@
 </head>
 <body>
 <!-- نوارِ «نسخه‌ی جدید آماده است» — فقط وقتی version.json روی سرور از نسخه‌ی همین صفحه جلوتر باشه نشون داده می‌شه. -->
+<!-- نوارِ پیشرفتِ ورودِ فایل. ثابت و مستقل از منوهاست، چون ثبت در پس‌زمینه ادامه دارد و
+     مدیر باید بتواند هر جایِ سایت برود و همچنان ببیند کجا کار است. -->
+<div id="impJobBar" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:5400; align-items:center; gap:10px; padding:10px 14px; background:linear-gradient(135deg, #1f3864, #2f4f8f); color:#fff; font-size:12.5px; font-weight:700; line-height:1.7; box-shadow:0 -6px 18px -6px #00000066;">
+  <span id="impJobBarText" style="flex:1;"></span>
+  <span id="impJobBarPct" class="mono" style="flex-shrink:0; background:#ffffff26; border-radius:8px; padding:4px 9px;"></span>
+</div>
 <div id="appUpdateBar" style="display:none; position:fixed; top:0; left:0; right:0; z-index:5500; align-items:center; gap:10px; padding:10px 14px; background:linear-gradient(135deg, #e6522a, #c43f1c); color:#fff; font-size:12.5px; font-weight:700; line-height:1.7; box-shadow:0 6px 18px -6px #00000066;">
   <span id="appUpdateBarText" style="flex:1;"></span>
   <button type="button" onclick="forceAppUpdate(this)" style="flex-shrink:0; background:#fff; color:#c43f1c; border:0; border-radius:8px; padding:7px 12px; font-family:inherit; font-size:12.5px; font-weight:800; cursor:pointer;">به‌روزرسانی</button>
@@ -2594,7 +2600,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-15-bulk-writes";
+const FRONTEND_VERSION = "v-2026-10-15-import-background";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
 const BACKEND_EXPECTED_VERSION = "v-2026-10-15-bulk-writes";
@@ -5397,7 +5403,7 @@ var ADMIN_SECTION_LEAVE_RESET = {
   messages: ['cancelMessageEdit'],
   report: ['closeStatusMarkerEdit', 'cancelEditLog'],
   offline: ['cancelOfflineEdit'],
-  'import': ['resetImportState'],
+  'import': ['resetImportSectionOnLeave'],
   payroll: ['cancelPayrollDecreeEdit', 'cancelPayrollWageGroupEdit', 'cancelPayrollSeniorityEdit', 'cancelPayrollTaxEdit']
 };
 var _lastAdminSection = null;
@@ -5450,7 +5456,9 @@ async function refreshAdminSection(name){
   else if(name === 'import'){
     await Promise.all([ensureEmployeesFresh(), loadProjectsAdmin()]);
     populateImportProjectSelect();
+    renderImportJobInSection();
     await Promise.all([loadImportRequests(), loadImportBatches()]);
+    renderImportJobInSection();
   }
   else if(name === 'shifts') await loadShiftsAdmin();
   else if(name === 'requests'){
@@ -8060,6 +8068,12 @@ var IMPORT_KINDS = [
   {key:'empty',    label:'روزهایِ خالی (نه ساعت، نه وضعیت)', hint:'اگر انتخاب شود، بر اساسِ تقویمِ همان شخص «آف» یا «غیبت» ثبت می‌شود', on:false}
 ];
 
+// رفتن به منویِ دیگر نباید وضعیتِ یک ثبتِ در جریان را پاک کند — همان چیزی که باعث می‌شد
+// به‌نظر برسد کار متوقف شده.
+function resetImportSectionOnLeave(){
+  if(_importJob && _importJob.running) return;
+  resetImportState();
+}
 function resetImportState(){
   _impState = null;
   var f = document.getElementById('impFile'); if(f) f.value = '';
@@ -8232,7 +8246,37 @@ function renderImportPreview(){
     (chosen.length > 200 ? '<div class="hint" style="margin-top:6px;">فقط ۲۰۰ ردیفِ اول نشان داده شد؛ همه‌یِ '+chosen.length+' روز ثبت می‌شود.</div>' : '');
 }
 
+// ثبت در پس‌زمینه ادامه پیدا می‌کند. وضعیتش اینجا، بیرونِ هر بخشی از رابط، نگه داشته
+// می‌شود تا رفتن به منویِ دیگر (که محتوایِ بخش را پاک می‌کند) کارِ نیمه‌تمام را قطع نکند.
+var _importJob = null;   // {running, done, total, batchId, added, statusAdded, emptyAdded, skipped, error}
+
+function renderImportJobBar(){
+  var bar = document.getElementById('impJobBar');
+  if(!bar) return;
+  if(!_importJob || !_importJob.running){ bar.style.display = 'none'; return; }
+  var pct = _importJob.total ? Math.round(_importJob.done / _importJob.total * 100) : 0;
+  document.getElementById('impJobBarText').textContent =
+    '⏳ در حالِ ثبتِ ترددهایِ فایل — می‌توانید به منوهایِ دیگر بروید، ثبت ادامه دارد.';
+  document.getElementById('impJobBarPct').textContent = pct + '٪';
+  bar.style.display = 'flex';
+}
+// وقتی مدیر دوباره وارد بخشِ ورودِ فایل می‌شود، همان وضعیتِ زنده را می‌بیند.
+function renderImportJobInSection(){
+  var prog = document.getElementById('impProgressMsg');
+  if(!prog || !_importJob) return;
+  if(_importJob.running){
+    prog.innerHTML = '⏳ در حالِ ثبت... <b>' + _importJob.done + '</b> از <b>' + _importJob.total + '</b> بخش' +
+      '<br><span style="font-size:11px;">این کار در پس‌زمینه ادامه دارد؛ لازم نیست در این صفحه بمانید.</span>';
+  } else if(_importJob.finishedMsg){
+    prog.innerHTML = _importJob.finishedMsg;
+  }
+}
+
 async function runAttendanceImport(){
+  if(_importJob && _importJob.running){
+    showAppAlert('یک ثبت همین حالا در جریان است. تا تمام‌شدنش صبر کنید.');
+    return;
+  }
   var chosen = selectedImportDays();
   var prog = document.getElementById('impProgressMsg');
   if(!chosen.length){ prog.textContent = '⛔ اول انتخاب کن چه چیزی ثبت شود.'; return; }
@@ -8258,44 +8302,63 @@ async function runAttendanceImport(){
   if(!(await showAppConfirm(chosen.length+' روز ('+totalItems+' مورد) ثبت شود؟ اگر برایِ این روزها «غیبت» یا «آف» ثبت شده بود، برداشته می‌شود.'))) return;
 
   var batchId = 'IMP-' + new Date().toISOString().replace(/[^0-9]/g,'').slice(0,14) + '-' + Math.random().toString(36).slice(2,6);
-  var btn = document.getElementById('impConfirmBtn');
-  btn.disabled = true;
   // تکه‌تکه فرستادن: یک درخواستِ چندهزارردیفی از سقفِ زمانِ اجرایِ Apps Script رد می‌شود.
-  var CHUNK = 300, added = 0, statusAdded = 0, emptyAdded = 0, skipped = [];
-  try{
-    var batches = [];
-    for(var i=0; i<rows.length; i+=CHUNK) batches.push({rows: rows.slice(i, i+CHUNK), statusRows: [], emptyDays: []});
-    if(!batches.length) batches.push({rows: [], statusRows: [], emptyDays: []});
-    batches[batches.length-1].statusRows = statusRows;
-    batches[batches.length-1].emptyDays = emptyDays;
+  var CHUNK = 300;
+  var batches = [];
+  for(var i=0; i<rows.length; i+=CHUNK) batches.push({rows: rows.slice(i, i+CHUNK), statusRows: [], emptyDays: []});
+  if(!batches.length) batches.push({rows: [], statusRows: [], emptyDays: []});
+  batches[batches.length-1].statusRows = statusRows;
+  batches[batches.length-1].emptyDays = emptyDays;
+
+  var pendingReqId = _impPendingRequestId;
+  _importJob = {running:true, done:0, total:batches.length, batchId:batchId, finishedMsg:''};
+  // فایل از رابط پاک می‌شود چون دیگر لازم نیست — کارِ ثبت از اینجا به بعد مستقل است.
+  _impPendingRequestId = null;
+  resetImportState();
+  renderImportJobBar();
+  renderImportJobInSection();
+
+  // عمداً await نمی‌شود: این تابع برمی‌گردد و کار در پس‌زمینه ادامه پیدا می‌کند، پس
+  // رفتن به منویِ دیگر چیزی را متوقف نمی‌کند.
+  (async function(){
+    var added = 0, statusAdded = 0, emptyAdded = 0, skipped = [], failed = null;
     for(var b=0; b<batches.length; b++){
-      prog.textContent = 'در حال ثبت... بخشِ ' + (b+1) + ' از ' + batches.length;
       var res = await apiCall((function(part){
         return function(){ return apiPost('importAttendanceLogs', {pin:adminPin, batchId:batchId, sourceLabel:'فایل',
           rows:part.rows, statusRows:part.statusRows, emptyDays:part.emptyDays}); };
       })(batches[b]));
-      if(!res.ok){ prog.textContent = '⛔ ثبت ناموفق بود: ' + (res.error||''); btn.disabled = false; return; }
+      if(!res.ok){ failed = res.error || 'نامشخص'; break; }
       added += res.added || 0;
       statusAdded += res.statusAdded || 0;
       emptyAdded += res.emptyAdded || 0;
       skipped = skipped.concat(res.skipped || []);
+      _importJob.done = b + 1;
+      renderImportJobBar();
+      renderImportJobInSection();
     }
-    var doneMsg = '✅ ثبت شد — <b>'+added+'</b> تردد' +
-      (statusAdded ? ' · <b>'+statusAdded+'</b> وضعیتِ روز' : '') +
-      (emptyAdded ? ' · <b>'+emptyAdded+'</b> روزِ خالی بر اساسِ تقویم' : '') +
-      '<br>شناسه: <span class="mono">'+esc(batchId)+'</span>' +
-      (skipped.length ? '<br>⚠️ '+skipped.length+' ردیف ثبت نشد.' : '');
-    resetImportState();
-    document.getElementById('impProgressMsg').innerHTML = doneMsg;
-    if(_impPendingRequestId){
-      await apiCall(function(){ return apiPost('decideImportRequest', {pin:adminPin, id:_impPendingRequestId, approve:true, note:'ثبت شد'}); });
-      _impPendingRequestId = null;
-      await loadImportRequests();
+    _importJob.running = false;
+    if(failed){
+      _importJob.finishedMsg = '⛔ ثبت ناموفق بود: ' + esc(failed) +
+        (added ? '<br>' + added + ' ردیف پیش از خطا ثبت شده بود — با شناسه‌یِ <span class="mono">'+esc(batchId)+'</span> قابلِ برگرداندن است.' : '');
+    } else {
+      _importJob.finishedMsg = '✅ ثبت شد — <b>'+added+'</b> تردد' +
+        (statusAdded ? ' · <b>'+statusAdded+'</b> وضعیتِ روز' : '') +
+        (emptyAdded ? ' · <b>'+emptyAdded+'</b> روزِ خالی بر اساسِ تقویم' : '') +
+        '<br>شناسه: <span class="mono">'+esc(batchId)+'</span>' +
+        (skipped.length ? '<br>⚠️ '+skipped.length+' ردیف ثبت نشد.' : '');
+      if(pendingReqId){
+        await apiCall(function(){ return apiPost('decideImportRequest', {pin:adminPin, id:pendingReqId, approve:true, note:'ثبت شد'}); });
+      }
     }
-    await loadImportBatches();
-  } finally {
-    btn.disabled = false;
-  }
+    renderImportJobBar();
+    renderImportJobInSection();
+    // فهرست‌ها فقط وقتی تازه می‌شوند که مدیر همان لحظه در همین بخش باشد.
+    if(_lastAdminSection === 'import' && adminPin){
+      if(pendingReqId) await loadImportRequests();
+      await loadImportBatches();
+    }
+    showAppAlert(failed ? 'ثبتِ فایل ناتمام ماند. وارد «ورودِ تردد از فایل» شوید.' : 'ثبتِ ترددهایِ فایل تمام شد.');
+  })();
 }
 
 async function loadImportBatches(){
@@ -12218,6 +12281,11 @@ function init(){
   if(savedPin && savedUser){ adminPin = savedPin; adminUsername = savedUser; }
 }
 // ---------- PWA install support ----------
+// بستنِ صفحه وسطِ یک ثبتِ دسته‌ای، باقیِ ردیف‌ها را از بین می‌برد (نیمه‌ش ثبت شده می‌ماند)،
+// پس مرورگر قبلش هشدار می‌دهد.
+window.addEventListener('beforeunload', function(e){
+  if(_importJob && _importJob.running){ e.preventDefault(); e.returnValue = ''; return ''; }
+});
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
     navigator.serviceWorker.register('service-worker.js').then(function(reg){
