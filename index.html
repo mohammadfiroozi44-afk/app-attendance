@@ -1577,7 +1577,7 @@
           <label>مدتِ استراحت (دقیقه)</label>
           <input type="number" id="shiftFormBreakMinutes" min="0" placeholder="خالی = مقدارِ پیش‌فرضِ شیفتِ عادی">
         </div>
-        <div class="hint" style="margin-top:-8px;">اگه تیک برداشته بشه، هیچ‌وقت استراحت از کارکردِ پرسنلِ این شیفت کم نمی‌شه — مثلاً برایِ شیفت‌هایِ شناورِ طولانی‌مدت که استراحتِ ثابت معنی نداره. تغییرِ همین تیک رویِ همه‌یِ روزهایِ تقویمِ این شیفت اعمال می‌شه؛ فقط روزی که عمداً برعکسِ این تنظیم شده باشه، استثنایِ خودش رو نگه می‌داره.</div>
+        <div class="hint" style="margin-top:-8px;">اگه تیک برداشته بشه، هیچ‌وقت استراحت از کارکردِ پرسنلِ این شیفت کم نمی‌شه — نه روزهایِ عادی، نه جمعه و تعطیل. مثلاً برایِ شیفت‌هایِ شناورِ طولانی‌مدت که استراحتِ ثابت معنی نداره. تغییرِ همین تیک رویِ همه‌یِ روزهایِ تقویمِ این شیفت اعمال می‌شه؛ فقط روزی که عمداً برعکسِ این تنظیم شده باشه، استثنایِ خودش رو نگه می‌داره.</div>
         <div class="divider"></div>
 
         <div id="shiftSimpleTopFieldsWrap">
@@ -2600,10 +2600,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-15-shift-break-inherit";
+const FRONTEND_VERSION = "v-2026-10-15-holiday-break";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-15-shift-break-inherit";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-15-holiday-break";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
