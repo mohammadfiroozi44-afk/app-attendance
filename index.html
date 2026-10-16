@@ -2618,10 +2618,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-16-perf-probe";
+const FRONTEND_VERSION = "v-2026-10-16-perf-fallback";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-16-perf-probe";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-16-perf-fallback";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -7820,6 +7820,93 @@ async function runPerfProbe(mode, extra){
     error: (res && res.error) || ''
   };
 }
+// اگه بک‌اندِ مستقر هنوز perfProbe رو نداشته باشه، ابزار نباید بی‌فایده بشه. این حالتِ
+// جایگزین با همون اکشن‌هایی کار می‌کنه که هر نسخه‌ای از Code.gs داره، و کارِ گوگل‌شیت رو
+// «از تفاضل» درمی‌آره:
+//     ping  = شبکه + راه‌اندازی (هیچ شیتی لمس نمی‌شه)
+//     یک خواندنِ واقعی = شبکه + راه‌اندازی + کارِ شیت
+//     ⟹ کارِ شیت ≈ خواندنِ واقعی − ping
+// دقتش از حالتِ اصلی کمتره (سربار دقیقاً ثابت نیست)، ولی برایِ همون تصمیمی که می‌خوایم
+// بگیریم — شبکه یا شیت؟ — کافیه.
+async function runPerfPlain(action, payload){
+  var t0 = performance.now();
+  var res = await apiCall(function(){ return apiPost(action, payload || {}, true); });
+  return { total: Math.round(performance.now() - t0), ok: !!(res && res.ok), res: res || {} };
+}
+async function runPerfFallback(){
+  var pings = [];
+  for(var i = 0; i < 5; i++) pings.push(await runPerfPlain('ping', {}));
+  var basePing = perfMedian(pings.map(function(x){ return x.total; }));
+  var probes = [
+    {label: 'خواندنِ لیستِ شیفت‌ها', action: 'getShifts', payload: {pin: adminPin}, countOf: 'shifts'},
+    {label: 'خواندنِ لیستِ پروژه‌ها', action: 'getProjectsAdmin', payload: {pin: adminPin}, countOf: 'projects'},
+    {label: 'خواندنِ ترددهایِ یک ماه', action: 'getLogs', payload: {pin: adminPin, year: null, month: null}, countOf: 'logs'}
+  ];
+  var out = [];
+  for(var j = 0; j < probes.length; j++){
+    var pr = probes[j];
+    var r = await runPerfPlain(pr.action, pr.payload);
+    var arr = r.res[pr.countOf];
+    out.push({
+      label: pr.label, ok: r.ok, total: r.total,
+      server: Math.max(0, r.total - basePing),   // تخمینی: مازاد بر رفت‌وبرگشتِ خالی
+      net: Math.min(r.total, basePing),
+      note: (arr && arr.length !== undefined ? arr.length + ' ردیف' : '') ,
+      error: r.res.error || ''
+    });
+  }
+  return { basePing: basePing, steps: out, pingOk: pings.every(function(x){ return x.ok; }) };
+}
+async function renderPerfFallback(box, verdictEl, say){
+  var fb = await runPerfFallback();
+  if(!fb.pingOk){
+    box.innerHTML = '<div class="empty">سرور به «ping» هم جواب نداد — یعنی مشکل از خودِ اتصاله، نه از این ابزار.</div>';
+    say('');
+    return;
+  }
+  var okSteps = fb.steps.filter(function(x){ return x.ok; });
+  if(!okSteps.length){
+    box.innerHTML = '<div class="empty">هیچ‌کدام از خواندن‌ها جواب نداد: ' + esc(fb.steps[0].error || '') + '</div>';
+    say('');
+    return;
+  }
+  var rowsHtml = okSteps.map(function(x){
+    var pctNet = x.total > 0 ? Math.round(x.net * 100 / x.total) : 0;
+    return '<tr>' +
+      '<td class="dt-freeze-start">' + esc(x.label) +
+        (x.note ? '<div class="meta">' + esc(x.note) + '</div>' : '') +
+        '<div class="meta dt-sm-only">کل: ' + perfFmtMs(x.total) + '</div></td>' +
+      '<td class="dt-hide-sm"><b>' + perfFmtMs(x.total) + '</b></td>' +
+      '<td>' + perfFmtMs(x.server) + '</td>' +
+      '<td>' + perfFmtMs(x.net) + '<div class="meta">' + pctNet + '٪</div></td>' +
+      '</tr>';
+  }).join('');
+  box.innerHTML =
+    '<div class="hint" style="margin-bottom:6px;">روشِ جایگزین: بک‌اند زمانِ خودش را گزارش نمی‌کند، پس «کارِ گوگل‌شیت» از تفاضلِ هر خواندن با یک رفت‌وبرگشتِ خالی تخمین زده شده. برایِ تصمیمِ «شبکه یا شیت؟» کافی است، ولی دقیق نیست.</div>' +
+    '<div class="data-table-wrap"><table class="data-table"><thead><tr>' +
+    '<th class="dt-freeze-start">آزمایش</th><th class="dt-hide-sm">کلِ زمان</th><th>کارِ گوگل‌شیت (تخمینی)</th><th>شبکه</th>' +
+    '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+
+  var sumTotal = okSteps.reduce(function(a, x){ return a + x.total; }, 0);
+  var sumNet = okSteps.reduce(function(a, x){ return a + x.net; }, 0);
+  var netPct = sumTotal > 0 ? Math.round(sumNet * 100 / sumTotal) : 0;
+  var vTxt = netPct >= 60
+    ? 'گلوگاه «شبکه»ست (' + netPct + '٪). عوض‌کردنِ گوگل‌شیت با دیتابیس این را حل نمی‌کند.'
+    : (netPct <= 35
+      ? 'گلوگاه «کارِ خودِ گوگل‌شیت»ست (' + (100 - netPct) + '٪). دیتابیس اینجا واقعاً جواب می‌دهد.'
+      : 'تقریباً نصف‌نصف است (شبکه ' + netPct + '٪). اول کم‌کردنِ رفت‌وبرگشت‌ها، چون ارزان‌تر است.');
+  verdictEl.innerHTML = '<div class="card" style="padding:12px; margin:0;">' +
+    '<div class="eyebrow" style="font-size:13px;">نتیجه (روشِ جایگزین)</div>' +
+    '<div style="margin-top:4px;"><b>' + esc(vTxt) + '</b></div>' +
+    '<div class="meta" style="margin-top:6px;">رفت‌وبرگشتِ خالی: ' + perfFmtMs(fb.basePing) + ' — هر درخواست، حتی بی‌کار، این‌قدر هزینه دارد.</div></div>';
+
+  _perfLastReport = 'سنجشِ سرعت (روشِ جایگزین) — ' + new Date().toISOString() +
+    '\nرفت‌وبرگشتِ خالی (ping، میانه‌یِ ۵): ' + fb.basePing + 'ms\n' +
+    okSteps.map(function(x){ return x.label + (x.note ? ' (' + x.note + ')' : '') + ': کل ' + x.total + 'ms | شیتِ تخمینی ' + x.server + 'ms'; }).join('\n') +
+    '\nسهمِ شبکه: ' + netPct + '%';
+  document.getElementById('perfCopyBtn').style.display = 'inline-block';
+  say('سنجش تمام شد (روشِ جایگزین).');
+}
 async function runPerfSuite(){
   var btn = document.getElementById('perfRunBtn');
   var prog = document.getElementById('perfProgress');
@@ -7862,8 +7949,16 @@ async function runPerfSuite(){
 
     var failed = steps.filter(function(x){ return !x.r.ok; });
     if(failed.length){
-      box.innerHTML = '<div class="empty">سنجش کامل نشد: ' + esc(failed[0].r.error || 'خطایِ نامشخص') +
-        '<br><span class="meta">اگر نوشته «invalid pin»، از مدیریت خارج شو و دوباره وارد شو. اگر نوشته unknown_mode، یعنی Code.gs جدید هنوز Deploy نشده.</span></div>';
+      var errTxt = String(failed[0].r.error || '');
+      // بک‌اندِ مستقر این اکشن رو نداره (هنوز Deploy نشده یا نسخه‌یِ دیگه‌ایه) — به‌جایِ
+      // دست‌خالی برگشتن، همون سنجش رو با اکشن‌هایی می‌گیریم که قطعاً وجود دارن.
+      if(errTxt.indexOf('unknown') >= 0){
+        say('بک‌اند «perfProbe» را نمی‌شناسد — سنجش با روشِ جایگزین…');
+        await renderPerfFallback(box, verdictEl, say);
+        return;
+      }
+      box.innerHTML = '<div class="empty">سنجش کامل نشد: ' + esc(errTxt || 'خطایِ نامشخص') +
+        '<br><span class="meta">اگر نوشته «invalid pin»، از مدیریت خارج شو و دوباره وارد شو.</span></div>';
       say('');
       return;
     }
