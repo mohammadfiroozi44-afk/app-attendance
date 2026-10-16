@@ -2618,10 +2618,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-16-perf-fallback";
+const FRONTEND_VERSION = "v-2026-10-16-perf-verdict";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-16-perf-fallback";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-16-perf-verdict";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -7944,7 +7944,7 @@ async function runPerfSuite(){
       {label: 'خواندنِ جدولِ تنظیمات (کوچک)', r: readSmall, note: (readSmall.info.rows || 0) + ' ردیف'},
       {label: 'خواندنِ کلِ جدولِ ترددها', r: readBig, note: (readBig.info.rows || 0) + ' ردیف'},
       {label: 'نوشتنِ ۲۰ ردیف — یکجا', r: wBulk, note: 'خودِ نوشتن: ' + perfFmtMs(wBulk.info.writeMs)},
-      {label: 'نوشتنِ ۲۰ ردیف — تک‌تک', r: wLoop, note: 'خودِ نوشتن: ' + perfFmtMs(wLoop.info.writeMs)}
+      {label: 'نوشتنِ ۲۰ ردیف — تک‌تک', r: wLoop, note: 'فقط برایِ مقایسه — برنامه این‌طور نمی‌نویسد · خودِ نوشتن: ' + perfFmtMs(wLoop.info.writeMs)}
     ];
 
     var failed = steps.filter(function(x){ return !x.r.ok; });
@@ -7993,9 +7993,13 @@ async function runPerfSuite(){
     }
 
     // ---- نتیجه‌گیری ----
-    // فقط کارهایِ «واقعی» شمرده می‌شن (خواندنِ بزرگ و دو نوشتن)؛ رفت‌وبرگشتِ خالی خودش
-    // معیارِ سربارِ ثابتِ هر درخواسته و دوبار حساب نمی‌شه.
-    var real = [readBig, wBulk, wLoop];
+    // فقط کارهایی شمرده می‌شن که برنامه واقعاً انجام می‌ده: یک خواندنِ بزرگ و یک نوشتنِ یکجا.
+    //   • رفت‌وبرگشتِ خالی کنار گذاشته می‌شه چون خودش معیارِ سربارِ ثابته و دوبار حساب می‌شد.
+    //   • نوشتنِ تک‌تک هم کنار گذاشته می‌شه چون عمداً بدترین حالته و هیچ مسیرِ زنده‌ای تویِ
+    //     برنامه این‌طور نمی‌نویسه. بودنش تویِ این جمع، سهمِ «کارِ شیت» رو الکی بالا می‌برد و
+    //     نتیجه‌گیری رو به سمتِ «برو دیتابیس» کج می‌کرد. اون ردیف تویِ جدول می‌مونه، چون
+    //     مقایسه‌اش با «یکجا» می‌گه کُدِ دسته‌ای چقدر ارزش داره — ولی در تصمیم‌گیری نقشی نداره.
+    var real = [readBig, wBulk];
     var sumTotal = real.reduce(function(a, x){ return a + x.total; }, 0);
     var sumServer = real.reduce(function(a, x){ return a + x.server; }, 0);
     var sumNet = Math.max(0, sumTotal - sumServer);
