@@ -1813,6 +1813,23 @@
       </div>
     </div>
     </div><!-- /admSec-shifts -->
+    <div class="admin-section" id="admSec-perf" style="display:none;">
+    <div class="card">
+      <div class="eyebrow">سنجشِ سرعت</div>
+      <div class="hint" style="margin-top:-4px;">این ابزار یک سوالِ مشخص را جواب می‌دهد: وقتی کاری کُند است، چقدرش <b>شبکه</b> است (مسیرِ گوشیِ تو تا سرورِ گوگل) و چقدرش <b>کارِ خودِ گوگل‌شیت</b>. این دو درمانِ متفاوتی دارند، پس قبل از هر تصمیمی باید عددش را داشت.</div>
+      <div class="hint">چیزی از اطلاعاتِ تو تغییر نمی‌کند — تست‌هایِ نوشتن رویِ یک برگه‌یِ موقت انجام می‌شوند که بلافاصله پاک می‌شود.</div>
+
+      <div class="btn-row" style="margin-top:12px;">
+        <button type="button" class="btn btn-primary" id="perfRunBtn" onclick="runPerfSuite()">⏱️ شروعِ سنجش</button>
+        <button type="button" class="btn btn-ghost" id="perfCopyBtn" style="display:none;" onclick="copyPerfResult(this)">📋 کپیِ نتیجه</button>
+      </div>
+      <div class="hint" id="perfProgress" style="margin-top:8px;"></div>
+      <div id="perfVerdict" style="margin-top:12px;"></div>
+      <div id="perfResultBox" style="margin-top:12px;"></div>
+      <div id="perfSizesBox" style="margin-top:12px;"></div>
+    </div>
+    </div><!-- /admSec-perf -->
+
 
     <div class="admin-section" id="admSec-settings" style="display:none;">
     <div class="card">
@@ -2566,6 +2583,7 @@
     <div class="drawer-item" id="admMenu-import" onclick="showAdminSection('import')"><span class="dicon dicon-blue"><i class="fa-solid fa-file-import"></i></span> ورودِ تردد از فایل</div>
     <div class="drawer-item" id="admMenu-payroll" onclick="showAdminSection('payroll')"><span class="dicon dicon-teal"><i class="fa-solid fa-money-check-dollar"></i></span> حقوق و دستمزد</div>
     <div class="drawer-nav-group-title">سیستم</div>
+    <div class="drawer-item" id="admMenu-perf" onclick="showAdminSection('perf')"><span class="dicon dicon-orange"><i class="fa-solid fa-stopwatch"></i></span> سنجشِ سرعت</div>
     <div class="drawer-item" id="admMenu-settings" onclick="showAdminSection('settings')"><span class="dicon dicon-gray"><i class="fa-solid fa-gear"></i></span> تنظیمات</div>
     <div class="drawer-item" onclick="openAdminLogSheet(); closeDrawer();"><span class="dicon dicon-teal"><i class="fa-solid fa-clock-rotate-left"></i></span> ثبت‌ها</div>
     <div class="drawer-item" onclick="refreshCurrentAdminSection(); closeDrawer();"><span class="dicon dicon-blue"><i class="fa-solid fa-arrows-rotate"></i></span> بروزرسانی</div>
@@ -2600,10 +2618,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwFvHrzbZIV7jOZ8463_XL6
 // Bump this every time index.html is updated, AND change version.json next to it to the
 // same string. The app fetches version.json on every launch, so a phone still showing a
 // cached copy can tell on its own that it is behind and offer a real update.
-const FRONTEND_VERSION = "v-2026-10-15-shift-guards";
+const FRONTEND_VERSION = "v-2026-10-16-perf-probe";
 // The version string the deployed Code.gs answers «ping» with. This moves only when the
 // backend actually changes, which is far less often than the frontend.
-const BACKEND_EXPECTED_VERSION = "v-2026-10-15-shift-guards";
+const BACKEND_EXPECTED_VERSION = "v-2026-10-16-perf-probe";
 
 // Your own brand — this is the developer/reseller's own identity, shown first on every
 // launch before the client company's own branding. Edit these two lines directly with your
@@ -5418,7 +5436,7 @@ function showAdminSection(name){
     });
   }
   _lastAdminSection = name;
-  ['dashboard','employees','projects','shifts','requests','services','messages','offline','report','performance','import','payroll','settings'].forEach(function(s){
+  ['dashboard','employees','projects','shifts','requests','services','messages','offline','report','performance','import','payroll','perf','settings'].forEach(function(s){
     var sec = document.getElementById('admSec-'+s);
     var btn = document.getElementById('admMenu-'+s);
     if(sec) sec.style.display = (s===name) ? 'block' : 'none';
@@ -7767,6 +7785,175 @@ function cancelShiftEdit(){
 
 // باید مو‌به‌مو مثلِ normalizedShiftName در Code.gs رفتار کنه: نیم‌فاصله حذف، ي/ى→ی، ك→ک،
 // فاصله‌هایِ پشتِ‌هم یکی، و بدونِ حساسیت به بزرگی/کوچکیِ حروفِ لاتین.
+
+// ---------- سنجشِ سرعت ----------
+// چرا وجود داره: وقتی ثبتِ یک ماه چند دقیقه طول می‌کشه، دو علتِ کاملاً متفاوت ممکنه داشته
+// باشه و درمانشون یکی نیست:
+//   • شبکه — فاصله‌یِ گوشی تا سرورِ گوگل. عوض‌کردنِ گوگل‌شیت با دیتابیس حلش نمی‌کنه.
+//   • کارِ گوگل‌شیت — خوندن/نوشتنِ خودِ صفحه‌گستره. دیتابیس دقیقاً همین رو حل می‌کنه.
+// هر جوابِ perfProbe می‌گه چقدر زمان رویِ سرور گذشته (serverMs). مرورگر کلِ رفت‌وبرگشت رو
+// اندازه می‌گیره. تفاضلشون سهمِ شبکه‌ست. بدونِ این عدد، هر تصمیمی درباره‌یِ مهاجرت حدسه.
+var _perfLastReport = '';
+function perfFmtMs(ms){
+  if(ms === null || ms === undefined) return '—';
+  // زیرِ یک ثانیه با واحدِ کوتاهِ ms نوشته می‌شه، نه «میلی‌ثانیه» — چهار ستونِ این جدول رویِ
+  // عرضِ گوشی جا نمی‌شن اگه واحد بلند باشه، و ستونِ «شبکه» که مهم‌ترینه بریده می‌شد.
+  return ms >= 1000 ? (ms/1000).toFixed(2) + ' ثانیه' : Math.round(ms) + 'ms';
+}
+function perfMedian(arr){
+  if(!arr.length) return 0;
+  var a = arr.slice().sort(function(x, y){ return x - y; });
+  var mid = Math.floor(a.length / 2);
+  return a.length % 2 ? a[mid] : Math.round((a[mid-1] + a[mid]) / 2);
+}
+async function runPerfProbe(mode, extra){
+  var t0 = performance.now();
+  // silent=true — این‌ها درخواستِ تشخیصی‌ان و نباید نشانگرِ «در حالِ ثبت» رو روشن کنن.
+  var res = await apiCall(function(){
+    return apiPost('perfProbe', Object.assign({pin: adminPin, mode: mode}, extra || {}), true);
+  });
+  var total = Math.round(performance.now() - t0);
+  var server = res && res.serverMs ? res.serverMs : 0;
+  return {
+    mode: mode, ok: !!(res && res.ok), total: total, server: server,
+    net: Math.max(0, total - server), info: (res && res.info) || {},
+    error: (res && res.error) || ''
+  };
+}
+async function runPerfSuite(){
+  var btn = document.getElementById('perfRunBtn');
+  var prog = document.getElementById('perfProgress');
+  var box = document.getElementById('perfResultBox');
+  var verdictEl = document.getElementById('perfVerdict');
+  var sizesEl = document.getElementById('perfSizesBox');
+  btn.disabled = true;
+  document.getElementById('perfCopyBtn').style.display = 'none';
+  box.innerHTML = ''; verdictEl.innerHTML = ''; sizesEl.innerHTML = '';
+
+  var steps = [];
+  function say(t){ prog.textContent = t; }
+
+  try {
+    say('در حالِ اندازه‌گیریِ حجمِ جدول‌ها…');
+    var sizes = await runPerfProbe('sizes');
+
+    // پنج بارِ پشتِ‌هم: اولی معمولاً کُندتره (راه‌اندازیِ سردِ Apps Script)، پس میانه ملاکه.
+    var noops = [];
+    for(var i = 1; i <= 5; i++){
+      say('اندازه‌گیریِ تأخیرِ شبکه… (' + i + ' از ۵)');
+      noops.push(await runPerfProbe('noop'));
+    }
+    say('خواندنِ جدولِ تنظیمات…');
+    var readSmall = await runPerfProbe('readSettings');
+    say('خواندنِ کلِ جدولِ ترددها…');
+    var readBig = await runPerfProbe('readLogs');
+    say('نوشتنِ ۲۰ ردیف به‌صورتِ یکجا…');
+    var wBulk = await runPerfProbe('writeBulk', {rows: 20});
+    say('نوشتنِ ۲۰ ردیف به‌صورتِ تک‌تک…');
+    var wLoop = await runPerfProbe('writeLoop', {rows: 20});
+
+    steps = [
+      {label: 'رفت‌وبرگشتِ خالی (بدونِ هیچ کاری)', r: noops[Math.floor(noops.length/2)], note: 'میانه‌یِ ۵ بار'},
+      {label: 'خواندنِ جدولِ تنظیمات (کوچک)', r: readSmall, note: (readSmall.info.rows || 0) + ' ردیف'},
+      {label: 'خواندنِ کلِ جدولِ ترددها', r: readBig, note: (readBig.info.rows || 0) + ' ردیف'},
+      {label: 'نوشتنِ ۲۰ ردیف — یکجا', r: wBulk, note: 'خودِ نوشتن: ' + perfFmtMs(wBulk.info.writeMs)},
+      {label: 'نوشتنِ ۲۰ ردیف — تک‌تک', r: wLoop, note: 'خودِ نوشتن: ' + perfFmtMs(wLoop.info.writeMs)}
+    ];
+
+    var failed = steps.filter(function(x){ return !x.r.ok; });
+    if(failed.length){
+      box.innerHTML = '<div class="empty">سنجش کامل نشد: ' + esc(failed[0].r.error || 'خطایِ نامشخص') +
+        '<br><span class="meta">اگر نوشته «invalid pin»، از مدیریت خارج شو و دوباره وارد شو. اگر نوشته unknown_mode، یعنی Code.gs جدید هنوز Deploy نشده.</span></div>';
+      say('');
+      return;
+    }
+
+    // ---- جدولِ نتیجه ----
+    // رویِ گوشی ستونِ «کلِ زمان» پنهان می‌شه و همون عدد می‌ره زیرِ نامِ آزمایش — وگرنه
+    // چهار ستون جا نمی‌شن و «شبکه»، که مهم‌ترین عددِ این جدوله، از لبه‌یِ صفحه بیرون می‌افته.
+    var rowsHtml = steps.map(function(x){
+      var pctNet = x.r.total > 0 ? Math.round(x.r.net * 100 / x.r.total) : 0;
+      return '<tr>' +
+        '<td class="dt-freeze-start">' + esc(x.label) +
+          '<div class="meta">' + esc(x.note) + '</div>' +
+          '<div class="meta dt-sm-only">کل: ' + perfFmtMs(x.r.total) + '</div></td>' +
+        '<td class="dt-hide-sm"><b>' + perfFmtMs(x.r.total) + '</b></td>' +
+        '<td>' + perfFmtMs(x.r.server) + '</td>' +
+        '<td>' + perfFmtMs(x.r.net) + '<div class="meta">' + pctNet + '٪</div></td>' +
+        '</tr>';
+    }).join('');
+    box.innerHTML =
+      '<div class="data-table-wrap"><table class="data-table"><thead><tr>' +
+      '<th class="dt-freeze-start">آزمایش</th><th class="dt-hide-sm">کلِ زمان</th><th>کارِ گوگل‌شیت</th><th>شبکه</th>' +
+      '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+
+    // ---- حجمِ جدول‌ها ----
+    if(sizes.ok && sizes.info.tables){
+      var tRows = sizes.info.tables.filter(function(t){ return t.rows > 0; })
+        .sort(function(a, b){ return b.rows - a.rows; })
+        .map(function(t){ return '<tr><td class="dt-freeze-start">' + esc(t.name) + '</td><td>' + t.rows.toLocaleString('fa-IR') + '</td><td>' + t.cols + '</td></tr>'; }).join('');
+      sizesEl.innerHTML = '<div class="eyebrow" style="font-size:13px;">حجمِ جدول‌ها</div>' +
+        '<div class="data-table-wrap"><table class="data-table"><thead><tr>' +
+        '<th class="dt-freeze-start">جدول</th><th>ردیف</th><th>ستون</th></tr></thead><tbody>' + tRows + '</tbody></table></div>';
+    }
+
+    // ---- نتیجه‌گیری ----
+    // فقط کارهایِ «واقعی» شمرده می‌شن (خواندنِ بزرگ و دو نوشتن)؛ رفت‌وبرگشتِ خالی خودش
+    // معیارِ سربارِ ثابتِ هر درخواسته و دوبار حساب نمی‌شه.
+    var real = [readBig, wBulk, wLoop];
+    var sumTotal = real.reduce(function(a, x){ return a + x.total; }, 0);
+    var sumServer = real.reduce(function(a, x){ return a + x.server; }, 0);
+    var sumNet = Math.max(0, sumTotal - sumServer);
+    var netPct = sumTotal > 0 ? Math.round(sumNet * 100 / sumTotal) : 0;
+    var baseNet = perfMedian(noops.map(function(x){ return x.net; }));
+    var verdictText, verdictCls;
+    if(netPct >= 60){
+      verdictCls = 'warn';
+      verdictText = 'گلوگاه «شبکه»ست (' + netPct + '٪). عوض‌کردنِ گوگل‌شیت با دیتابیس این را حل نمی‌کند — چیزی که کمک می‌کند، کم‌کردنِ تعدادِ رفت‌وبرگشت‌هاست.';
+    } else if(netPct <= 35){
+      verdictCls = 'ok';
+      verdictText = 'گلوگاه «کارِ خودِ گوگل‌شیت»ست (' + (100 - netPct) + '٪). دیتابیس اینجا واقعاً جواب می‌دهد.';
+    } else {
+      verdictCls = 'mix';
+      verdictText = 'تقریباً نصف‌نصف است (شبکه ' + netPct + '٪). هر دو راه کمک می‌کنند؛ اول کم‌کردنِ رفت‌وبرگشت‌ها چون ارزان‌تر است.';
+    }
+    verdictEl.innerHTML =
+      '<div class="card" style="padding:12px; margin:0;">' +
+      '<div class="eyebrow" style="font-size:13px;">نتیجه</div>' +
+      '<div style="margin-top:4px;"><b>' + esc(verdictText) + '</b></div>' +
+      '<div class="meta" style="margin-top:6px;">سربارِ ثابتِ هر رفت‌وبرگشت: حدودِ ' + perfFmtMs(baseNet) +
+      ' — یعنی هر درخواستِ جداگانه، حتی بی‌کار، این‌قدر هزینه دارد.</div></div>';
+
+    _perfLastReport = 'سنجشِ سرعت — ' + new Date().toISOString() + '\n' +
+      steps.map(function(x){
+        return x.label + ' (' + x.note + '): کل ' + x.r.total + 'ms | شیت ' + x.r.server + 'ms | شبکه ' + x.r.net + 'ms';
+      }).join('\n') +
+      '\nسربارِ ثابتِ هر رفت‌وبرگشت: ' + baseNet + 'ms' +
+      '\nسهمِ شبکه در کارهایِ واقعی: ' + netPct + '%' +
+      (sizes.ok && sizes.info.tables ? '\nجدول‌ها: ' + sizes.info.tables.map(function(t){ return t.name + '=' + t.rows; }).join(', ') : '');
+    document.getElementById('perfCopyBtn').style.display = 'inline-block';
+    say('سنجش تمام شد.');
+  } catch(e){
+    box.innerHTML = '<div class="empty">خطا در سنجش: ' + esc(e && e.message ? e.message : String(e)) + '</div>';
+    say('');
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function copyPerfResult(btnEl){
+  if(!_perfLastReport) return;
+  try {
+    await navigator.clipboard.writeText(_perfLastReport);
+    var old = btnEl.textContent;
+    btnEl.textContent = '✅ کپی شد';
+    setTimeout(function(){ btnEl.textContent = old; }, 1500);
+  } catch(e){
+    // بعضی مرورگرها روی http یا بدونِ تعاملِ مستقیم اجازه‌یِ clipboard نمی‌دن — متن را
+    // نشان بده تا دستی انتخاب و کپی شود.
+    await showAppAlert(_perfLastReport);
+  }
+}
+
 function normalizedShiftNameClient(name){
   return String(name || '')
     .replace(/\u200c/g, '')
